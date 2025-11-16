@@ -7,7 +7,6 @@ Command-line interface for generating protocol code from message definitions.
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 import click
 
@@ -16,9 +15,7 @@ import click
 @click.version_option(version="1.0.0", prog_name="protocol-codegen")
 def cli():
     """
-    Protocol CodeGen - Generate type-safe protocol code from message definitions.
-
-    Supports multiple protocol methods (SysEx, OSC, etc.) and code generators (C++, Java, Rust, etc.).
+    Protocol CodeGen - Generate type-safe Sysex protocol code from message definitions in C++ and Java
     """
     pass
 
