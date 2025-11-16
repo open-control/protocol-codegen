@@ -1,5 +1,6 @@
-from protocol import Message, PrimitiveField, CompositeField, Type
-from ..field.network import *
+from protocol_codegen.core.message import Message
+from protocol_codegen.core.field import PrimitiveField, CompositeField, Type
+from field.network import *
 
 # ============================================================================
 # NETWORK STATUS MESSAGES

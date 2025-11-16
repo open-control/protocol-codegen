@@ -34,25 +34,25 @@ def cli():
     '--messages',
     type=click.Path(exists=True, path_type=Path),
     required=True,
-    help='Path to messages.py file containing message definitions'
+    help='Path to message directory or __init__.py file'
 )
 @click.option(
     '--config',
     type=click.Path(exists=True, path_type=Path),
-    default=None,
-    help='Path to protocol configuration file (optional)'
+    required=True,
+    help='Path to protocol_config.py file'
 )
 @click.option(
-    '--output-cpp',
-    type=click.Path(path_type=Path),
-    default=None,
-    help='Output directory for C++ code'
+    '--plugin-paths',
+    type=click.Path(exists=True, path_type=Path),
+    required=True,
+    help='Path to plugin_paths.py file'
 )
 @click.option(
-    '--output-java',
+    '--output-base',
     type=click.Path(path_type=Path),
-    default=None,
-    help='Output directory for Java code'
+    required=True,
+    help='Base output directory (contains plugin_paths config)'
 )
 @click.option(
     '--verbose',
@@ -62,9 +62,9 @@ def cli():
 def generate(
     method: str,
     messages: Path,
-    config: Optional[Path],
-    output_cpp: Optional[Path],
-    output_java: Optional[Path],
+    config: Path,
+    plugin_paths: Path,
+    output_base: Path,
     verbose: bool
 ):
     """
@@ -72,21 +72,23 @@ def generate(
 
     Examples:
 
-        # Generate C++ and Java code using SysEx
-        protocol-codegen generate --method sysex --messages ./messages.py \\
-            --output-cpp ./src/protocol --output-java ./src/main/java/protocol
-
-        # Generate with custom config
-        protocol-codegen generate --method sysex --messages ./messages.py \\
-            --config ./protocol_config.py --output-cpp ./protocol
+        # Generate from example directory
+        protocol-codegen generate --method sysex \\
+            --messages ./examples/simple-sensor-network/message \\
+            --config ./examples/simple-sensor-network/protocol_config.py \\
+            --plugin-paths ./examples/simple-sensor-network/plugin_paths.py \\
+            --output-base ./examples/simple-sensor-network
     """
-    click.echo(f"🚀 Protocol CodeGen v1.0.0")
-    click.echo(f"Method: {method}")
-    click.echo(f"Messages: {messages}")
-
-    if not output_cpp and not output_java:
-        click.echo("❌ Error: At least one output directory (--output-cpp or --output-java) must be specified", err=True)
-        sys.exit(1)
+    if verbose:
+        click.echo("=" * 70)
+        click.echo("Protocol CodeGen v1.0.0")
+        click.echo("=" * 70)
+        click.echo(f"Method: {method}")
+        click.echo(f"Messages: {messages}")
+        click.echo(f"Config: {config}")
+        click.echo(f"Plugin paths: {plugin_paths}")
+        click.echo(f"Output base: {output_base}")
+        click.echo()
 
     # Import generator based on method
     if method.lower() == 'sysex':
@@ -94,13 +96,18 @@ def generate(
 
         try:
             generate_sysex_protocol(
-                messages_path=messages,
+                messages_dir=messages,
                 config_path=config,
-                output_cpp=output_cpp,
-                output_java=output_java,
+                plugin_paths_path=plugin_paths,
+                output_base=output_base,
                 verbose=verbose
             )
+            if verbose:
+                click.echo()
+                click.echo("=" * 70)
             click.echo("✅ Code generation completed successfully!")
+            if verbose:
+                click.echo("=" * 70)
         except Exception as e:
             click.echo(f"❌ Error during generation: {e}", err=True)
             if verbose:

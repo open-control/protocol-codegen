@@ -1,269 +1,114 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-MIDI Studio - ID-Based Protocol Generator (v2.0)
-Generates complete protocol code (C++ + Java) from YAML definitions.
+SysEx Protocol Generator
 
-This is a complete rewrite using the new type-safe architecture:
-- Atomic types (YAML) with builtin_types.yaml
-- Message compositions (Python) with Flow enum
-- Auto-generated Encoder library for consistency
-- Strict validation with circular dependency detection
-- Auto-allocated MessageIDs by Flow direction
-
-Usage:
-    From PlatformIO (recommended):
-    pio run --target bitwig-protocol
-
-    Direct invocation:
-    uv run python protocol/generate_sysex_protocol.py <plugin_name>
-    uv run python protocol/generate_sysex_protocol.py bitwig
-
-Architecture (10 steps):
-    1. Load configuration + type registry
-    2. Generate Encoder library (C++ + Java)
-    3. Import messages dynamically
-    4. Validate messages strictly
-    5. Allocate MessageIDs by Flow
-    6. Generate MessageID enums (C++ + Java)
-    7. Generate structs (C++ + Java)
-    8. Generate Protocol class (C++ + Java) - unified send/receive API
-    9. Generate ProtocolConstants (C++ + Java)
-    10. Print summary
-
-Part of Step 2.6 - Phase 4 (Main Orchestrator)
+Main orchestrator for SysEx protocol code generation.
+Handles the complete generation pipeline from message definitions to generated code.
 """
-
-from __future__ import annotations
 
 import sys
 import io
+import importlib
+import importlib.util
 from pathlib import Path
-from typing import Dict, List, TypedDict, Any, TYPE_CHECKING
+from types import ModuleType
+from typing import Dict, List
 
-if TYPE_CHECKING:
-    from protocol_codegen.core.message import Message
-
-# ============================================================================
-# UNICODE FIX FOR WINDOWS
-# ============================================================================
-# Force UTF-8 encoding for stdout/stderr to support Unicode characters (✓, ❌, etc.)
-# This prevents UnicodeEncodeError on Windows where the default encoding is cp1252
+# Force UTF-8 encoding for stdout/stderr on Windows
 if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-# Ensure we're importing from the correct location
-SCRIPT_DIR = Path(__file__).parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent.parent  # Go up 4 levels: protocol -> py -> code -> resource -> midi-studio
-
-# Add protocol package to path
-sys.path.insert(0, str(SCRIPT_DIR.parent))
-
-# Import our new infrastructure
-from protocol_codegen.core.type_loader import TypeRegistry
-from protocol_codegen.core.message_importer import import_sysex_messages
+from protocol_codegen.core.loader import TypeRegistry
 from protocol_codegen.core.validator import ProtocolValidator
-from protocol_codegen.core.message_id_allocator import allocate_message_ids
-from protocol_codegen.core.sysex import load_sysex_config
-from protocol_codegen.core.generators.cpp import (
-    generate_encoder_hpp,
-    generate_decoder_hpp,
-    generate_messageid_hpp,
-    generate_struct_hpp,
-    generate_constants_hpp,
-    generate_message_structure_hpp,
-    generate_decoder_registry_hpp,
-    generate_protocol_callbacks_hpp,
-)
-from protocol_codegen.core.generators.cpp.logger_generator import generate_logger_hpp
-from protocol_codegen.core.generators.java import (
-    generate_encoder_java,
-    generate_decoder_java,
-    generate_messageid_java,
-    generate_struct_java,
-    generate_constants_java,
-    generate_decoder_registry_java,
-    generate_protocol_callbacks_java,
-)
+from protocol_codegen.core.allocator import allocate_message_ids
+from protocol_codegen.core.field import populate_type_names
+from protocol_codegen.core.message import Message
+
+from protocol_codegen.generators.cpp.struct_generator import generate_struct_hpp
+from protocol_codegen.generators.cpp.messageid_generator import generate_messageid_hpp
+from protocol_codegen.generators.cpp.encoder_generator import generate_encoder_hpp
+from protocol_codegen.generators.cpp.decoder_generator import generate_decoder_hpp
+from protocol_codegen.generators.cpp.constants_generator import generate_constants_hpp
+from protocol_codegen.generators.cpp.logger_generator import generate_logger_hpp
+
+from protocol_codegen.generators.java.struct_generator import generate_struct_java
+from protocol_codegen.generators.java.messageid_generator import generate_messageid_java
+from protocol_codegen.generators.java.encoder_generator import generate_encoder_java
+from protocol_codegen.generators.java.decoder_generator import generate_decoder_java
+from protocol_codegen.generators.java.constants_generator import generate_constants_java
 
 
-# ============================================================================
-# TYPE DEFINITIONS
-# ============================================================================
-
-class PluginConfig(TypedDict):
-    """Type definition for plugin configuration dictionary."""
-    plugin_name: str
-    plugin_dir: Path
-    sysex_dir: Path
-    paths: Dict[str, Any]
-    sysex_config: Any  # SysExConfig from protocol_codegen.core.sysex
-    builtin_types_path: None  # DEPRECATED - now using Python config
-    messages_path: Path
-
-
-# ============================================================================
-# CONFIGURATION
-# ============================================================================
-
-PLUGIN_DIR = PROJECT_ROOT / "plugin"
-
-
-# ============================================================================
-# STEP 1: LOAD CONFIGURATION
-# ============================================================================
-
-def load_plugin_config(plugin_name: str) -> PluginConfig:
+def generate_sysex_protocol(
+    messages_dir: Path,
+    config_path: Path,
+    plugin_paths_path: Path,
+    output_base: Path,
+    verbose: bool = False
+) -> None:
     """
-    Load all configuration for a plugin.
+    Generate SysEx protocol code from message definitions.
 
-    Returns dict with:
-        - plugin_dir: Path to plugin directory (plugin/bitwig, NOT plugin/bitwig/sysex_protocol)
-        - sysex_dir: Path to sysex_protocol directory
-        - paths: Output paths from plugin_paths.yaml
-        - sysex_config: SysExConfig instance (Pydantic validated)
-        - builtin_types_path: REMOVED - now using Python config
-        - messages_path: Path to sysex_messages.py
+    Args:
+        messages_dir: Directory containing message definitions
+        config_path: Path to protocol_config.py
+        plugin_paths_path: Path to plugin_paths.py
+        output_base: Base output directory
+        verbose: Enable verbose output
     """
-    plugin_dir = PLUGIN_DIR / plugin_name
-    sysex_dir = plugin_dir / "sysex_protocol"
 
-    if not sysex_dir.exists():
-        raise FileNotFoundError(f"SysEx protocol directory not found: {sysex_dir}")
+    def log(msg: str) -> None:
+        """Print message if verbose."""
+        if verbose:
+            print(msg)
 
-    # Load plugin_paths.py (pure Python configuration)
-    paths_file = sysex_dir / "plugin_paths.py"
-    if not paths_file.exists():
-        raise FileNotFoundError(f"Missing {paths_file}")
-
-    # Import plugin paths dynamically
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("plugin_paths", paths_file)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load spec from {paths_file}")
-
-    paths_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(paths_module)
-
-    if not hasattr(paths_module, 'PLUGIN_PATHS'):
-        raise ValueError(f"{paths_file} must define PLUGIN_PATHS")
-
-    paths_config: dict[str, Any] = paths_module.PLUGIN_PATHS
-
-    # Load SysEx configuration (builtin defaults + plugin overrides)
-    sysex_config = load_sysex_config(sysex_dir)
-
-    # Resolve paths
-    # Builtin types are now in builtin_types.py (Python-based, type-safe)
-    # No more YAML parsing for types
-    messages_path = sysex_dir / "sysex_messages.py"
-
-    # Validate required files exist
-    if not messages_path.exists():
-        raise FileNotFoundError(f"Missing {messages_path}")
-
-    return {
-        'plugin_name': plugin_name,  # For plugin-specific generation
-        'plugin_dir': plugin_dir,  # For import_sysex_messages (plugin/bitwig)
-        'sysex_dir': sysex_dir,
-        'paths': paths_config,
-        'sysex_config': sysex_config,  # Pydantic validated config
-        'builtin_types_path': None,  # DEPRECATED - using Python config
-        'messages_path': messages_path,
-    }
-
-
-def load_type_registry(config: PluginConfig) -> TypeRegistry:
-    """
-    Step 1: Load TypeRegistry with builtin types only.
-
-    Note: Builtin types are now loaded from builtin_types.py (pure Python).
-    Field composition is done directly in Python via fields.py.
-    This provides better DRY, type safety, and IDE support.
-    """
+    # Step 1: Load type registry
+    log("[1/7] Loading type registry...")
     registry = TypeRegistry()
-    registry.load_builtins()  # No arguments - loads from builtin_types.py
-    # No more load_custom_types() - fields.py handles composition
-
-    # CRITICAL: Populate Type enum for sysex_messages.py imports
-    from protocol_codegen.core.field import populate_type_names
+    registry.load_builtins()
     type_names = list(registry.types.keys())
     populate_type_names(type_names)
+    log(f"  ✓ Loaded {len(registry.types)} builtin types")
 
-    # Generate field.pyi stub file for Pylance autocomplete
-    generate_type_stubs(registry)
+    # Step 2: Load configuration
+    log("[2/7] Loading configuration...")
 
-    return registry
+    # Load protocol_config.py
+    spec = importlib.util.spec_from_file_location("protocol_config", config_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load {config_path}")
+    config_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config_module)
+    protocol_config = config_module.PROTOCOL_CONFIG
 
+    # Load plugin_paths.py
+    spec = importlib.util.spec_from_file_location("plugin_paths", plugin_paths_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load {plugin_paths_path}")
+    paths_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(paths_module)
+    plugin_paths = paths_module.PLUGIN_PATHS
 
-def generate_type_stubs(type_registry: TypeRegistry) -> None:
-    """
-    Generate field.pyi stub file by calling the standalone generator.
+    log(f"  ✓ Loaded protocol configuration")
+    log(f"  ✓ Manufacturer ID: 0x{protocol_config.framing.manufacturer_id:02X}")
+    log(f"  ✓ Device ID: 0x{protocol_config.framing.device_id:02X}")
 
-    This delegates to generate_type_stubs.py which uses introspection
-    to generate stubs from the actual dataclass definitions.
-    """
-    # Import and call the standalone generator
-    from protocol_codegen.core.generate_type_stubs import generate_stub_file
-    generate_stub_file()
-
-
-# ============================================================================
-# STEP 2: GENERATE ENCODER LIBRARY
-# ============================================================================
-
-def generate_encoders(type_registry: TypeRegistry, config: PluginConfig) -> None:
-    """Step 2: Generate Encoder/Decoder/Logger files (C++ and Java) from builtin types."""
-    paths = config['paths']
-
-    # C++ Encoder
-    cpp_output_dir = PROJECT_ROOT / paths['output_cpp']['encoder']
-    cpp_output_dir.mkdir(parents=True, exist_ok=True)
-    cpp_encoder_path = cpp_output_dir / "Encoder.hpp"
-    cpp_encoder_code = generate_encoder_hpp(type_registry, cpp_encoder_path)
-    cpp_encoder_path.write_text(cpp_encoder_code, encoding='utf-8')
-    print(f"  ✓ Generated {cpp_encoder_path.relative_to(PROJECT_ROOT)}")
-
-    # C++ Decoder
-    cpp_decoder_path = cpp_output_dir / "Decoder.hpp"
-    cpp_decoder_code = generate_decoder_hpp(type_registry, cpp_decoder_path)
-    cpp_decoder_path.write_text(cpp_decoder_code, encoding='utf-8')
-    print(f"  ✓ Generated {cpp_decoder_path.relative_to(PROJECT_ROOT)}")
-
-    # C++ Logger (NEW)
-    cpp_logger_path = cpp_output_dir / "Logger.hpp"
-    cpp_logger_code = generate_logger_hpp(cpp_logger_path)
-    cpp_logger_path.write_text(cpp_logger_code, encoding='utf-8')
-    print(f"  ✓ Generated {cpp_logger_path.relative_to(PROJECT_ROOT)}")
-
-    # Java Encoder
-    java_output_dir = PROJECT_ROOT / paths['output_java']['encoder']
-    java_output_dir.mkdir(parents=True, exist_ok=True)
-    java_encoder_path = java_output_dir / "Encoder.java"
-    java_encoder_code = generate_encoder_java(type_registry, java_encoder_path)
-    java_encoder_path.write_text(java_encoder_code, encoding='utf-8')
-    print(f"  ✓ Generated {java_encoder_path.relative_to(PROJECT_ROOT)}")
-
-    # Java Decoder
-    java_decoder_path = java_output_dir / "Decoder.java"
-    java_decoder_code = generate_decoder_java(type_registry, java_decoder_path)
-    java_decoder_path.write_text(java_decoder_code, encoding='utf-8')
-    print(f"  ✓ Generated {java_decoder_path.relative_to(PROJECT_ROOT)}")
-
-
-# ============================================================================
-# STEP 3-5: IMPORT + VALIDATE + ALLOCATE
-# ============================================================================
-
-def import_and_validate_messages(config: PluginConfig, type_registry: TypeRegistry) -> tuple[List[Message], Dict[str, int]]:
-    """Steps 3-5: Import messages, validate, and allocate IDs."""
     # Step 3: Import messages
-    messages = import_sysex_messages(config['plugin_dir'])
-    print(f"  ✓ Imported {len(messages)} messages from sysex_messages.py")
+    log("[3/7] Importing messages...")
 
-    # Step 4: Validate
-    validator = ProtocolValidator(type_registry)
+    # Add messages directory to path
+    sys.path.insert(0, str(messages_dir.parent))
+
+    # Import message module dynamically
+    message_module: ModuleType = importlib.import_module('message')
+    if not hasattr(message_module, 'ALL_MESSAGES'):
+        raise ValueError("message module must define ALL_MESSAGES")
+
+    messages: List[Message] = message_module.ALL_MESSAGES  # type: ignore[attr-defined]
+    log(f"  ✓ Imported {len(messages)} messages")
+
+    # Step 4: Validate messages
+    log("[4/7] Validating messages...")
+    validator = ProtocolValidator(registry)
     errors = validator.validate_messages(messages)
 
     if errors:
@@ -272,325 +117,201 @@ def import_and_validate_messages(config: PluginConfig, type_registry: TypeRegist
             print(f"  - {error}")
         raise ValueError(f"Protocol validation failed with {len(errors)} error(s)")
 
-    print(f"  ✓ Validation passed (checked {len(messages)} messages)")
+    log(f"  ✓ Validation passed ({len(messages)} messages)")
 
-    # Step 5: Allocate IDs
+    # Step 5: Allocate message IDs
+    log("[5/7] Allocating message IDs...")
     allocations = allocate_message_ids(messages)
-    print(f"  ✓ Allocated MessageIDs:")
-    print(f"    - Total messages: {len(messages)} (0x00-0x{len(messages)-1:02X})")
+    log(f"  ✓ Allocated {len(allocations)} message IDs (0x00-0x{len(allocations)-1:02X})")
 
-    return messages, allocations
+    # Step 6: Generate C++ code
+    log("[6/7] Generating C++ code...")
+    _generate_cpp(
+        messages=messages,
+        allocations=allocations,
+        registry=registry,
+        protocol_config=protocol_config,
+        plugin_paths=plugin_paths,
+        output_base=output_base,
+        verbose=verbose
+    )
 
-
-# ============================================================================
-# STEP 6: GENERATE MESSAGEID ENUMS
-# ============================================================================
-
-def generate_messageid_enums(messages: List[Message], allocations: Dict[str, int], type_registry: TypeRegistry, config: PluginConfig) -> None:
-    """Step 6: Generate MessageID.hpp and MessageID.java."""
-    paths = config['paths']
-
-    # C++ MessageID
-    cpp_output_dir = PROJECT_ROOT / paths['output_cpp']['messageid']
-    cpp_output_dir.mkdir(parents=True, exist_ok=True)
-    cpp_output_path = cpp_output_dir / "MessageID.hpp"
-
-    cpp_code = generate_messageid_hpp(messages, allocations, type_registry, cpp_output_path)
-    cpp_output_path.write_text(cpp_code, encoding='utf-8')
-    print(f"  ✓ Generated {cpp_output_path.relative_to(PROJECT_ROOT)}")
-
-    # Java MessageID
-    java_output_dir = PROJECT_ROOT / paths['output_java']['messageid']
-    java_output_dir.mkdir(parents=True, exist_ok=True)
-    java_output_path = java_output_dir / "MessageID.java"
-
-    java_code = generate_messageid_java(messages, allocations, type_registry, java_output_path)
-    java_output_path.write_text(java_code, encoding='utf-8')
-    print(f"  ✓ Generated {java_output_path.relative_to(PROJECT_ROOT)}")
+    # Step 7: Generate Java code
+    log("[7/7] Generating Java code...")
+    _generate_java(
+        messages=messages,
+        allocations=allocations,
+        registry=registry,
+        protocol_config=protocol_config,
+        plugin_paths=plugin_paths,
+        output_base=output_base,
+        verbose=verbose
+    )
 
 
-# ============================================================================
-# STEP 7: GENERATE STRUCTS (with cleanup)
-# ============================================================================
+def _generate_cpp(
+    messages: List[Message],
+    allocations: Dict[str, int],
+    registry: TypeRegistry,
+    protocol_config,
+    plugin_paths: dict,
+    output_base: Path,
+    verbose: bool
+) -> None:
+    """Generate all C++ files."""
 
-def cleanup_obsolete_structs(messages: List[Message], config: PluginConfig) -> None:
-    """
-    Clean up struct files that no longer correspond to messages in ALL_MESSAGES.
+    cpp_base = output_base / plugin_paths['output_cpp']['base_path']
+    cpp_base.mkdir(parents=True, exist_ok=True)
 
-    This ensures the generated code stays in sync with the message definitions.
-    Files are removed if they don't match any message name.
-    """
-    paths = config['paths']
+    # Convert protocol config to dict for generators
+    protocol_config_dict = {
+        'sysex': {
+            'start': protocol_config.framing.start,
+            'end': protocol_config.framing.end,
+            'manufacturer_id': protocol_config.framing.manufacturer_id,
+            'device_id': protocol_config.framing.device_id,
+            'min_message_length': protocol_config.structure.min_message_length,
+            'message_type_offset': protocol_config.structure.message_type_offset,
+            'from_host_offset': protocol_config.structure.from_host_offset,
+            'payload_offset': protocol_config.structure.payload_offset,
+        },
+        'limits': {
+            'string_max_length': protocol_config.limits.string_max_length,
+            'array_max_items': protocol_config.limits.array_max_items,
+            'max_payload_size': protocol_config.limits.max_payload_size,
+            'max_message_size': protocol_config.limits.max_message_size,
+        },
+        'roles': {
+            'cpp': 'controller',
+            'java': 'host',
+        }
+    }
 
-    # Get set of expected struct names
-    expected_structs = {f"{message.name}Message" for message in messages}
+    # Generate base files
+    files_generated = []
 
-    # Cleanup C++ structs
-    cpp_struct_dir = PROJECT_ROOT / paths['output_cpp']['structs']
-    if cpp_struct_dir.exists():
-        cpp_removed: list[str] = []
-        for hpp_file in cpp_struct_dir.glob("*.hpp"):
-            struct_name = hpp_file.stem  # Filename without extension
-            if struct_name not in expected_structs:
-                hpp_file.unlink()
-                cpp_removed.append(struct_name)
+    cpp_encoder_path = cpp_base / "Encoder.hpp"
+    cpp_encoder_path.write_text(generate_encoder_hpp(registry, cpp_encoder_path), encoding='utf-8')
+    files_generated.append("Encoder.hpp")
 
-        if cpp_removed:
-            print(f"  ✓ Removed {len(cpp_removed)} obsolete C++ struct(s): {', '.join(cpp_removed)}")
+    cpp_decoder_path = cpp_base / "Decoder.hpp"
+    cpp_decoder_path.write_text(generate_decoder_hpp(registry, cpp_decoder_path), encoding='utf-8')
+    files_generated.append("Decoder.hpp")
 
-    # Cleanup Java structs
-    java_struct_dir = PROJECT_ROOT / paths['output_java']['structs']
-    if java_struct_dir.exists():
-        java_removed: list[str] = []
-        for java_file in java_struct_dir.glob("*.java"):
-            class_name = java_file.stem  # Filename without extension
-            if class_name not in expected_structs:
-                java_file.unlink()
-                java_removed.append(class_name)
+    cpp_logger_path = cpp_base / "Logger.hpp"
+    cpp_logger_path.write_text(generate_logger_hpp(cpp_logger_path), encoding='utf-8')
+    files_generated.append("Logger.hpp")
 
-        if java_removed:
-            print(f"  ✓ Removed {len(java_removed)} obsolete Java class(es): {', '.join(java_removed)}")
+    cpp_constants_path = cpp_base / "ProtocolConstants.hpp"
+    cpp_constants_path.write_text(generate_constants_hpp(protocol_config_dict, registry, cpp_constants_path), encoding='utf-8')
+    files_generated.append("ProtocolConstants.hpp")
 
+    cpp_messageid_path = cpp_base / "MessageID.hpp"
+    cpp_messageid_path.write_text(generate_messageid_hpp(messages, allocations, registry, cpp_messageid_path), encoding='utf-8')
+    files_generated.append("MessageID.hpp")
 
-def generate_structs(messages: List[Message], allocations: Dict[str, int], type_registry: TypeRegistry, config: PluginConfig) -> None:
-    """Step 7: Generate struct/*.hpp and struct/*.java for messages."""
-    paths = config['paths']
-
-    if not messages:
-        print("  ⚠️   No messages to generate")
-        return
-
-    # CLEANUP: Remove obsolete struct files before generating new ones
-    cleanup_obsolete_structs(messages, config)
-
-    # C++ structs
-    cpp_struct_dir = PROJECT_ROOT / paths['output_cpp']['structs']
+    # Generate struct files
+    cpp_struct_dir = output_base / plugin_paths['output_cpp']['structs']
     cpp_struct_dir.mkdir(parents=True, exist_ok=True)
 
     for message in messages:
-        # Convert SCREAMING_SNAKE_CASE to PascalCase for filenames
         pascal_name = ''.join(word.capitalize() for word in message.name.split('_'))
         struct_name = f"{pascal_name}Message"
         cpp_output_path = cpp_struct_dir / f"{struct_name}.hpp"
-
-        # Get MessageID for this message
         message_id = allocations[message.name]
 
-        string_max_length = config['sysex_config'].limits.string_max_length
-        cpp_code = generate_struct_hpp(message, message_id, type_registry, cpp_output_path, string_max_length)
+        cpp_code = generate_struct_hpp(
+            message,
+            message_id,
+            registry,
+            cpp_output_path,
+            protocol_config.limits.string_max_length
+        )
         cpp_output_path.write_text(cpp_code, encoding='utf-8')
 
-    print(f"  ✓ Generated {len(messages)} C++ structs in {cpp_struct_dir.relative_to(PROJECT_ROOT)}")
+    if verbose:
+        print(f"  ✓ Generated {len(files_generated)} C++ base files")
+        print(f"  ✓ Generated {len(messages)} C++ struct files")
+        print(f"  → Output: {cpp_base.relative_to(output_base)}")
 
-    # Java message classes
-    java_struct_dir = PROJECT_ROOT / paths['output_java']['structs']
+
+def _generate_java(
+    messages: List[Message],
+    allocations: Dict[str, int],
+    registry: TypeRegistry,
+    protocol_config,
+    plugin_paths: dict,
+    output_base: Path,
+    verbose: bool
+) -> None:
+    """Generate all Java files."""
+
+    java_base = output_base / plugin_paths['output_java']['base_path']
+    java_base.mkdir(parents=True, exist_ok=True)
+
+    # Convert protocol config to dict for generators
+    protocol_config_dict = {
+        'sysex': {
+            'start': protocol_config.framing.start,
+            'end': protocol_config.framing.end,
+            'manufacturer_id': protocol_config.framing.manufacturer_id,
+            'device_id': protocol_config.framing.device_id,
+            'min_message_length': protocol_config.structure.min_message_length,
+            'message_type_offset': protocol_config.structure.message_type_offset,
+            'from_host_offset': protocol_config.structure.from_host_offset,
+            'payload_offset': protocol_config.structure.payload_offset,
+        },
+        'limits': {
+            'string_max_length': protocol_config.limits.string_max_length,
+            'array_max_items': protocol_config.limits.array_max_items,
+            'max_payload_size': protocol_config.limits.max_payload_size,
+            'max_message_size': protocol_config.limits.max_message_size,
+        },
+        'roles': {
+            'cpp': 'controller',
+            'java': 'host',
+        }
+    }
+
+    # Generate base files
+    files_generated = []
+
+    java_encoder_path = java_base / "Encoder.java"
+    java_encoder_path.write_text(generate_encoder_java(registry, java_encoder_path), encoding='utf-8')
+    files_generated.append("Encoder.java")
+
+    java_decoder_path = java_base / "Decoder.java"
+    java_decoder_path.write_text(generate_decoder_java(registry, java_decoder_path), encoding='utf-8')
+    files_generated.append("Decoder.java")
+
+    java_constants_path = java_base / "ProtocolConstants.java"
+    java_constants_path.write_text(generate_constants_java(protocol_config_dict, java_constants_path), encoding='utf-8')
+    files_generated.append("ProtocolConstants.java")
+
+    java_messageid_path = java_base / "MessageID.java"
+    java_messageid_path.write_text(generate_messageid_java(messages, allocations, registry, java_messageid_path), encoding='utf-8')
+    files_generated.append("MessageID.java")
+
+    # Generate struct files
+    java_struct_dir = output_base / plugin_paths['output_java']['structs']
     java_struct_dir.mkdir(parents=True, exist_ok=True)
 
     for message in messages:
-        # Convert SCREAMING_SNAKE_CASE to PascalCase for filenames
         pascal_name = ''.join(word.capitalize() for word in message.name.split('_'))
         class_name = f"{pascal_name}Message"
         java_output_path = java_struct_dir / f"{class_name}.java"
-
-        # Get MessageID for this message
         message_id = allocations[message.name]
 
-        string_max_length = config['sysex_config'].limits.string_max_length
-        java_code = generate_struct_java(message, message_id, type_registry, java_output_path, string_max_length)
+        java_code = generate_struct_java(
+            message,
+            message_id,
+            registry,
+            java_output_path,
+            protocol_config.limits.string_max_length
+        )
         java_output_path.write_text(java_code, encoding='utf-8')
 
-    print(f"  ✓ Generated {len(messages)} Java classes in {java_struct_dir.relative_to(PROJECT_ROOT)}")
-
-
-# ============================================================================
-# STEP 8: GENERATE MESSAGESTRUCTURE (Umbrella header for all messages)
-# ============================================================================
-
-def generate_message_structure_files(messages: List[Message], config: PluginConfig) -> None:
-    """Step 8: Generate MessageStructure.hpp and MessageStructure.java (umbrella headers)."""
-    plugin_name = config['plugin_name']
-
-    # Java MessageStructure (DISABLED - not used, causes unnecessary import warnings)
-    # java_protocol_dir = PROJECT_ROOT / f"plugin/{plugin_name}/host/src/main/java/com/midi_studio/protocol"
-    # java_protocol_dir.mkdir(parents=True, exist_ok=True)
-    # java_message_structure_path = java_protocol_dir / "MessageStructure.java"
-
-    # package = "com.midi_studio"  # Fixed package for now
-    # generate_message_structure_java(messages, package, java_message_structure_path)
-    # print(f"  ✓ Generated {java_message_structure_path.relative_to(PROJECT_ROOT)}")
-
-    java_protocol_dir = PROJECT_ROOT / f"plugin/{plugin_name}/host/src/main/java/com/midi_studio/protocol"
-    java_protocol_dir.mkdir(parents=True, exist_ok=True)
-    package = "com.midi_studio"  # Fixed package for now
-
-    # Java ProtocolCallbacks
-    java_callbacks_path = java_protocol_dir / "ProtocolCallbacks.java"
-    generate_protocol_callbacks_java(messages, package, java_callbacks_path)
-    print(f"  ✓ Generated {java_callbacks_path.relative_to(PROJECT_ROOT)}")
-
-    # Java DecoderRegistry
-    java_decoder_registry_path = java_protocol_dir / "DecoderRegistry.java"
-    generate_decoder_registry_java(messages, package, java_decoder_registry_path)
-    print(f"  ✓ Generated {java_decoder_registry_path.relative_to(PROJECT_ROOT)}")
-
-    # C++ MessageStructure
-    cpp_protocol_dir = PROJECT_ROOT / f"plugin/{plugin_name}/embedded/protocol"
-    cpp_protocol_dir.mkdir(parents=True, exist_ok=True)
-    cpp_message_structure_path = cpp_protocol_dir / "MessageStructure.hpp"
-
-    generate_message_structure_hpp(messages, cpp_message_structure_path)
-    print(f"  ✓ Generated {cpp_message_structure_path.relative_to(PROJECT_ROOT)}")
-
-    # C++ ProtocolCallbacks
-    cpp_callbacks_path = cpp_protocol_dir / "ProtocolCallbacks.hpp"
-    generate_protocol_callbacks_hpp(messages, cpp_callbacks_path)
-    print(f"  ✓ Generated {cpp_callbacks_path.relative_to(PROJECT_ROOT)}")
-
-    # C++ DecoderRegistry
-    cpp_decoder_registry_path = cpp_protocol_dir / "DecoderRegistry.hpp"
-    generate_decoder_registry_hpp(messages, cpp_decoder_registry_path)
-    print(f"  ✓ Generated {cpp_decoder_registry_path.relative_to(PROJECT_ROOT)}")
-
-
-# ============================================================================
-# STEP 9: GENERATE PROTOCOLCONSTANTS
-# ============================================================================
-
-def generate_constants(type_registry: TypeRegistry, config: PluginConfig) -> None:
-    """Step 9: Generate ProtocolConstants.hpp and ProtocolConstants.java."""
-    paths = config['paths']
-    sysex_config = config['sysex_config']
-
-    # Convert Pydantic config to dict format for generators (legacy compatibility)
-    protocol_config_dict = sysex_config.to_dict()
-
-    # C++ ProtocolConstants
-    cpp_output_dir = PROJECT_ROOT / paths['output_cpp']['constants']
-    cpp_output_dir.mkdir(parents=True, exist_ok=True)
-    cpp_output_path = cpp_output_dir / "ProtocolConstants.hpp"
-
-    cpp_code = generate_constants_hpp(protocol_config_dict, type_registry, cpp_output_path)
-    cpp_output_path.write_text(cpp_code, encoding='utf-8')
-    print(f"  ✓ Generated {cpp_output_path.relative_to(PROJECT_ROOT)}")
-
-    # Java ProtocolConstants
-    java_output_dir = PROJECT_ROOT / paths['output_java']['constants']
-    java_output_dir.mkdir(parents=True, exist_ok=True)
-    java_output_path = java_output_dir / "ProtocolConstants.java"
-
-    java_code = generate_constants_java(protocol_config_dict, java_output_path)
-    java_output_path.write_text(java_code, encoding='utf-8')
-    print(f"  ✓ Generated {java_output_path.relative_to(PROJECT_ROOT)}")
-
-
-# ============================================================================
-# STEP 10: SUMMARY
-# ============================================================================
-
-def print_summary(messages: List[Message], type_registry: TypeRegistry, config: PluginConfig) -> None:
-    """Step 10: Print generation summary."""
-    paths = config['paths']
-
-    builtin_count = sum(1 for t in type_registry.types.values() if t.is_builtin)
-    atomic_count = sum(1 for t in type_registry.types.values() if not t.is_builtin)
-
-    print("\n" + "=" * 70)
-    print("GENERATION SUMMARY")
-    print("=" * 70)
-    print(f"Types:")
-    print(f"  - Builtin types: {builtin_count}")
-    print(f"  - Atomic types: {atomic_count}")
-    print(f"  - Total: {builtin_count + atomic_count}")
-    print()
-    print(f"Messages: {len(messages)}")
-    print()
-    print(f"Output locations:")
-    print(f"  - C++:  {paths['output_cpp']['base_path']}")
-    print(f"  - Java: {paths['output_java']['base_path']}")
-    print("=" * 70)
-
-
-# ============================================================================
-# MAIN ORCHESTRATOR
-# ============================================================================
-
-def generate_plugin_protocol(plugin_name: str) -> None:
-    """
-    Main orchestration function - executes all 10 steps in sequence.
-    """
-    print("=" * 70)
-    print(f"MIDI Studio - ID-Based Protocol Generator v2.0")
-    print(f"Plugin: {plugin_name}")
-    print("=" * 70)
-    print()
-
-    try:
-        # Step 1: Load configuration
-        print("[Step 1/10] Loading configuration...")
-        config = load_plugin_config(plugin_name)
-        type_registry = load_type_registry(config)
-        print(f"  ✓ Loaded {len(type_registry.types)} types")
-        print()
-
-        # Step 2: Generate Encoder library
-        print("[Step 2/10] Generating Encoder library...")
-        generate_encoders(type_registry, config)
-        print()
-
-        # Steps 3-5: Import + Validate + Allocate
-        print("[Steps 3-5/10] Importing, validating, and allocating MessageIDs...")
-        messages, allocations = import_and_validate_messages(config, type_registry)
-        print()
-
-        # Step 6: Generate MessageID enums
-        print("[Step 6/10] Generating MessageID enums...")
-        generate_messageid_enums(messages, allocations, type_registry, config)
-        print()
-
-        # Step 7: Generate structs
-        print("[Step 7/10] Generating structs...")
-        generate_structs(messages, allocations, type_registry, config)
-        print()
-
-        # Step 8: Generate MessageStructure (umbrella header)
-        print("[Step 8/10] Generating MessageStructure...")
-        generate_message_structure_files(messages, config)
-        print()
-
-        # Step 9: Generate ProtocolConstants
-        print("[Step 9/10] Generating ProtocolConstants...")
-        generate_constants(type_registry, config)
-        print()
-
-        # Step 10: Print summary
-        print("[Step 10/10] Finalizing...")
-        print_summary(messages, type_registry, config)
-        print()
-
-        print("✅ Protocol generation complete!")
-        print()
-
-    except Exception as e:
-        print(f"\n❌ Error during generation: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
-
-
-# ============================================================================
-# ENTRY POINT
-# ============================================================================
-
-def main():
-    """Main entry point."""
-    if len(sys.argv) < 2:
-        print("Usage: python generate_sysex_protocol.py <plugin_name>")
-        print("Example: python generate_sysex_protocol.py bitwig")
-        sys.exit(1)
-
-    plugin_name = sys.argv[1]
-    generate_plugin_protocol(plugin_name)
-
-
-if __name__ == "__main__":
-    main()
+    if verbose:
+        print(f"  ✓ Generated {len(files_generated)} Java base files")
+        print(f"  ✓ Generated {len(messages)} Java class files")
+        print(f"  → Output: {java_base.relative_to(output_base)}")

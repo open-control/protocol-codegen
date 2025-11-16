@@ -1,5 +1,5 @@
-from protocol import PrimitiveField, CompositeField, Type
-from .color import color_rgb
+from protocol_codegen.core.field import PrimitiveField, CompositeField, Type
+from field.color import color_rgb
 
 # ============================================================================
 # SENSOR FIELDS - Primitive types
