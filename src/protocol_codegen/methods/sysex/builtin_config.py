@@ -7,7 +7,7 @@ No YAML - everything defined in Python with strong typing.
 This replaces sysex_protocol_config.yaml with pure Python configuration.
 """
 
-from .sysex_config import (
+from .config import (
     SysExConfig,
     SysExFraming,
     SysExStructure,

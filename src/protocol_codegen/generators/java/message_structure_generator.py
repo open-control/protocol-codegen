@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from pathlib import Path
 
 if TYPE_CHECKING:
-    from protocol.message import Message
+    from protocol_codegen.core.message import Message
 
 
 def generate_message_structure_java(messages: list[Message], package: str, output_path: Path) -> str:

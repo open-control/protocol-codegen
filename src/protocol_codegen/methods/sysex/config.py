@@ -18,7 +18,7 @@ Architecture:
 - Merge strategy: Plugin overrides > Builtin defaults
 
 Example:
-    >>> from protocol.sysex import load_sysex_config
+    >>> from protocol_codegen.methods.sysex import load_sysex_config
     >>> config = load_sysex_config(Path('plugin/bitwig/sysex_protocol'))
     >>> print(config.framing.manufacturer_id)  # 0x7F (from Bitwig override)
 """
@@ -342,7 +342,7 @@ class SysExConfig(BaseModel):
 # ============================================================================
 
 # Import builtin config from pure Python module
-from .sysex_builtin_config import BUILTIN_SYSEX_CONFIG as BUILTIN_CONFIG
+from .builtin_config import BUILTIN_SYSEX_CONFIG as BUILTIN_CONFIG
 
 
 # ============================================================================

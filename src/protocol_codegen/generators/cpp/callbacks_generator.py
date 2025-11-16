@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from pathlib import Path
 
 if TYPE_CHECKING:
-    from protocol.message import Message
+    from protocol_codegen.core.message import Message
 
 
 def generate_protocol_callbacks_hpp(messages: list[Message], output_path: Path) -> str:

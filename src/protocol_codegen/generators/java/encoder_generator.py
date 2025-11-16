@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 from pathlib import Path
 
 if TYPE_CHECKING:
-    from protocol.type_loader import TypeRegistry, AtomicType
+    from protocol_codegen.core.loader import TypeRegistry, AtomicType
 
 
 def generate_encoder_java(type_registry: TypeRegistry, output_path: Path) -> str:

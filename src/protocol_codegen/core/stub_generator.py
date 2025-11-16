@@ -22,9 +22,9 @@ from pathlib import Path
 # Add parent directory to path so we can import protocol as a module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from protocol.type_loader import TypeRegistry
-from protocol.field import PrimitiveField, CompositeField
-from protocol.message import Message
+from protocol_codegen.core.loader import TypeRegistry
+from protocol_codegen.core.field import PrimitiveField, CompositeField
+from protocol_codegen.core.message import Message
 
 
 def _format_type_annotation(type_hint: object) -> str:

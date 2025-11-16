@@ -24,13 +24,13 @@ from typing import TYPE_CHECKING
 from pathlib import Path
 
 # Import field classes for runtime isinstance checks
-from protocol.field import FieldBase, PrimitiveField, CompositeField
-from protocol.generators.cpp.logger_generator import generate_log_method
+from protocol_codegen.core.field import FieldBase, PrimitiveField, CompositeField
+from protocol_codegen.generators.cpp.logger_generator import generate_log_method
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from protocol.message import Message
-    from protocol.type_loader import TypeRegistry
+    from protocol_codegen.core.message import Message
+    from protocol_codegen.core.loader import TypeRegistry
 
 
 def generate_struct_hpp(message: Message, message_id: int, type_registry: TypeRegistry, output_path: Path, string_max_length: int) -> str:

@@ -29,11 +29,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 # Import field classes for runtime isinstance checks
-from protocol.field import FieldBase, PrimitiveField, CompositeField
+from protocol_codegen.core.field import FieldBase, PrimitiveField, CompositeField
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from protocol.type_loader import TypeRegistry
+    from protocol_codegen.core.loader import TypeRegistry
 
 
 # ============================================================================

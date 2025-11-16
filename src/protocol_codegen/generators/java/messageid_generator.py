@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 from pathlib import Path
 
 if TYPE_CHECKING:
-    from protocol.message import Message
-    from protocol.type_loader import TypeRegistry
+    from protocol_codegen.core.message import Message
+    from protocol_codegen.core.loader import TypeRegistry
 
 
 def generate_messageid_java(

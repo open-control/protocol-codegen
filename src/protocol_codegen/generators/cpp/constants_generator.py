@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, TypedDict
 from pathlib import Path
 
 if TYPE_CHECKING:
-    from protocol.type_loader import TypeRegistry
+    from protocol_codegen.core.loader import TypeRegistry
 
 
 class SysExConfig(TypedDict, total=False):
