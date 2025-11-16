@@ -73,7 +73,7 @@
 
 ---
 
-## Future Features (BACKLOG)
+## Future Features (PLANNED)
 
 ### OSC Support (LOW PRIORITY)
 - [ ] OSC message encoding/decoding
@@ -84,29 +84,20 @@
 **Rationale:** OSC is common in audio/video applications
 **Effort:** Medium (2-3 weeks)
 **Value:** High for audio developers
+**Status:** 📋 Planned
 
 ---
 
-### MIDI 2.0 UMP Support (LOW PRIORITY)
-- [ ] Universal MIDI Packet format
-- [ ] MIDI 2.0 protocol support
-- [ ] Backward compatibility with MIDI 1.0
+### Python Code Generator (LOW PRIORITY)
+- [ ] Python encoder/decoder generation
+- [ ] Type hints support
+- [ ] Dataclasses for messages
+- [ ] Integration with existing Python ecosystem
 
-**Rationale:** MIDI 2.0 is the future standard (2024+)
-**Effort:** Medium (2-3 weeks)
-**Value:** Future-proofing
-
----
-
-### Additional Language Generators (LOW PRIORITY)
-- [ ] Rust code generator
-- [ ] Python code generator
-- [ ] TypeScript/JavaScript generator
-- [ ] C# generator (Unity, etc.)
-
-**Rationale:** Broader language support
-**Effort:** High (1-2 weeks per language)
-**Value:** Medium (depends on community needs)
+**Rationale:** Python is widely used for scripting, testing, and host applications
+**Effort:** Medium (1-2 weeks)
+**Value:** High for rapid prototyping and testing
+**Status:** 📋 Planned
 
 ---
 
@@ -134,7 +125,6 @@ protoc generates multi-language code (C++, Java, Python, Rust, Go, etc.)
 Protocol CodeGen generates ONLY transport adapters
     - SysExAdapter: Protobuf ↔ SysEx (7-bit, F0/F7, manufacturer ID)
     - OSCAdapter: Protobuf ↔ OSC (type tags, bundles, timestamps)
-    - MIDI2Adapter: Protobuf ↔ MIDI 2.0 UMP
 ```
 
 **Why This Makes Sense:**
@@ -147,11 +137,10 @@ Protocol CodeGen generates ONLY transport adapters
 - Industry-standard .proto syntax
 
 ✅ **Protocol CodeGen Focuses on True Value**
-- Generate transport layer adapters (SysEx, OSC, MIDI 2.0)
+- Generate transport layer adapters (SysEx, OSC)
 - Handle protocol-specific constraints:
   - SysEx: 7-bit encoding, F0/F7 framing, manufacturer IDs
   - OSC: Type tags, bundles, timestamps
-  - MIDI 2.0: UMP packet format
 - Smaller, more focused codebase
 
 ✅ **Clearer Value Proposition**
@@ -253,12 +242,14 @@ usbMIDI.sendSysEx(len, sysex_buffer);
 
 ## Non-Goals
 
-Things we explicitly don't want to do:
+Things we explicitly don't want to do (at least for now):
 
 ❌ **Compete with Protobuf/FlatBuffers** on general-purpose serialization
-❌ **Support 50+ languages** (focus on embedded + common languages)
+❌ **Support many languages** (focus: C++, Java, Python only)
 ❌ **Real-time protocol routing/bridging** (just code generation)
 ❌ **Hardware-specific features** (keep it generic)
+❌ **MIDI 2.0 UMP** (not planned currently)
+❌ **Rust, TypeScript, C#** generators (not planned currently)
 
 ---
 
