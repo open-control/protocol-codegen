@@ -308,9 +308,6 @@ class SysExConfig(BaseModel):
 # BUILTIN DEFAULT CONFIGURATION
 # ============================================================================
 
-# Import builtin config from pure Python module
-from .builtin_config import BUILTIN_SYSEX_CONFIG as BUILTIN_CONFIG  # noqa: E402
-
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -368,5 +365,6 @@ def load_sysex_config(plugin_dir: Path) -> SysExConfig:
             print(f"  ! Warning: Failed to load plugin sysex_protocol_config.py: {e}")
             print("     Using builtin defaults only.")
 
-    # Use builtin defaults
-    return BUILTIN_CONFIG
+    # Use builtin defaults (import here to avoid circular dependency)
+    from .builtin_config import BUILTIN_SYSEX_CONFIG
+    return BUILTIN_SYSEX_CONFIG
