@@ -24,6 +24,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/protocol_codegen"]
+include = [
+    "src/protocol_codegen/py.typed",
+    "src/protocol_codegen/**/*.pyi",
+]
 
 [tool.pyright]
 pythonVersion = "3.13"
