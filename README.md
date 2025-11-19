@@ -101,11 +101,13 @@ PROTOCOL_CONFIG = SysExConfig(
 PLUGIN_PATHS = {
     'output_cpp': {
         'base_path': 'generated/cpp',
-        'structs': 'generated/cpp/struct/',
+        'namespace': 'Protocol',     # C++ namespace
+        'structs': 'struct/',        # Relative to base_path
     },
     'output_java': {
         'base_path': 'generated/java',
-        'structs': 'generated/java/struct/',
+        'package': 'protocol',       # Java package
+        'structs': 'struct/',        # Relative to base_path
     },
 }
 ```

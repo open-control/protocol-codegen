@@ -22,6 +22,7 @@ from protocol_codegen.core.allocator import allocate_message_ids
 from protocol_codegen.core.field import populate_type_names
 from protocol_codegen.core.loader import TypeRegistry
 from protocol_codegen.core.message import Message
+from protocol_codegen.core.plugin_types import PluginPathsConfig
 from protocol_codegen.core.validator import ProtocolValidator
 from protocol_codegen.generators.cpp.constants_generator import ProtocolConfig as CppProtocolConfig
 from protocol_codegen.generators.cpp.constants_generator import generate_constants_hpp
@@ -149,7 +150,7 @@ def generate_sysex_protocol(
         raise ImportError(f"Cannot load {plugin_paths_path}")
     paths_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(paths_module)
-    plugin_paths = paths_module.PLUGIN_PATHS
+    plugin_paths: PluginPathsConfig = paths_module.PLUGIN_PATHS
 
     log("  ✓ Loaded protocol configuration")
     log(f"  ✓ Manufacturer ID: 0x{protocol_config.framing.manufacturer_id:02X}")

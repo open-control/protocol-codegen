@@ -46,7 +46,9 @@ simple-sensor-network/
 
 ## Configuration
 
-Edit `protocol_config.py`:
+### Protocol Settings (`protocol_config.py`)
+
+Configure SysEx framing and limits:
 ```python
 PROTOCOL_CONFIG = SysExConfig(
     framing=SysExFraming(
@@ -60,6 +62,30 @@ PROTOCOL_CONFIG = SysExConfig(
     )
 )
 ```
+
+### Output Paths (`plugin_paths.py`)
+
+Simplified configuration - language-specific settings stay with their language:
+
+```python
+PLUGIN_PATHS = {
+    "output_cpp": {
+        "base_path": "generated/cpp",
+        "namespace": "SensorProtocol",  # C++ namespace
+        "structs": "struct/",           # Relative to base_path
+    },
+    "output_java": {
+        "base_path": "generated/java/com/example/sensor",
+        "package": "com.example.sensor",  # Java package
+        "structs": "struct/",             # Relative to base_path
+    },
+}
+```
+
+**Key points:**
+- `namespace` and `package` live with their respective language config
+- `structs` path is relative to `base_path` (no repetition)
+- No TypedDict pollution - just a simple Python dict
 
 ## Messages
 
