@@ -14,7 +14,7 @@ Key Features:
 
 Generated Output:
 - Decoder.java (~150 lines depending on builtin types)
-- Package: com.midi_studio.protocol
+- Package: Configurable via plugin_paths
 - All methods: public static (utility class)
 - Direction: SysEx bytes → Type
 """
@@ -29,13 +29,14 @@ if TYPE_CHECKING:
     from protocol_codegen.core.loader import AtomicType, TypeRegistry
 
 
-def generate_decoder_java(type_registry: TypeRegistry, output_path: Path) -> str:
+def generate_decoder_java(type_registry: TypeRegistry, output_path: Path, package: str) -> str:
     """
     Generate Decoder.java with decode methods for builtin types.
 
     Args:
         type_registry: TypeRegistry instance with loaded builtin types
         output_path: Path where Decoder.java will be written
+        package: Java package name (e.g., 'protocol' or 'com.example.protocol')
 
     Returns:
         Generated Java code as string
@@ -43,7 +44,7 @@ def generate_decoder_java(type_registry: TypeRegistry, output_path: Path) -> str
     Example:
         >>> registry = TypeRegistry()
         >>> registry.load_builtins(Path('builtin_types.yaml'))
-        >>> code = generate_decoder_java(registry, Path('Decoder.java'))
+        >>> code = generate_decoder_java(registry, Path('Decoder.java'), 'protocol')
     """
     builtin_types: dict[str, AtomicType] = {
         name: atomic_type
@@ -51,7 +52,7 @@ def generate_decoder_java(type_registry: TypeRegistry, output_path: Path) -> str
         if atomic_type.is_builtin
     }
 
-    header = _generate_header(builtin_types, "com.midi_studio.protocol")
+    header = _generate_header(builtin_types, package)
     decoders = _generate_decoders(builtin_types)
     footer = _generate_footer()
 

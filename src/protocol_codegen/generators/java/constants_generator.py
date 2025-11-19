@@ -13,7 +13,7 @@ Key Features:
 
 Generated Output:
 - ProtocolConstants.java (~50-100 lines)
-- Package: com.midi_studio.protocol
+- Package: Configurable via plugin_paths
 - All constants are public static final
 """
 
@@ -80,13 +80,14 @@ class ProtocolConfig(TypedDict, total=False):
     message_id_start: int
 
 
-def generate_constants_java(protocol_config: ProtocolConfig, output_path: Path) -> str:
+def generate_constants_java(protocol_config: ProtocolConfig, output_path: Path, package: str) -> str:
     """
     Generate ProtocolConstants.java from protocol_config.yaml.
 
     Args:
         protocol_config: Dict loaded from protocol_config.yaml
         output_path: Path where ProtocolConstants.java will be written
+        package: Java package name (e.g., 'protocol' or 'com.example.protocol')
 
     Returns:
         Generated Java code as string
@@ -94,9 +95,9 @@ def generate_constants_java(protocol_config: ProtocolConfig, output_path: Path) 
     Example:
         >>> with open('protocol_config.yaml') as f:
         ...     config = yaml.safe_load(f)
-        >>> code = generate_constants_java(config, Path('ProtocolConstants.java'))
+        >>> code = generate_constants_java(config, Path('ProtocolConstants.java'), 'protocol')
     """
-    header = _generate_header()
+    header = _generate_header(package)
     sysex_constants = _generate_sysex_constants(protocol_config.get("sysex", {}))
     limits = _generate_limits(protocol_config.get("limits", {}))
     ranges = _generate_ranges(protocol_config.get("message_id_ranges", {}))
@@ -107,9 +108,9 @@ def generate_constants_java(protocol_config: ProtocolConfig, output_path: Path) 
     return full_code
 
 
-def _generate_header() -> str:
+def _generate_header(package: str) -> str:
     """Generate file header with package and class declaration."""
-    return """package com.midi_studio.protocol;
+    return f"""package {package};
 
 /**
  * ProtocolConstants - Protocol Configuration Constants
@@ -122,12 +123,12 @@ def _generate_header() -> str:
  *
  * All constants are public static final (compile-time constants).
  */
-public final class ProtocolConstants {
+public final class ProtocolConstants {{
 
     // Private constructor prevents instantiation (utility class)
-    private ProtocolConstants() {
+    private ProtocolConstants() {{
         throw new AssertionError("Utility class cannot be instantiated");
-    }
+    }}
 
     // ============================================================================
     // SYSEX FRAMING CONSTANTS

@@ -17,7 +17,7 @@ Key Features:
 Generated Output:
 - One .java file per message (e.g., TransportPlayMessage.java)
 - ~80-120 lines per class (compact, readable)
-- Package: com.midi_studio.protocol.struct
+- Package: Configurable via plugin_paths (e.g., protocol.struct)
 """
 
 from __future__ import annotations
@@ -44,21 +44,25 @@ def generate_struct_java(
     type_registry: TypeRegistry,
     output_path: Path,
     string_max_length: int,
+    package: str,
 ) -> str:
     """
     Generate Java message class for a message.
 
     Args:
         message: Message instance to generate class for
+        message_id: Allocated message ID
         type_registry: TypeRegistry for resolving field types
         output_path: Path where message .java will be written
+        string_max_length: Max string length from protocol config
+        package: Java package name (e.g., 'protocol.struct')
 
     Returns:
         Generated Java code as string
 
     Example:
         >>> transport_play = messages['TRANSPORT_PLAY']
-        >>> code = generate_struct_java(transport_play, registry, Path('TransportPlayMessage.java'))
+        >>> code = generate_struct_java(transport_play, 0x01, registry, Path('TransportPlayMessage.java'), 16, 'protocol.struct')
     """
     # Convert SCREAMING_SNAKE_CASE to PascalCase
     pascal_name = _to_pascal_case(message.name)
@@ -81,6 +85,7 @@ def generate_struct_java(
         needs_list,
         needs_arraylist,
         needs_constants,
+        package,
     )
     message_id_constant = _generate_message_id_constant(message.name)
     inner_classes = _generate_inner_classes(fields, type_registry)
@@ -104,16 +109,22 @@ def _generate_header(
     needs_list: bool,
     needs_arraylist: bool,
     needs_constants: bool,
+    package: str,
 ) -> str:
     """Generate file header with package and class declaration, importing only what's needed."""
-    imports = ["import com.midi_studio.protocol.MessageID;"]
+    # Extract base package for imports
+    # If package is "protocol.struct", base is "protocol"
+    # If package is "protocol", base is "protocol"
+    base_package = package.rsplit(".", 1)[0] if "." in package else package
+
+    imports = [f"import {base_package}.MessageID;"]
 
     if needs_encoder:
-        imports.append("import com.midi_studio.protocol.Encoder;")
+        imports.append(f"import {base_package}.Encoder;")
     if needs_decoder:
-        imports.append("import com.midi_studio.protocol.Decoder;")
+        imports.append(f"import {base_package}.Decoder;")
     if needs_constants:
-        imports.append("import com.midi_studio.protocol.ProtocolConstants;")
+        imports.append(f"import {base_package}.ProtocolConstants;")
     if needs_list:
         imports.append("import java.util.List;")
     if needs_arraylist:
@@ -121,7 +132,7 @@ def _generate_header(
 
     imports_str = "\n".join(imports)
 
-    return f"""package com.midi_studio.protocol.struct;
+    return f"""package {package};
 
 {imports_str}
 

@@ -292,6 +292,10 @@ def _generate_java(
     java_base = output_base / plugin_paths["output_java"]["base_path"]
     java_base.mkdir(parents=True, exist_ok=True)
 
+    # Extract Java package from plugin_paths
+    java_package = plugin_paths["output_java"]["package"]
+    java_struct_package = f"{java_package}.struct"
+
     # Convert protocol config to TypedDict for generators
     protocol_config_dict = _convert_sysex_config_to_java_protocol_config(protocol_config)
 
@@ -300,25 +304,25 @@ def _generate_java(
 
     java_encoder_path = java_base / "Encoder.java"
     java_encoder_path.write_text(
-        generate_encoder_java(registry, java_encoder_path), encoding="utf-8"
+        generate_encoder_java(registry, java_encoder_path, java_package), encoding="utf-8"
     )
     files_generated.append("Encoder.java")
 
     java_decoder_path = java_base / "Decoder.java"
     java_decoder_path.write_text(
-        generate_decoder_java(registry, java_decoder_path), encoding="utf-8"
+        generate_decoder_java(registry, java_decoder_path, java_package), encoding="utf-8"
     )
     files_generated.append("Decoder.java")
 
     java_constants_path = java_base / "ProtocolConstants.java"
     java_constants_path.write_text(
-        generate_constants_java(protocol_config_dict, java_constants_path), encoding="utf-8"
+        generate_constants_java(protocol_config_dict, java_constants_path, java_package), encoding="utf-8"
     )
     files_generated.append("ProtocolConstants.java")
 
     java_messageid_path = java_base / "MessageID.java"
     java_messageid_path.write_text(
-        generate_messageid_java(messages, allocations, registry, java_messageid_path),
+        generate_messageid_java(messages, allocations, registry, java_messageid_path, java_package),
         encoding="utf-8",
     )
     files_generated.append("MessageID.java")
@@ -339,6 +343,7 @@ def _generate_java(
             registry,
             java_output_path,
             protocol_config.limits.string_max_length,
+            java_struct_package,
         )
         java_output_path.write_text(java_code, encoding="utf-8")
 

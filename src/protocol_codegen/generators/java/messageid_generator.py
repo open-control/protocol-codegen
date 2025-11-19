@@ -21,6 +21,7 @@ def generate_messageid_java(
     allocations: dict[str, int],
     type_registry: TypeRegistry,
     output_path: Path,
+    package: str,
 ) -> str:
     """
     Generate MessageID.java with sequential message IDs.
@@ -30,6 +31,7 @@ def generate_messageid_java(
         allocations: Dict mapping message_name → message_id
         type_registry: TypeRegistry for type lookups
         output_path: Output file path (for package detection)
+        package: Java package name (e.g., 'protocol' or 'com.example.protocol')
 
     Returns:
         Generated Java code as string
@@ -37,7 +39,7 @@ def generate_messageid_java(
     # Sort messages by allocated ID
     sorted_messages: list[Message] = sorted(messages, key=lambda m: allocations[m.name])
 
-    header = _generate_header(len(messages))
+    header = _generate_header(len(messages), package)
     enum_body = _generate_enum_body(sorted_messages, allocations)
     methods = _generate_methods()
     footer = _generate_footer()
@@ -46,9 +48,9 @@ def generate_messageid_java(
     return full_code
 
 
-def _generate_header(message_count: int) -> str:
+def _generate_header(message_count: int, package: str) -> str:
     """Generate file header."""
-    return f"""package com.midi_studio.protocol;
+    return f"""package {package};
 
 /**
  * MessageID - SysEx Message ID Enum
