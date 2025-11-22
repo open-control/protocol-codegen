@@ -30,6 +30,8 @@ from protocol_codegen.generators.cpp.decoder_generator import generate_decoder_h
 from protocol_codegen.generators.cpp.encoder_generator import generate_encoder_hpp
 from protocol_codegen.generators.cpp.logger_generator import generate_logger_hpp
 from protocol_codegen.generators.cpp.messageid_generator import generate_messageid_hpp
+from protocol_codegen.generators.cpp.message_structure_generator import generate_message_structure_hpp
+from protocol_codegen.generators.cpp.callbacks_generator import generate_protocol_callbacks_hpp
 from protocol_codegen.generators.cpp.struct_generator import generate_struct_hpp
 from protocol_codegen.generators.java.constants_generator import (
     ProtocolConfig as JavaProtocolConfig,
@@ -38,6 +40,8 @@ from protocol_codegen.generators.java.constants_generator import generate_consta
 from protocol_codegen.generators.java.decoder_generator import generate_decoder_java
 from protocol_codegen.generators.java.encoder_generator import generate_encoder_java
 from protocol_codegen.generators.java.messageid_generator import generate_messageid_java
+from protocol_codegen.generators.java.callbacks_generator import generate_protocol_callbacks_java
+from protocol_codegen.generators.java.decoder_registry_generator import generate_decoder_registry_java
 from protocol_codegen.generators.java.struct_generator import generate_struct_java
 from protocol_codegen.methods.sysex.config import SysExConfig
 
@@ -245,6 +249,20 @@ def _generate_cpp(
     )
     files_generated.append("MessageID.hpp")
 
+    cpp_message_structure_path = cpp_base / "MessageStructure.hpp"
+    cpp_message_structure_path.write_text(
+        generate_message_structure_hpp(messages, cpp_message_structure_path),
+        encoding="utf-8",
+    )
+    files_generated.append("MessageStructure.hpp")
+
+    cpp_callbacks_path = cpp_base / "ProtocolCallbacks.hpp"
+    cpp_callbacks_path.write_text(
+        generate_protocol_callbacks_hpp(messages, cpp_callbacks_path),
+        encoding="utf-8",
+    )
+    files_generated.append("ProtocolCallbacks.hpp")
+
     # Generate struct files (structs path is relative to base_path)
     cpp_struct_dir = cpp_base / plugin_paths["output_cpp"]["structs"]
     cpp_struct_dir.mkdir(parents=True, exist_ok=True)
@@ -314,6 +332,20 @@ def _generate_java(
         encoding="utf-8",
     )
     files_generated.append("MessageID.java")
+
+    java_callbacks_path = java_base / "ProtocolCallbacks.java"
+    java_callbacks_path.write_text(
+        generate_protocol_callbacks_java(messages, java_package, java_callbacks_path),
+        encoding="utf-8",
+    )
+    files_generated.append("ProtocolCallbacks.java")
+
+    java_decoder_registry_path = java_base / "DecoderRegistry.java"
+    java_decoder_registry_path.write_text(
+        generate_decoder_registry_java(messages, java_package, java_decoder_registry_path),
+        encoding="utf-8",
+    )
+    files_generated.append("DecoderRegistry.java")
 
     # Generate struct files (structs path is relative to base_path)
     java_struct_dir = java_base / plugin_paths["output_java"]["structs"]
