@@ -35,11 +35,11 @@ def generate_message_structure_java(
         # Convert SCREAMING_SNAKE_CASE to PascalCase
         pascal_name: str = "".join(word.capitalize() for word in message.name.split("_"))
         class_name: str = f"{pascal_name}Message"
-        imports.append(f"import {package}.protocol.struct.{class_name};")
+        imports.append(f"import {package}.struct.{class_name};")
 
     imports_str: str = "\n".join(imports)
 
-    code = f"""package {package}.protocol;
+    code = f"""package {package};
 
 {imports_str}
 
@@ -52,7 +52,7 @@ def generate_message_structure_java(
  * Import this class to get access to all message types.
  *
  * Usage:
- *   import static {package}.protocol.MessageStructure.*;
+ *   import static {package}.MessageStructure.*;
  *
  *   TransportPlayMessage msg = new TransportPlayMessage(true);
  *   msg.encode();

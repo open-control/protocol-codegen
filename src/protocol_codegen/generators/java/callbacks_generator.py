@@ -43,9 +43,9 @@ def generate_protocol_callbacks_java(
 
     callbacks_str = "\n".join(callbacks)
 
-    code = f"""package {package}.protocol;
+    code = f"""package {package};
 
-import {package}.protocol.struct.*;
+import {package}.struct.*;
 
 /**
  * ProtocolCallbacks - Typed callbacks for all messages

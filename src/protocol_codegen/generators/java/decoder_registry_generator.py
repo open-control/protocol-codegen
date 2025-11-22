@@ -45,11 +45,11 @@ def generate_decoder_registry_java(messages: list[Message], package: str, output
 
     cases_str = "\n".join(cases)
 
-    code = f"""package {package}.protocol;
+    code = f"""package {package};
 
-import {package}.protocol.MessageID;
-import {package}.protocol.ProtocolCallbacks;
-import {package}.protocol.struct.*;
+import {package}.MessageID;
+import {package}.ProtocolCallbacks;
+import {package}.struct.*;
 
 /**
  * DecoderRegistry - MessageID to Decoder mapping
