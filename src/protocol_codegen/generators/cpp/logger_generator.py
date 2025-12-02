@@ -101,12 +101,12 @@ namespace Protocol {
  */
 static inline int floatToString(char* buffer, size_t bufferSize, float value) {
     // Edge case 1: NaN (Not a Number)
-    if (isnan(value)) {
+    if (std::isnan(value)) {
         return snprintf(buffer, bufferSize, "NaN");
     }
 
     // Edge case 2: Infinity (positive or negative)
-    if (isinf(value)) {
+    if (std::isinf(value)) {
         return snprintf(buffer, bufferSize, value > 0 ? "Inf" : "-Inf");
     }
 
