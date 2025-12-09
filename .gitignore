@@ -68,3 +68,4 @@ examples/*/generated/
 
 # UV
 .uv/
+.serena/
