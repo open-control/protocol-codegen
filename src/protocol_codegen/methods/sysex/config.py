@@ -290,4 +290,5 @@ def load_sysex_config(plugin_dir: Path) -> SysExConfig:
 
     # Use builtin defaults (import here to avoid circular dependency)
     from .builtin_config import BUILTIN_SYSEX_CONFIG
+
     return BUILTIN_SYSEX_CONFIG

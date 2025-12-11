@@ -1,4 +1,4 @@
-.PHONY: help install sync format lint type-check clean example
+.PHONY: help install sync format lint type-check test test-cov clean example all
 
 help:
 	@echo "Available commands:"
@@ -7,9 +7,11 @@ help:
 	@echo "  make format       - Format code with ruff"
 	@echo "  make lint         - Lint code with ruff"
 	@echo "  make type-check   - Type check with pyright"
+	@echo "  make test         - Run tests with pytest"
+	@echo "  make test-cov     - Run tests with coverage report"
 	@echo "  make example      - Run example generation"
 	@echo "  make clean        - Clean build artifacts and cache"
-	@echo "  make all          - Format, lint, and type-check"
+	@echo "  make all          - Format, lint, type-check, and test"
 
 install:
 	uv pip install -e .
@@ -18,14 +20,20 @@ sync:
 	uv sync --extra dev
 
 format:
-	ruff format src/ examples/
-	ruff check --fix src/ examples/
+	ruff format src/ tests/ examples/
+	ruff check --fix src/ tests/ examples/
 
 lint:
-	ruff check src/ examples/
+	ruff check src/ tests/ examples/
 
 type-check:
-	pyright src/ examples/
+	pyright src/ tests/ examples/
+
+test:
+	pytest
+
+test-cov:
+	pytest --cov --cov-report=term-missing --cov-report=html
 
 example:
 	cd examples/simple-sensor-network && ./generate.sh
@@ -35,7 +43,10 @@ clean:
 	rm -rf dist/
 	rm -rf *.egg-info
 	rm -rf .ruff_cache
+	rm -rf .pytest_cache
+	rm -rf .coverage
+	rm -rf htmlcov/
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
 
-all: format lint type-check
+all: format lint type-check test

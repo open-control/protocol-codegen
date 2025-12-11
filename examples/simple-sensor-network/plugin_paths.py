@@ -18,13 +18,11 @@ Configuration Structure:
 PLUGIN_PATHS = {
     "plugin_name": "sensor-network",
     "plugin_display_name": "Sensor Network Example",
-
     "output_cpp": {
         "base_path": "generated/cpp",
         "namespace": "SensorProtocol",
         "structs": "struct/",
     },
-
     "output_java": {
         "base_path": "generated/java/com/example/sensor",
         "package": "com.example.sensor",

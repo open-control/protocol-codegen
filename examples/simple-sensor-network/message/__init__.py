@@ -1,36 +1,18 @@
-# Import all messages to make them available to protocol generator
+"""
+Message definitions for simple-sensor-network example.
+
+This module imports all message definitions and automatically collects them
+using the collect_messages helper, which:
+1. Finds all Message instances with SCREAMING_SNAKE_CASE names
+2. Auto-injects the variable name as the message's name attribute
+3. Returns a sorted list for deterministic ID allocation
+"""
+
+from protocol_codegen.core.message import collect_messages
+
 from .network import *
 from .sensor import *
 
-# All messages list for generator
-ALL_MESSAGES = [
-    # Sensor messages
-    SENSOR_READING_SINGLE,
-    SENSOR_READING_BATCH,
-    REQUEST_SENSOR_LIST,
-    SENSOR_LIST,
-    SENSOR_CONFIG_SET,
-    SENSOR_CONFIG_GET,
-    SENSOR_ACTIVATE,
-    SENSOR_DEACTIVATE,
-    # Network messages
-    NETWORK_STATUS,
-    REQUEST_NETWORK_STATUS,
-]
-
-# Auto-inject message names from variable names
-_message_map = {
-    "SENSOR_READING_SINGLE": SENSOR_READING_SINGLE,
-    "SENSOR_READING_BATCH": SENSOR_READING_BATCH,
-    "REQUEST_SENSOR_LIST": REQUEST_SENSOR_LIST,
-    "SENSOR_LIST": SENSOR_LIST,
-    "SENSOR_CONFIG_SET": SENSOR_CONFIG_SET,
-    "SENSOR_CONFIG_GET": SENSOR_CONFIG_GET,
-    "SENSOR_ACTIVATE": SENSOR_ACTIVATE,
-    "SENSOR_DEACTIVATE": SENSOR_DEACTIVATE,
-    "NETWORK_STATUS": NETWORK_STATUS,
-    "REQUEST_NETWORK_STATUS": REQUEST_NETWORK_STATUS,
-}
-
-for name, message in _message_map.items():
-    message.name = name
+# Automatically collect all Message instances and inject names
+# This replaces the manual _message_map pattern
+ALL_MESSAGES = collect_messages(globals())

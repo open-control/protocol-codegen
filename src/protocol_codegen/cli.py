@@ -125,24 +125,109 @@ def generate(
     "--messages",
     type=click.Path(exists=True),
     required=True,
-    help="Path to messages.py file",
+    help="Path to message directory containing __init__.py with ALL_MESSAGES",
 )
-def validate(method: str, messages: str):
+@click.option("--verbose", is_flag=True, help="Enable verbose output")
+def validate(method: str, messages: str, verbose: bool):
     """
     Validate message definitions without generating code.
 
+    Performs validation checks including:
+    - Field types reference existing atomic types
+    - No duplicate message names
+    - No duplicate field names within messages
+    - Composite field depth limits
+
     Examples:
 
-        protocol-codegen validate --method sysex --messages ./messages.py
+        protocol-codegen validate --method sysex --messages ./message
+        protocol-codegen validate --method sysex --messages ./message --verbose
     """
+    import importlib
+
+    from protocol_codegen.core.field import populate_type_names
+    from protocol_codegen.core.loader import TypeRegistry
+    from protocol_codegen.core.message import Message
+    from protocol_codegen.core.validator import ProtocolValidator
+
     messages_path = Path(messages)
 
     click.echo(f"🔍 Validating messages: {messages_path}")
-    click.echo(f"Method: {method}")
+    click.echo(f"   Method: {method}")
+    click.echo()
 
-    # TODO: Implement validation
-    click.echo("⚠️  Validation not yet implemented")
-    sys.exit(1)
+    try:
+        # Step 1: Load type registry
+        if verbose:
+            click.echo("[1/3] Loading type registry...")
+        registry = TypeRegistry()
+        registry.load_builtins()
+        type_names = list(registry.types.keys())
+        populate_type_names(type_names)
+        if verbose:
+            click.echo(f"      ✓ Loaded {len(registry.types)} builtin types")
+
+        # Step 2: Import messages
+        if verbose:
+            click.echo("[2/3] Importing messages...")
+
+        # Add messages directory parent to path for imports
+        messages_parent = messages_path.parent if messages_path.is_file() else messages_path.parent
+        sys.path.insert(0, str(messages_parent))
+
+        try:
+            # Determine module name
+            module_name = messages_path.stem if messages_path.is_file() else messages_path.name
+
+            # Import the message module
+            message_module = importlib.import_module(module_name)
+
+            if not hasattr(message_module, "ALL_MESSAGES"):
+                click.echo("❌ Error: message module must define ALL_MESSAGES", err=True)
+                sys.exit(1)
+
+            loaded_messages: list[Message] = message_module.ALL_MESSAGES
+            if verbose:
+                click.echo(f"      ✓ Loaded {len(loaded_messages)} messages")
+
+        finally:
+            # Clean up sys.path
+            sys.path.remove(str(messages_parent))
+
+        # Step 3: Validate messages
+        if verbose:
+            click.echo("[3/3] Validating messages...")
+
+        validator = ProtocolValidator(registry)
+        errors = validator.validate_messages(loaded_messages)
+
+        if errors:
+            click.echo()
+            click.echo("❌ Validation failed with errors:", err=True)
+            click.echo()
+            for error in errors:
+                click.echo(f"   • {error}", err=True)
+            click.echo()
+            sys.exit(1)
+
+        # Success
+        click.echo()
+        click.echo(f"✅ Validation passed! ({len(loaded_messages)} messages)")
+
+        if verbose:
+            click.echo()
+            click.echo("   Messages validated:")
+            for msg in sorted(loaded_messages, key=lambda m: m.name):
+                field_count = len(msg.fields)
+                click.echo(f"   • {msg.name} ({field_count} fields)")
+
+    except Exception as e:
+        click.echo(f"❌ Error during validation: {e}", err=True)
+        if verbose:
+            import traceback
+
+            traceback.print_exc()
+        sys.exit(1)
 
 
 @cli.command(name="list-methods")

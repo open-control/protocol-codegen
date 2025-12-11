@@ -20,29 +20,34 @@ from typing import TYPE_CHECKING
 
 from protocol_codegen.core.allocator import allocate_message_ids
 from protocol_codegen.core.field import populate_type_names
+from protocol_codegen.core.file_utils import GenerationStats, write_if_changed
 from protocol_codegen.core.loader import TypeRegistry
 from protocol_codegen.core.message import Message
 from protocol_codegen.core.plugin_types import PluginPathsConfig
 from protocol_codegen.core.validator import ProtocolValidator
+from protocol_codegen.generators.cpp.callbacks_generator import generate_protocol_callbacks_hpp
 from protocol_codegen.generators.cpp.constants_generator import ProtocolConfig as CppProtocolConfig
 from protocol_codegen.generators.cpp.constants_generator import generate_constants_hpp
 from protocol_codegen.generators.cpp.decoder_generator import generate_decoder_hpp
 from protocol_codegen.generators.cpp.decoder_registry_generator import generate_decoder_registry_hpp
 from protocol_codegen.generators.cpp.encoder_generator import generate_encoder_hpp
 from protocol_codegen.generators.cpp.logger_generator import generate_logger_hpp
+from protocol_codegen.generators.cpp.message_structure_generator import (
+    generate_message_structure_hpp,
+)
 from protocol_codegen.generators.cpp.messageid_generator import generate_messageid_hpp
-from protocol_codegen.generators.cpp.message_structure_generator import generate_message_structure_hpp
-from protocol_codegen.generators.cpp.callbacks_generator import generate_protocol_callbacks_hpp
 from protocol_codegen.generators.cpp.struct_generator import generate_struct_hpp
+from protocol_codegen.generators.java.callbacks_generator import generate_protocol_callbacks_java
 from protocol_codegen.generators.java.constants_generator import (
     ProtocolConfig as JavaProtocolConfig,
 )
 from protocol_codegen.generators.java.constants_generator import generate_constants_java
 from protocol_codegen.generators.java.decoder_generator import generate_decoder_java
+from protocol_codegen.generators.java.decoder_registry_generator import (
+    generate_decoder_registry_java,
+)
 from protocol_codegen.generators.java.encoder_generator import generate_encoder_java
 from protocol_codegen.generators.java.messageid_generator import generate_messageid_java
-from protocol_codegen.generators.java.callbacks_generator import generate_protocol_callbacks_java
-from protocol_codegen.generators.java.decoder_registry_generator import generate_decoder_registry_java
 from protocol_codegen.generators.java.struct_generator import generate_struct_java
 from protocol_codegen.methods.sysex.config import SysExConfig
 
@@ -151,16 +156,22 @@ def generate_sysex_protocol(
     # Step 3: Import messages
     log("[3/7] Importing messages...")
 
-    # Add messages directory to path
-    sys.path.insert(0, str(messages_dir.parent))
+    # Add messages directory parent to sys.path temporarily for import
+    messages_parent = str(messages_dir.parent)
+    sys.path.insert(0, messages_parent)
 
-    # Import message module dynamically
-    message_module: ModuleType = importlib.import_module("message")
-    if not hasattr(message_module, "ALL_MESSAGES"):
-        raise ValueError("message module must define ALL_MESSAGES")
+    try:
+        # Import message module dynamically
+        message_module: ModuleType = importlib.import_module("message")
+        if not hasattr(message_module, "ALL_MESSAGES"):
+            raise ValueError("message module must define ALL_MESSAGES")
 
-    messages: list[Message] = message_module.ALL_MESSAGES  # type: ignore[attr-defined]
-    log(f"  ✓ Imported {len(messages)} messages")
+        messages: list[Message] = message_module.ALL_MESSAGES  # type: ignore[attr-defined]
+        log(f"  ✓ Imported {len(messages)} messages")
+    finally:
+        # Always clean up sys.path to avoid pollution
+        if messages_parent in sys.path:
+            sys.path.remove(messages_parent)
 
     # Step 4: Validate messages
     log("[4/7] Validating messages...")
@@ -214,7 +225,8 @@ def _generate_cpp(
     output_base: Path,
     verbose: bool,
 ) -> None:
-    """Generate all C++ files."""
+    """Generate all C++ files with incremental generation (skip unchanged files)."""
+    stats = GenerationStats()
 
     cpp_base = output_base / plugin_paths["output_cpp"]["base_path"]
     cpp_base.mkdir(parents=True, exist_ok=True)
@@ -222,59 +234,62 @@ def _generate_cpp(
     # Convert protocol config to TypedDict for generators
     protocol_config_dict = _convert_sysex_config_to_cpp_protocol_config(protocol_config)
 
-    # Generate base files
-    files_generated = []
-
+    # Generate base files with incremental updates
     cpp_encoder_path = cpp_base / "Encoder.hpp"
-    cpp_encoder_path.write_text(generate_encoder_hpp(registry, cpp_encoder_path), encoding="utf-8")
-    files_generated.append("Encoder.hpp")
+    was_written = write_if_changed(
+        cpp_encoder_path, generate_encoder_hpp(registry, cpp_encoder_path)
+    )
+    stats.record_write(cpp_encoder_path, was_written)
 
     cpp_decoder_path = cpp_base / "Decoder.hpp"
-    cpp_decoder_path.write_text(generate_decoder_hpp(registry, cpp_decoder_path), encoding="utf-8")
-    files_generated.append("Decoder.hpp")
+    was_written = write_if_changed(
+        cpp_decoder_path, generate_decoder_hpp(registry, cpp_decoder_path)
+    )
+    stats.record_write(cpp_decoder_path, was_written)
 
     cpp_logger_path = cpp_base / "Logger.hpp"
-    cpp_logger_path.write_text(generate_logger_hpp(cpp_logger_path), encoding="utf-8")
-    files_generated.append("Logger.hpp")
+    was_written = write_if_changed(cpp_logger_path, generate_logger_hpp(cpp_logger_path))
+    stats.record_write(cpp_logger_path, was_written)
 
     cpp_constants_path = cpp_base / "ProtocolConstants.hpp"
-    cpp_constants_path.write_text(
-        generate_constants_hpp(protocol_config_dict, registry, cpp_constants_path), encoding="utf-8"
+    was_written = write_if_changed(
+        cpp_constants_path,
+        generate_constants_hpp(protocol_config_dict, registry, cpp_constants_path),
     )
-    files_generated.append("ProtocolConstants.hpp")
+    stats.record_write(cpp_constants_path, was_written)
 
     cpp_messageid_path = cpp_base / "MessageID.hpp"
-    cpp_messageid_path.write_text(
+    was_written = write_if_changed(
+        cpp_messageid_path,
         generate_messageid_hpp(messages, allocations, registry, cpp_messageid_path),
-        encoding="utf-8",
     )
-    files_generated.append("MessageID.hpp")
+    stats.record_write(cpp_messageid_path, was_written)
 
     cpp_message_structure_path = cpp_base / "MessageStructure.hpp"
-    cpp_message_structure_path.write_text(
+    was_written = write_if_changed(
+        cpp_message_structure_path,
         generate_message_structure_hpp(messages, cpp_message_structure_path),
-        encoding="utf-8",
     )
-    files_generated.append("MessageStructure.hpp")
+    stats.record_write(cpp_message_structure_path, was_written)
 
     cpp_callbacks_path = cpp_base / "ProtocolCallbacks.hpp"
-    cpp_callbacks_path.write_text(
-        generate_protocol_callbacks_hpp(messages, cpp_callbacks_path),
-        encoding="utf-8",
+    was_written = write_if_changed(
+        cpp_callbacks_path, generate_protocol_callbacks_hpp(messages, cpp_callbacks_path)
     )
-    files_generated.append("ProtocolCallbacks.hpp")
+    stats.record_write(cpp_callbacks_path, was_written)
 
     cpp_decoder_registry_path = cpp_base / "DecoderRegistry.hpp"
-    cpp_decoder_registry_path.write_text(
+    was_written = write_if_changed(
+        cpp_decoder_registry_path,
         generate_decoder_registry_hpp(messages, cpp_decoder_registry_path),
-        encoding="utf-8",
     )
-    files_generated.append("DecoderRegistry.hpp")
+    stats.record_write(cpp_decoder_registry_path, was_written)
 
     # Generate struct files (structs path is relative to base_path)
     cpp_struct_dir = cpp_base / plugin_paths["output_cpp"]["structs"]
     cpp_struct_dir.mkdir(parents=True, exist_ok=True)
 
+    struct_stats = GenerationStats()
     for message in messages:
         pascal_name = "".join(word.capitalize() for word in message.name.split("_"))
         struct_name = f"{pascal_name}Message"
@@ -284,11 +299,12 @@ def _generate_cpp(
         cpp_code = generate_struct_hpp(
             message, message_id, registry, cpp_output_path, protocol_config.limits.string_max_length
         )
-        cpp_output_path.write_text(cpp_code, encoding="utf-8")
+        was_written = write_if_changed(cpp_output_path, cpp_code)
+        struct_stats.record_write(cpp_output_path, was_written)
 
     if verbose:
-        print(f"  ✓ Generated {len(files_generated)} C++ base files")
-        print(f"  ✓ Generated {len(messages)} C++ struct files")
+        print(f"  ✓ C++ base files: {stats.summary()}")
+        print(f"  ✓ C++ struct files: {struct_stats.summary()}")
         print(f"  → Output: {cpp_base.relative_to(output_base)}")
 
 
@@ -301,7 +317,8 @@ def _generate_java(
     output_base: Path,
     verbose: bool,
 ) -> None:
-    """Generate all Java files."""
+    """Generate all Java files with incremental generation (skip unchanged files)."""
+    stats = GenerationStats()
 
     java_base = output_base / plugin_paths["output_java"]["base_path"]
     java_base.mkdir(parents=True, exist_ok=True)
@@ -313,52 +330,52 @@ def _generate_java(
     # Convert protocol config to TypedDict for generators
     protocol_config_dict = _convert_sysex_config_to_java_protocol_config(protocol_config)
 
-    # Generate base files
-    files_generated = []
-
+    # Generate base files with incremental updates
     java_encoder_path = java_base / "Encoder.java"
-    java_encoder_path.write_text(
-        generate_encoder_java(registry, java_encoder_path, java_package), encoding="utf-8"
+    was_written = write_if_changed(
+        java_encoder_path, generate_encoder_java(registry, java_encoder_path, java_package)
     )
-    files_generated.append("Encoder.java")
+    stats.record_write(java_encoder_path, was_written)
 
     java_decoder_path = java_base / "Decoder.java"
-    java_decoder_path.write_text(
-        generate_decoder_java(registry, java_decoder_path, java_package), encoding="utf-8"
+    was_written = write_if_changed(
+        java_decoder_path, generate_decoder_java(registry, java_decoder_path, java_package)
     )
-    files_generated.append("Decoder.java")
+    stats.record_write(java_decoder_path, was_written)
 
     java_constants_path = java_base / "ProtocolConstants.java"
-    java_constants_path.write_text(
-        generate_constants_java(protocol_config_dict, java_constants_path, java_package), encoding="utf-8"
+    was_written = write_if_changed(
+        java_constants_path,
+        generate_constants_java(protocol_config_dict, java_constants_path, java_package),
     )
-    files_generated.append("ProtocolConstants.java")
+    stats.record_write(java_constants_path, was_written)
 
     java_messageid_path = java_base / "MessageID.java"
-    java_messageid_path.write_text(
+    was_written = write_if_changed(
+        java_messageid_path,
         generate_messageid_java(messages, allocations, registry, java_messageid_path, java_package),
-        encoding="utf-8",
     )
-    files_generated.append("MessageID.java")
+    stats.record_write(java_messageid_path, was_written)
 
     java_callbacks_path = java_base / "ProtocolCallbacks.java"
-    java_callbacks_path.write_text(
+    was_written = write_if_changed(
+        java_callbacks_path,
         generate_protocol_callbacks_java(messages, java_package, java_callbacks_path),
-        encoding="utf-8",
     )
-    files_generated.append("ProtocolCallbacks.java")
+    stats.record_write(java_callbacks_path, was_written)
 
     java_decoder_registry_path = java_base / "DecoderRegistry.java"
-    java_decoder_registry_path.write_text(
+    was_written = write_if_changed(
+        java_decoder_registry_path,
         generate_decoder_registry_java(messages, java_package, java_decoder_registry_path),
-        encoding="utf-8",
     )
-    files_generated.append("DecoderRegistry.java")
+    stats.record_write(java_decoder_registry_path, was_written)
 
     # Generate struct files (structs path is relative to base_path)
     java_struct_dir = java_base / plugin_paths["output_java"]["structs"]
     java_struct_dir.mkdir(parents=True, exist_ok=True)
 
+    struct_stats = GenerationStats()
     for message in messages:
         pascal_name = "".join(word.capitalize() for word in message.name.split("_"))
         class_name = f"{pascal_name}Message"
@@ -373,9 +390,10 @@ def _generate_java(
             protocol_config.limits.string_max_length,
             java_struct_package,
         )
-        java_output_path.write_text(java_code, encoding="utf-8")
+        was_written = write_if_changed(java_output_path, java_code)
+        struct_stats.record_write(java_output_path, was_written)
 
     if verbose:
-        print(f"  ✓ Generated {len(files_generated)} Java base files")
-        print(f"  ✓ Generated {len(messages)} Java class files")
+        print(f"  ✓ Java base files: {stats.summary()}")
+        print(f"  ✓ Java struct files: {struct_stats.summary()}")
         print(f"  → Output: {java_base.relative_to(output_base)}")

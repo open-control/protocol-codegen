@@ -270,7 +270,16 @@ class CompositeField(FieldBase):
 # ============================================================================
 
 # Type alias for functions that accept either PrimitiveField or CompositeField
-FieldType = PrimitiveField | CompositeField
+type FieldType = PrimitiveField | CompositeField
+
+__all__ = [
+    "Type",
+    "populate_type_names",
+    "FieldBase",
+    "PrimitiveField",
+    "CompositeField",
+    "FieldType",
+]
 
 
 # ============================================================================

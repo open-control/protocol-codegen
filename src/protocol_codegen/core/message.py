@@ -16,6 +16,7 @@ Reusability: Used across all plugins, not specific to any one.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -72,3 +73,84 @@ class Message:
         """String representation for debugging and display"""
         name_str = self.name or "UNNAMED"
         return f"Message({name_str}, {len(self.fields)} fields)"
+
+
+def collect_messages(globals_dict: Mapping[str, object]) -> list[Message]:
+    """
+    Collect all Message instances from a module's globals and auto-inject names.
+
+    This function eliminates manual duplication by automatically:
+    1. Finding all Message instances in the provided globals
+    2. Filtering to only SCREAMING_SNAKE_CASE names (convention for messages)
+    3. Injecting the variable name as the message's name attribute
+
+    Args:
+        globals_dict: The module's globals() dictionary
+
+    Returns:
+        List of Message instances with names auto-injected, sorted by name
+        for deterministic ordering.
+
+    Example:
+        In your message/__init__.py:
+
+        >>> from .sensor import *
+        >>> from .network import *
+        >>> from protocol_codegen.core.message import collect_messages
+        >>>
+        >>> ALL_MESSAGES = collect_messages(globals())
+
+        This replaces the manual pattern:
+
+        >>> _message_map = {
+        ...     "SENSOR_READING": SENSOR_READING,
+        ...     "NETWORK_STATUS": NETWORK_STATUS,
+        ... }
+        >>> for name, msg in _message_map.items():
+        ...     msg.name = name
+
+    Note:
+        Only variables with SCREAMING_SNAKE_CASE names (all uppercase with underscores)
+        are considered as message definitions. This prevents accidentally including
+        helper variables or imports.
+    """
+    messages: list[Message] = []
+
+    for name, obj in globals_dict.items():
+        # Only consider SCREAMING_SNAKE_CASE names (message naming convention)
+        if not is_screaming_snake_case(name):
+            continue
+
+        # Check if it's a Message instance
+        if isinstance(obj, Message):
+            obj.name = name
+            messages.append(obj)
+
+    # Sort by name for deterministic ordering
+    return sorted(messages, key=lambda m: m.name)
+
+
+def is_screaming_snake_case(name: str) -> bool:
+    """
+    Check if a name follows SCREAMING_SNAKE_CASE convention.
+
+    Args:
+        name: Variable name to check
+
+    Returns:
+        True if name is SCREAMING_SNAKE_CASE (e.g., SENSOR_READING, TRANSPORT_PLAY)
+    """
+    if not name:
+        return False
+
+    # Must start with uppercase letter
+    if not name[0].isupper():
+        return False
+
+    # Must contain only uppercase letters, digits, and underscores
+    for char in name:
+        if not (char.isupper() or char.isdigit() or char == "_"):
+            return False
+
+    # Must not be a dunder or single underscore prefix (private/special)
+    return not name.startswith("_")

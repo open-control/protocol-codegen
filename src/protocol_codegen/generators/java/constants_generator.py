@@ -54,7 +54,9 @@ class ProtocolConfig(TypedDict, total=False):
     limits: LimitsConfig
 
 
-def generate_constants_java(protocol_config: ProtocolConfig, output_path: Path, package: str) -> str:
+def generate_constants_java(
+    protocol_config: ProtocolConfig, output_path: Path, package: str
+) -> str:
     """
     Generate ProtocolConstants.java from protocol_config.yaml.
 

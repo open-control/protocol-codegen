@@ -821,9 +821,7 @@ def _generate_single_composite_struct(field: CompositeField, type_registry: Type
             if nested_field.array:
                 # Use std::vector for dynamic arrays, std::array for fixed
                 if nested_field.dynamic:
-                    lines.append(
-                        f"    std::vector<{base_type}> {nested_field.name};"
-                    )
+                    lines.append(f"    std::vector<{base_type}> {nested_field.name};")
                 else:
                     lines.append(
                         f"    std::array<{base_type}, {nested_field.array}> {nested_field.name};"

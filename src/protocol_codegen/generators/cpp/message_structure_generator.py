@@ -57,8 +57,4 @@ def generate_message_structure_hpp(messages: list[Message], output_path: Path) -
 {includes_str}
 """
 
-    # Write to file
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(code, encoding="utf-8")
-
     return code
