@@ -51,7 +51,7 @@ def generate_decoder_registry_hpp(messages: list[Message], output_path: Path) ->
             if (callbacks.{callback_name}) {{
                 auto decoded = {class_name}::decode(payload, payloadLen);
                 if (decoded.has_value()) {{
-                    auto msg = decoded.value();
+                    auto& msg = decoded.value();  // Reference to avoid copy
                     msg.fromHost = fromHost;  // Inject origin flag
 
                     // Optimistic reconciliation (only for messages from host)
@@ -79,7 +79,7 @@ def generate_decoder_registry_hpp(messages: list[Message], output_path: Path) ->
             if (callbacks.{callback_name}) {{
                 auto decoded = {class_name}::decode(payload, payloadLen);
                 if (decoded.has_value()) {{
-                    auto msg = decoded.value();
+                    auto& msg = decoded.value();  // Reference to avoid copy
                     msg.fromHost = fromHost;  // Inject origin flag
                     callbacks.{callback_name}(msg);
                 }}

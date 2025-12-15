@@ -61,6 +61,7 @@ def generate_logger_hpp(output_path: Path) -> str:
  *
  * Key Features:
  * - floatToString(): Hybrid snprintf approach for precise float formatting
+ * - g_logBuffer: Shared 32KB buffer for all toString() methods
  * - Handles edge cases: NaN, Inf, -Inf
  * - 4 decimal places precision
  * - Optimized for embedded systems (no dynamic allocation)
@@ -69,10 +70,26 @@ def generate_logger_hpp(output_path: Path) -> str:
 #pragma once
 
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <cmath>
 
 namespace Protocol {
+
+// ============================================================================
+// Shared Log Buffer (used by all message toString() methods)
+// ============================================================================
+
+/// Size of the shared log buffer
+constexpr size_t LOG_BUFFER_SIZE = 32768;
+
+/// Shared buffer for toString() output - WARNING: not thread-safe!
+/// All toString() calls share this buffer. Log immediately after calling.
+#ifdef EXTMEM
+inline EXTMEM char g_logBuffer[LOG_BUFFER_SIZE];
+#else
+inline char g_logBuffer[LOG_BUFFER_SIZE];
+#endif
 
 /**
  * Convert float to string with 4 decimal places using hybrid approach.
@@ -179,28 +196,23 @@ def generate_log_method(
     lines = [
         "    /**",
         "     * Convert message to YAML format for logging",
-        "     * ",
-        "     * WARNING: Uses static 32KB buffer - log immediately!",
+        "     *",
+        "     * WARNING: Uses shared g_logBuffer - log immediately!",
         "     * Multiple calls will overwrite previous results.",
-        "     * ",
+        "     *",
         "     * @return YAML string representation",
         "     */",
         "    const char* toString() const {",
-        "        #ifdef EXTMEM",
-        "        static EXTMEM char buffer[32768];  // Use external memory on Teensy",
-        "        #else",
-        "        static char buffer[32768];  // Standard static buffer",
-        "        #endif",
-        "        char* ptr = buffer;",
-        "        const char* end = buffer + sizeof(buffer) - 1;",
-        "        ",
+        "        char* ptr = g_logBuffer;",
+        "        const char* end = g_logBuffer + LOG_BUFFER_SIZE - 1;",
+        "",
     ]
 
     # Generate YAML header: # MessageName\nmessageName:
     lines.append(
         f'        ptr += snprintf(ptr, end - ptr, "# {struct_name.replace("Message", "")}\\n{message_key}:\\n");'
     )
-    lines.append("        ")
+    lines.append("")
 
     # Generate field formatting code
     for i, field in enumerate(fields):
@@ -208,7 +220,7 @@ def generate_log_method(
         field_lines = _format_field_for_log(field, type_registry, indent=1, is_last=is_last)
         lines.extend(field_lines)
 
-    lines.extend(["        ", "        *ptr = '\\0';", "        return buffer;", "    }", ""])
+    lines.extend(["", "        *ptr = '\\0';", "        return g_logBuffer;", "    }", ""])
 
     return "\n".join(lines)
 

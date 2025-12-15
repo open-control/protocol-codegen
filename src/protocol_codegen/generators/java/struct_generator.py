@@ -313,6 +313,18 @@ def _generate_encode_method(
     lines.append("     */")
     lines.append(f"    public static final int MAX_PAYLOAD_SIZE = {max_size};")
     lines.append("")
+
+    # Simplified encode for empty messages
+    if not fields:
+        lines.append("    /**")
+        lines.append("     * Encode message to MIDI-safe bytes (empty message)")
+        lines.append("     * @return Empty byte array")
+        lines.append("     */")
+        lines.append("    public byte[] encode() { return new byte[0]; }")
+        lines.append("")
+        return "\n".join(lines)
+
+    # Standard encode for messages with fields
     lines.append("    /**")
     lines.append("     * Encode message to MIDI-safe bytes")
     lines.append("     *")
@@ -320,11 +332,8 @@ def _generate_encode_method(
     lines.append("     */")
     lines.append("    public byte[] encode() {")
     lines.append("        byte[] buffer = new byte[MAX_PAYLOAD_SIZE];")
-
-    # Only declare offset if there are fields to encode
-    if fields:
-        lines.append("        int offset = 0;")
-        lines.append("")
+    lines.append("        int offset = 0;")
+    lines.append("")
 
     # Add encode calls for each field
     for field in fields:
@@ -439,11 +448,26 @@ def _generate_decode_method(
         "    // ============================================================================"
     )
     lines.append("")
+
+    # Simplified decode for empty messages (no MIN_PAYLOAD_SIZE needed)
+    if not fields:
+        lines.append("    /**")
+        lines.append("     * Decode message from MIDI-safe bytes (empty message)")
+        lines.append(f"     * @param data Input buffer (unused)")
+        lines.append(f"     * @return New {class_name} instance")
+        lines.append("     */")
+        lines.append(f"    public static {class_name} decode(byte[] data) {{ return new {class_name}(); }}")
+        lines.append("")
+        return "\n".join(lines)
+
+    # Standard decode needs MIN_PAYLOAD_SIZE for validation
     lines.append("    /**")
     lines.append("     * Minimum payload size in bytes (with empty strings)")
     lines.append("     */")
     lines.append(f"    private static final int MIN_PAYLOAD_SIZE = {min_size};")
     lines.append("")
+
+    # Standard decode for messages with fields
     lines.append("    /**")
     lines.append("     * Decode message from MIDI-safe bytes")
     lines.append("     *")
@@ -458,11 +482,8 @@ def _generate_decode_method(
     )
     lines.append("        }")
     lines.append("")
-
-    # Only declare offset if there are fields to decode
-    if fields:
-        lines.append("        int offset = 0;")
-        lines.append("")
+    lines.append("        int offset = 0;")
+    lines.append("")
 
     # Add decode calls for each field
     field_vars: list[str] = []

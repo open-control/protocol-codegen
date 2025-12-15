@@ -64,7 +64,7 @@ def generate_struct_hpp(
     fields = message.fields
     description = f"{message.name} message"
 
-    header = _generate_header(struct_name, description)
+    header = _generate_header(struct_name, description, fields, type_registry)
 
     # NEW: Generate composite structs FIRST (if any)
     composite_structs = _generate_composite_structs(fields, type_registry)
@@ -85,8 +85,68 @@ def generate_struct_hpp(
     return full_code
 
 
-def _generate_header(struct_name: str, description: str) -> str:
-    """Generate file header with includes."""
+def _analyze_includes_needed(
+    fields: Sequence[FieldBase], type_registry: TypeRegistry
+) -> tuple[bool, bool, bool]:
+    """
+    Analyze fields to determine which standard includes are needed.
+
+    Returns:
+        Tuple of (needs_array, needs_string, needs_vector)
+    """
+    needs_array = False
+    needs_string = False
+    needs_vector = False
+
+    def check_field(field: FieldBase) -> None:
+        nonlocal needs_array, needs_string, needs_vector
+
+        if field.is_primitive():
+            assert isinstance(field, PrimitiveField)
+            # Check for string type
+            if field.type_name.value == "string":
+                needs_string = True
+            # Check for array (fixed or dynamic)
+            if field.array:
+                if field.dynamic:
+                    needs_vector = True
+                else:
+                    needs_array = True
+        else:
+            # Composite field
+            assert isinstance(field, CompositeField)
+            if field.array:
+                needs_array = True
+            # Recursively check nested fields
+            for nested in field.fields:
+                check_field(nested)
+
+    for field in fields:
+        check_field(field)
+
+    return needs_array, needs_string, needs_vector
+
+
+def _generate_header(
+    struct_name: str,
+    description: str,
+    fields: Sequence[FieldBase],
+    type_registry: TypeRegistry,
+) -> str:
+    """Generate file header with conditional includes based on field analysis."""
+    needs_array, needs_string, needs_vector = _analyze_includes_needed(fields, type_registry)
+
+    # Build conditional includes
+    std_includes = ["#include <cstdint>", "#include <optional>"]
+    if needs_array:
+        std_includes.insert(0, "#include <array>")
+    if needs_string:
+        std_includes.append("#include <string>")
+    if needs_vector:
+        std_includes.append("#include <vector>")
+
+    std_includes_str = "\n".join(std_includes)
+
     return f"""/**
  * {struct_name}.hpp - Auto-generated Protocol Struct
  *
@@ -107,11 +167,7 @@ def _generate_header(struct_name: str, description: str) -> str:
 #include "../MessageID.hpp"
 #include "../ProtocolConstants.hpp"
 #include "../Logger.hpp"
-#include <array>
-#include <cstdint>
-#include <optional>
-#include <string>
-#include <vector>
+{std_includes_str}
 
 namespace Protocol {{
 
@@ -170,6 +226,22 @@ def _generate_encode_function(
         "     */",
         f"    static constexpr uint16_t MIN_PAYLOAD_SIZE = {min_size};",
         "",
+    ]
+
+    # Simplified encode for empty messages
+    if not fields:
+        lines.extend([
+            "    /**",
+            "     * Encode struct to MIDI-safe bytes (empty message)",
+            "     * @return Always 0 (no payload)",
+            "     */",
+            "    uint16_t encode(uint8_t*, uint16_t) const { return 0; }",
+            "",
+        ])
+        return "\n".join(lines)
+
+    # Standard encode for messages with fields
+    lines.extend([
         "    /**",
         "     * Encode struct to MIDI-safe bytes",
         "     *",
@@ -180,12 +252,9 @@ def _generate_encode_function(
         "    uint16_t encode(uint8_t* buffer, uint16_t bufferSize) const {",
         "        if (bufferSize < MAX_PAYLOAD_SIZE) return 0;",
         "",
-    ]
-
-    # Only declare ptr if there are fields to encode
-    if fields:
-        lines.append("        uint8_t* ptr = buffer;")
-        lines.append("")
+        "        uint8_t* ptr = buffer;",
+        "",
+    ])
 
     # Add encode calls for each field
     for field in fields:
@@ -247,12 +316,9 @@ def _generate_encode_function(
                         )
                         lines.append(f"        {encoder_call}")
 
-    # Return statement depends on whether we have fields
+    # Return encoded bytes count
     lines.append("")
-    if fields:
-        lines.append("        return ptr - buffer;")
-    else:
-        lines.append("        return 0;")
+    lines.append("        return ptr - buffer;")
     lines.extend(["    }", ""])
 
     return "\n".join(lines)
@@ -264,10 +330,19 @@ def _generate_decode_function(
     type_registry: TypeRegistry,
     string_max_length: int,
 ) -> str:
-    """Generate static decode() function calling Encoder."""
-    # Note: max_size and min_size are calculated in encode function, not needed here
-    # as the decode function uses MIN_PAYLOAD_SIZE constant from the struct
+    """Generate static decode() function calling Decoder."""
+    # Simplified decode for empty messages
+    if not fields:
+        return f"""    /**
+     * Decode struct from MIDI-safe bytes (empty message)
+     * @return Always returns empty struct
+     */
+    static std::optional<{struct_name}> decode(const uint8_t*, uint16_t) {{
+        return {struct_name}{{}};
+    }}
+"""
 
+    # Standard decode for messages with fields
     lines = [
         "    /**",
         "     * Decode struct from MIDI-safe bytes",
@@ -281,20 +356,11 @@ def _generate_decode_function(
         "",
         "        if (len < MIN_PAYLOAD_SIZE) return std::nullopt;",
         "",
+        "        const uint8_t* ptr = data;",
+        "        size_t remaining = len;",
+        "",
+        "        // Decode fields",
     ]
-
-    # Only declare ptr and remaining if there are fields to decode
-    if fields:
-        lines.extend(
-            [
-                "        const uint8_t* ptr = data;",
-                "        size_t remaining = len;",
-                "",
-                "        // Decode fields",
-            ]
-        )
-    else:
-        lines.append("        // No fields to decode")
 
     # Add decode calls for each field
     field_vars: list[str] = []
