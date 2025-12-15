@@ -681,9 +681,9 @@ def _calculate_min_payload_size(
             )
 
             if field.array:
-                # Array of composites: count byte + (nested_size * array_size)
+                # Array of composites: count byte only (minimum = 0 elements)
                 total_size += 1  # Array count byte
-                total_size += nested_size * field.array
+                # Don't add nested_size * array - minimum assumes empty array
             else:
                 # Single composite
                 total_size += nested_size

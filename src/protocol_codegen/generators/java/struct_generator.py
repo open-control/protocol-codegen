@@ -411,7 +411,11 @@ def _generate_encode_method(
                         lines.append(f"        {encoder_call}")
 
     lines.append("")
-    lines.append("        return buffer;")
+    # Return statement depends on whether we have fields
+    if fields:
+        lines.append("        return java.util.Arrays.copyOf(buffer, offset);")
+    else:
+        lines.append("        return new byte[0];")
     lines.append("    }")
     lines.append("")
 
