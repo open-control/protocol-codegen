@@ -737,7 +737,11 @@ def _calculate_min_payload_size(
                     # Not builtin (shouldn't happen in Python-unified)
                     base_size = 10  # Conservative estimate
 
-                total_size += base_size * array_size
+                if field.array:
+                    # Array of primitives: count byte only (minimum = 0 elements)
+                    total_size += 1  # Array count byte
+                else:
+                    total_size += base_size
 
         else:  # Composite field
             assert isinstance(field, CompositeField)

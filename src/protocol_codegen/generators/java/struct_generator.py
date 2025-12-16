@@ -878,7 +878,11 @@ def _calculate_min_payload_size(
                     # Nested struct - not supported in Python-unified architecture
                     raise ValueError(f"Nested structs not supported: {base_type}")
 
-                total_size += base_size * array_size
+                if field.array:
+                    # Array of primitives: count byte only (minimum = 0 elements)
+                    total_size += 1  # Array count byte
+                else:
+                    total_size += base_size
         else:  # Composite
             assert isinstance(field, CompositeField)
             # Recursively calculate size of nested fields
