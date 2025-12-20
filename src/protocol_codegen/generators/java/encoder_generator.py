@@ -261,6 +261,51 @@ def _generate_encoders(builtin_types: dict[str, AtomicType]) -> str:
     }}
 """)
 
+        elif type_name == "norm8":
+            encoders.append(f"""
+    /**
+     * Encode norm8 (1 byte, 7-bit encoding)
+     * {desc}
+     *
+     * Converts float 0.0-1.0 to 7-bit value 0-127 for minimal bandwidth.
+     * Precision: ~0.8% (1/127), sufficient for visual display.
+     *
+     * @param value Float value to encode (clamped to 0.0-1.0)
+     * @return Encoded byte array (1 byte)
+     */
+    public static byte[] encodeNorm8({java_type} value) {{
+        // Clamp to 0.0-1.0 and convert to 7-bit
+        float clamped = Math.max(0.0f, Math.min(1.0f, value));
+        int val = Math.round(clamped * 127.0f) & 0x7F;
+        return new byte[]{{ (byte) val }};
+    }}
+""")
+
+        elif type_name == "norm16":
+            encoders.append(f"""
+    /**
+     * Encode norm16 (2 bytes → 3 bytes, 7-bit encoding)
+     * {desc}
+     * Overhead: +50% (2→3 bytes) but 40% smaller than float32
+     *
+     * Converts float 0.0-1.0 to uint16 0-65535 for efficient transmission.
+     * Precision: ~0.0000153 (1/65535)
+     *
+     * @param value Float value to encode (clamped to 0.0-1.0)
+     * @return Encoded byte array (3 bytes)
+     */
+    public static byte[] encodeNorm16({java_type} value) {{
+        // Clamp to 0.0-1.0 and convert to uint16
+        float clamped = Math.max(0.0f, Math.min(1.0f, value));
+        int val = Math.round(clamped * 65535.0f) & 0xFFFF;
+        return new byte[]{{
+            (byte) (val & 0x7F),           // bits 0-6
+            (byte) ((val >> 7) & 0x7F),    // bits 7-13
+            (byte) ((val >> 14) & 0x03)    // bits 14-15 (only 2 bits needed)
+        }};
+    }}
+""")
+
         elif type_name == "string":
             encoders.append(f"""
     /**

@@ -278,6 +278,47 @@ static inline bool decodeFloat32(
 }}
 """)
 
+        elif type_name == "norm8":
+            decoders.append(f"""
+/**
+ * Decode norm8 (1 byte → float 0.0-1.0)
+ * {desc}
+ */
+static inline bool decodeNorm8(
+    const uint8_t*& buf, size_t& remaining, float& out) {{
+
+    if (remaining < 1) return false;
+
+    uint8_t val = (*buf++) & 0x7F;
+    remaining -= 1;
+
+    out = static_cast<float>(val) / 127.0f;
+    return true;
+}}
+""")
+
+        elif type_name == "norm16":
+            decoders.append(f"""
+/**
+ * Decode norm16 (3 bytes → float 0.0-1.0)
+ * {desc}
+ */
+static inline bool decodeNorm16(
+    const uint8_t*& buf, size_t& remaining, float& out) {{
+
+    if (remaining < 3) return false;
+
+    uint16_t val = (buf[0] & 0x7F)
+                 | ((buf[1] & 0x7F) << 7)
+                 | ((buf[2] & 0x03) << 14);
+    buf += 3;
+    remaining -= 3;
+
+    out = static_cast<float>(val) / 65535.0f;
+    return true;
+}}
+""")
+
         elif type_name == "string":
             decoders.append(f"""
 /**

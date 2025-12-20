@@ -11,7 +11,9 @@ Run: python resource/code/py/protocol/generate_type_stubs.py
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Optional
 from enum import Enum
+
 
 class Type(str, Enum):
     """
@@ -20,29 +22,32 @@ class Type(str, Enum):
     Enum members are populated dynamically from builtin_types.py,
     but declared here for IDE autocomplete.
     """
-
     # Builtin types (from builtin_types.py)
     BOOL = "bool"
     FLOAT32 = "float32"
     INT16 = "int16"
     INT32 = "int32"
     INT8 = "int8"
+    NORM16 = "norm16"
+    NORM8 = "norm8"
     STRING = "string"
     UINT16 = "uint16"
     UINT32 = "uint32"
     UINT8 = "uint8"
 
+
     # Custom types (from field compositions)
+
 
 def populate_type_names(type_names: list[str]) -> None:
     """Populate Type enum with available types."""
     ...
 
+
 class FieldBase(ABC):
     """Abstract base class for all field types."""
-
     name: str
-    array: int | None
+    array: Optional[int]
 
     @abstractmethod
     def is_primitive(self) -> bool:
@@ -68,26 +73,26 @@ class FieldBase(ABC):
         """String representation for debugging"""
         ...
 
+
 @dataclass
 class PrimitiveField(FieldBase):
     """
     Primitive field with a type reference.
-
+    
     Represents a field that references a primitive type like UINT8, STRING, etc.
     Type-safe: type_name is always defined (never None).
-
+    
     Attributes:
     name: Field name
     type_name: Type enum reference (always defined for primitives)
     array: Array size (None = scalar, int > 0 = fixed-size array)
     dynamic: If True, generate std::vector instead of std::array (default: False)
-
+    
     Examples:
     >>> PrimitiveField('paramId', type_name=Type.UINT8)
     >>> PrimitiveField('colors', type_name=Type.UINT8, array=8)
     >>> PrimitiveField('names', type_name=Type.STRING, array=32, dynamic=True)  # std::vector
     """
-
     name: str
     type_name: Type
     array: int | None = None
@@ -98,26 +103,26 @@ class PrimitiveField(FieldBase):
     def is_primitive(self) -> bool: ...
     def validate_depth(self, max_depth: int = 3, current_depth: int = 0) -> None: ...
 
+
 @dataclass
 class CompositeField(FieldBase):
     """
     Composite field with nested fields.
-
+    
     Represents a field that contains nested fields (struct-like composition).
     Type-safe: fields is always defined and non-empty (never None).
-
+    
     Attributes:
     name: Field name (typically PascalCase for composite types)
     fields: Sequence of nested Field instances (always defined and non-empty)
     array: Array size (None = scalar, int > 0 = fixed-size array)
-
+    
     Examples:
     >>> CompositeField('Parameter', fields=[
     ...     PrimitiveField('id', type_name=Type.UINT8),
     ...     PrimitiveField('value', type_name=Type.FLOAT32)
     ... ])
     """
-
     name: str
     fields: Sequence[FieldBase]
     array: int | None = None
@@ -127,28 +132,29 @@ class CompositeField(FieldBase):
     def is_primitive(self) -> bool: ...
     def validate_depth(self, max_depth: int = 3, current_depth: int = 0) -> None: ...
 
+
 @dataclass
 class Message:
     """
     Pure data class for SysEx message definitions (no side effects).
-
+    
     A message represents a unit of communication between the controller
     and host. All messages are bidirectional - the direction is determined
     by usage context (which class sends/receives the message).
-
+    
     This class is generic and reusable across all plugins. Plugin-specific
     message definitions are created by instantiating this class in the
     plugin's message/*.py files.
-
+    
     The message name is automatically derived from the variable name by
     the auto-discovery system in message/__init__.py.
-
+    
     Attributes:
     description: Human-readable description
     fields: List of Field objects defining the message structure
     name: Message name (auto-injected by message/__init__.py, always set before use)
     optimistic: Enable optimistic updates for this message (default: False)
-
+    
     Example:
     >>> from protocol import Message
     >>> from field.transport import transport_play
@@ -161,9 +167,9 @@ class Message:
     >>> # Name is auto-injected by message/__init__.py
     >>> TRANSPORT_PLAY.name  # 'TRANSPORT_PLAY'
     """
-
     description: str
     fields: Sequence[FieldBase]
     optimistic: bool = False
-    name: str = ""
+    name: str = ''
     def __str__(self) -> str: ...
+

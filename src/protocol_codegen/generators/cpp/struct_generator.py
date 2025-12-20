@@ -263,7 +263,9 @@ def _generate_encode_function(
             field_type_name = field.type_name.value
             if field.is_array():
                 # Primitive array (e.g., string[16])
-                lines.append(f"        encodeUint8(ptr, {field.name}.size());")
+                # Only encode count prefix for dynamic arrays
+                if field.dynamic:
+                    lines.append(f"        encodeUint8(ptr, {field.name}.size());")
                 lines.append(f"        for (const auto& item : {field.name}) {{")
                 encoder_call = _get_encoder_call("item", field_type_name, type_registry)
                 lines.append(f"            {encoder_call}")
@@ -370,17 +372,17 @@ def _generate_decode_function(
             field_type_name = field.type_name.value
             if field.is_array():
                 # Primitive array (e.g., string[16])
-                lines.append(f"        uint8_t count_{field.name};")
-                lines.append(
-                    f"        if (!decodeUint8(ptr, remaining, count_{field.name})) return std::nullopt;"
-                )
                 cpp_type = _get_cpp_type_for_field(field, type_registry)
                 var_name = f"{field.name}_data"
                 lines.append(f"        {cpp_type} {var_name};")
 
-                # For std::vector, use push_back; for std::array, use direct indexing
+                # For std::vector (dynamic), read count from message; for std::array (fixed), use known size
                 if field.dynamic:
-                    # Dynamic vector: decode into temp var and push_back
+                    # Dynamic vector: read count, decode into temp var and push_back
+                    lines.append(f"        uint8_t count_{field.name};")
+                    lines.append(
+                        f"        if (!decodeUint8(ptr, remaining, count_{field.name})) return std::nullopt;"
+                    )
                     lines.append(
                         f"        for (uint8_t i = 0; i < count_{field.name} && i < {field.array}; ++i) {{"
                     )
@@ -393,9 +395,9 @@ def _generate_decode_function(
                     lines.append(f"            {var_name}.push_back(temp_item);")
                     lines.append("        }")
                 else:
-                    # Fixed array: decode directly by index
+                    # Fixed array: decode directly by index, using known array size
                     lines.append(
-                        f"        for (uint8_t i = 0; i < count_{field.name} && i < {field.array}; ++i) {{"
+                        f"        for (uint8_t i = 0; i < {field.array}; ++i) {{"
                     )
                     decoder_call = _get_decoder_call(
                         "temp_item", field_type_name, type_registry, direct_target=f"{var_name}[i]"
@@ -677,6 +679,9 @@ def _calculate_max_payload_size(
                     # Not builtin (shouldn't happen in Python-unified)
                     base_size = 10  # Conservative estimate
 
+                # For dynamic arrays, add 1 byte for the count prefix
+                if field.array and field.dynamic:
+                    total_size += 1  # Array count byte for dynamic arrays only
                 total_size += base_size * array_size
 
         else:  # Composite field
@@ -738,8 +743,12 @@ def _calculate_min_payload_size(
                     base_size = 10  # Conservative estimate
 
                 if field.array:
-                    # Array of primitives: count byte only (minimum = 0 elements)
-                    total_size += 1  # Array count byte
+                    if field.dynamic:
+                        # Dynamic array: count byte only (minimum = 0 elements)
+                        total_size += 1  # Array count byte
+                    else:
+                        # Fixed array: all elements must be present
+                        total_size += base_size * array_size
                 else:
                     total_size += base_size
 
@@ -776,12 +785,12 @@ def _get_encoded_size(type_name: str, raw_size: int) -> int:
     if type_name == "bool":
         return 1
 
-    # uint8, int8: 1 byte (no encoding)
-    if type_name in ("uint8", "int8"):
+    # uint8, int8, norm8: 1 byte (no encoding)
+    if type_name in ("uint8", "int8", "norm8"):
         return 1
 
-    # uint16, int16: 2 → 3 bytes
-    if type_name in ("uint16", "int16"):
+    # uint16, int16, norm16: 2 → 3 bytes
+    if type_name in ("uint16", "int16", "norm16"):
         return 3
 
     # uint32, int32, float32: 4 → 5 bytes

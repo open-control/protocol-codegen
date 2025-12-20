@@ -293,6 +293,51 @@ def _generate_decoders(builtin_types: dict[str, AtomicType]) -> str:
     }}
 """)
 
+        elif type_name == "norm8":
+            decoders.append(f"""
+    /**
+     * Decode norm8 (1 byte → float 0.0-1.0)
+     * {desc}
+     *
+     * @param data Byte array containing encoded data
+     * @param offset Start offset in array
+     * @return Decoded normalized float value (0.0-1.0)
+     * @throws IllegalArgumentException if insufficient data
+     */
+    public static {java_type} decodeNorm8(byte[] data, int offset) {{
+        if (data.length - offset < 1) {{
+            throw new IllegalArgumentException("Insufficient data for norm8 decode");
+        }}
+
+        int val = data[offset] & 0x7F;
+        return val / 127.0f;
+    }}
+""")
+
+        elif type_name == "norm16":
+            decoders.append(f"""
+    /**
+     * Decode norm16 (3 bytes → float 0.0-1.0)
+     * {desc}
+     *
+     * @param data Byte array containing encoded data
+     * @param offset Start offset in array
+     * @return Decoded normalized float value (0.0-1.0)
+     * @throws IllegalArgumentException if insufficient data
+     */
+    public static {java_type} decodeNorm16(byte[] data, int offset) {{
+        if (data.length - offset < 3) {{
+            throw new IllegalArgumentException("Insufficient data for norm16 decode");
+        }}
+
+        int val = (data[offset] & 0x7F)
+                | ((data[offset + 1] & 0x7F) << 7)
+                | ((data[offset + 2] & 0x03) << 14);
+
+        return val / 65535.0f;
+    }}
+""")
+
         elif type_name == "string":
             decoders.append(f"""
     /**

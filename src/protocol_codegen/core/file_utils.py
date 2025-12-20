@@ -23,6 +23,8 @@ def write_if_changed(path: Path, content: str, encoding: str = "utf-8") -> bool:
     - Preserves file timestamps for unchanged files
     - Improves build system efficiency (unchanged files don't trigger rebuilds)
 
+    Line endings are normalized to LF for cross-platform consistency.
+
     Args:
         path: Target file path
         content: Content to write
@@ -39,6 +41,9 @@ def write_if_changed(path: Path, content: str, encoding: str = "utf-8") -> bool:
         ... else:
         ...     print("File unchanged, skipped")
     """
+    # Normalize line endings to LF for cross-platform consistency
+    content = content.replace("\r\n", "\n").replace("\r", "\n")
+
     # Check if file exists and has same content
     if path.exists():
         try:
@@ -51,8 +56,8 @@ def write_if_changed(path: Path, content: str, encoding: str = "utf-8") -> bool:
     # Ensure parent directory exists
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Write the new content
-    path.write_text(content, encoding=encoding)
+    # Write with explicit LF line endings
+    path.write_bytes(content.encode(encoding))
     return True
 
 

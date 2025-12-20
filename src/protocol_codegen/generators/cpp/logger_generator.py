@@ -301,7 +301,7 @@ def _format_primitive_scalar(
             f'        ptr += snprintf(ptr, end - ptr, "{indent_str}{field_display}: %ld\\n", (long){field_access});'
         ]
 
-    elif type_name == "float32":
+    elif type_name in ("float32", "norm8", "norm16"):
         # Float: use floatToString() for 4 decimal precision
         # Create a safe variable name (no dots, brackets, etc.)
         safe_var_name = _make_safe_var_name(field.name)
@@ -386,7 +386,7 @@ def _format_primitive_array(
         )
         lines.append("            }")
 
-    elif type_name == "float32":
+    elif type_name in ("float32", "norm8", "norm16"):
         safe_var_name = _make_safe_var_name(field.name)
         lines.append("            {")
         lines.append(f"                char floatBuf_{safe_var_name}[16];")
@@ -531,7 +531,7 @@ def _format_field_for_log_inline(field: FieldBase, indent: int) -> list[str]:
             f'            ptr += snprintf(ptr, end - ptr, "{indent_str}- {display_name}: %ld\\n", (long){access_path});'
         ]
 
-    elif type_name == "float32":
+    elif type_name in ("float32", "norm8", "norm16"):
         safe_var_name = _make_safe_var_name(field.name)
         lines = [
             "            {",

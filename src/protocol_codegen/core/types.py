@@ -94,6 +94,23 @@ BUILTIN_TYPES: dict[str, BuiltinTypeDef] = {
         cpp_type="float",
         java_type="float",
     ),
+    # Normalized float (0.0-1.0 as uint8, 1 byte - 7-bit safe values 0-127)
+    # Precision: ~0.8% (1/127), sufficient for visual display
+    "norm8": BuiltinTypeDef(
+        name="norm8",
+        description="Normalized float (0.0-1.0) stored as 7-bit uint8 for minimal bandwidth",
+        size_bytes=1,
+        cpp_type="float",  # Exposed as float in API
+        java_type="float",  # Exposed as float in API
+    ),
+    # Normalized float (0.0-1.0 as uint16, 3 bytes encoded vs 5 for float32)
+    "norm16": BuiltinTypeDef(
+        name="norm16",
+        description="Normalized float (0.0-1.0) stored as uint16 for efficiency",
+        size_bytes=2,
+        cpp_type="float",  # Exposed as float in API
+        java_type="float",  # Exposed as float in API
+    ),
     # String (variable length)
     "string": BuiltinTypeDef(
         name="string",

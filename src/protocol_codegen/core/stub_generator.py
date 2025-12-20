@@ -243,9 +243,10 @@ def populate_type_names(type_names: list[str]) -> None:
     stub_content += _generate_dataclass_stub(Message, "Message")
     stub_content += "\n"
 
-    # Write stub file
+    # Write stub file with LF line endings
     stub_path = script_dir / "field.pyi"
-    stub_path.write_text(stub_content, encoding="utf-8")
+    stub_content = stub_content.replace("\r\n", "\n").replace("\r", "\n")
+    stub_path.write_bytes(stub_content.encode("utf-8"))
 
     print(f"\n[OK] Generated {stub_path}")
     print(f"     Total: {len(builtin_types)} builtin types")

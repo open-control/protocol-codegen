@@ -230,6 +230,45 @@ static inline void encodeFloat32(uint8_t*& buf, float val) {{
 }}
 """)
 
+        elif type_name == "norm8":
+            encoders.append(f"""
+/**
+ * Encode norm8 (1 byte, 7-bit encoding)
+ * {desc}
+ *
+ * Converts float 0.0-1.0 to 7-bit value 0-127 for minimal bandwidth.
+ * Precision: ~0.8% (1/127), sufficient for visual display.
+ */
+static inline void encodeNorm8(uint8_t*& buf, float val) {{
+    // Clamp to 0.0-1.0 and convert to 7-bit
+    if (val < 0.0f) val = 0.0f;
+    if (val > 1.0f) val = 1.0f;
+    *buf++ = static_cast<uint8_t>(val * 127.0f + 0.5f) & 0x7F;
+}}
+""")
+
+        elif type_name == "norm16":
+            encoders.append(f"""
+/**
+ * Encode norm16 (2 bytes → 3 bytes, 7-bit encoding)
+ * {desc}
+ * Overhead: +50% (2→3 bytes) but 40% smaller than float32
+ *
+ * Converts float 0.0-1.0 to uint16 0-65535 for efficient transmission.
+ * Precision: ~0.0000153 (1/65535)
+ */
+static inline void encodeNorm16(uint8_t*& buf, float val) {{
+    // Clamp to 0.0-1.0 and convert to uint16
+    if (val < 0.0f) val = 0.0f;
+    if (val > 1.0f) val = 1.0f;
+    uint16_t norm = static_cast<uint16_t>(val * 65535.0f + 0.5f);
+
+    *buf++ = norm & 0x7F;           // bits 0-6
+    *buf++ = (norm >> 7) & 0x7F;    // bits 7-13
+    *buf++ = (norm >> 14) & 0x03;   // bits 14-15 (only 2 bits needed)
+}}
+""")
+
         elif type_name == "string":
             encoders.append(f"""
 /**

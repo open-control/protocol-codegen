@@ -118,6 +118,8 @@ def _get_java_type_name(type_name: str, _type_registry: TypeRegistry) -> str:
         "int16": "short",
         "int32": "int",
         "float32": "float",
+        "norm8": "float",
+        "norm16": "float",
         "string": "String",
     }
 
@@ -193,7 +195,7 @@ def _format_primitive_scalar(
         lines.append(
             f'        sb.append("{indent_str}{field.name}: \\"").append({getter}()).append("\\"\\n");'
         )
-    elif type_name == "float32":
+    elif type_name in ("float32", "norm8", "norm16"):
         # Float: 0.7500 (4 decimals via formatFloat)
         lines.append(
             f'        sb.append("{indent_str}{field.name}: ").append(formatFloat({getter}())).append("\\n");'
@@ -250,7 +252,7 @@ def _format_primitive_array(
             f'                sb.append("{item_indent_str}- \\"").append(item).append("\\"\\n");'
         )
         lines.append("            }")
-    elif type_name == "float32":
+    elif type_name in ("float32", "norm8", "norm16"):
         # Float array: with formatFloat
         lines.append(f"            for (float item : {getter}()) {{")
         lines.append(
@@ -346,7 +348,7 @@ def _format_composite_nested_field(
             lines.append(
                 f'        sb.append("{indent_str}{field.name}: \\"").append({parent_getter}().{nested_getter}()).append("\\"\\n");'
             )
-        elif type_name == "float32":
+        elif type_name in ("float32", "norm8", "norm16"):
             lines.append(
                 f'        sb.append("{indent_str}{field.name}: ").append(formatFloat({parent_getter}().{nested_getter}())).append("\\n");'
             )
@@ -421,7 +423,7 @@ def _format_composite_array(
                     lines.append(
                         f'            sb.append("{item_indent_str}- {nested_field.name}: \\"").append(item.{nested_getter}()).append("\\"\\n");'
                     )
-                elif type_name == "float32":
+                elif type_name in ("float32", "norm8", "norm16"):
                     lines.append(
                         f'            sb.append("{item_indent_str}- {nested_field.name}: ").append(formatFloat(item.{nested_getter}())).append("\\n");'
                     )
@@ -441,7 +443,7 @@ def _format_composite_array(
                     lines.append(
                         f'            sb.append("{field_indent}{nested_field.name}: \\"").append(item.{nested_getter}()).append("\\"\\n");'
                     )
-                elif type_name == "float32":
+                elif type_name in ("float32", "norm8", "norm16"):
                     lines.append(
                         f'            sb.append("{field_indent}{nested_field.name}: ").append(formatFloat(item.{nested_getter}())).append("\\n");'
                     )
@@ -467,18 +469,18 @@ def _format_composite_array(
 
 def _contains_float_fields(fields: Sequence[FieldBase]) -> bool:
     """
-    Check if any field (or nested field) contains float32 type.
+    Check if any field (or nested field) contains float32 or norm16 type.
 
     Args:
         fields: List of fields to check
 
     Returns:
-        True if any field contains float32, False otherwise
+        True if any field contains float32, norm8, or norm16, False otherwise
     """
     for field in fields:
         if field.is_primitive():
             assert isinstance(field, PrimitiveField), "Primitive field must be PrimitiveField"
-            if field.type_name.value == "float32":
+            if field.type_name.value in ("float32", "norm8", "norm16"):
                 return True
         elif field.is_composite():
             assert isinstance(field, CompositeField), "Composite field must be CompositeField"
