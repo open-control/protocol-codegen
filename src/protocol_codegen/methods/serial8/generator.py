@@ -1,7 +1,7 @@
 """
-SysEx Protocol Generator
+Serial8 Protocol Generator
 
-Main orchestrator for SysEx protocol code generation.
+Main orchestrator for Serial8 protocol code generation.
 Handles the complete generation pipeline from message definitions to generated code.
 """
 
@@ -16,7 +16,7 @@ if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from protocol_codegen.core.allocator import allocate_message_ids
 from protocol_codegen.core.field import populate_type_names
@@ -25,69 +25,38 @@ from protocol_codegen.core.loader import TypeRegistry
 from protocol_codegen.core.message import Message
 from protocol_codegen.core.plugin_types import PluginPathsConfig
 from protocol_codegen.core.validator import ProtocolValidator
-from protocol_codegen.generators.sysex.cpp.callbacks_generator import generate_protocol_callbacks_hpp
-from protocol_codegen.generators.sysex.cpp.constants_generator import ProtocolConfig as CppProtocolConfig
-from protocol_codegen.generators.sysex.cpp.constants_generator import generate_constants_hpp
-from protocol_codegen.generators.sysex.cpp.decoder_generator import generate_decoder_hpp
-from protocol_codegen.generators.sysex.cpp.decoder_registry_generator import generate_decoder_registry_hpp
-from protocol_codegen.generators.sysex.cpp.encoder_generator import generate_encoder_hpp
-from protocol_codegen.generators.sysex.cpp.logger_generator import generate_logger_hpp
-from protocol_codegen.generators.sysex.cpp.message_structure_generator import (
+from protocol_codegen.generators.serial8.cpp.callbacks_generator import generate_protocol_callbacks_hpp
+from protocol_codegen.generators.serial8.cpp.constants_generator import ProtocolConfig as CppProtocolConfig
+from protocol_codegen.generators.serial8.cpp.constants_generator import generate_constants_hpp
+from protocol_codegen.generators.serial8.cpp.decoder_generator import generate_decoder_hpp
+from protocol_codegen.generators.serial8.cpp.decoder_registry_generator import generate_decoder_registry_hpp
+from protocol_codegen.generators.serial8.cpp.encoder_generator import generate_encoder_hpp
+from protocol_codegen.generators.serial8.cpp.logger_generator import generate_logger_hpp
+from protocol_codegen.generators.serial8.cpp.message_structure_generator import (
     generate_message_structure_hpp,
 )
-from protocol_codegen.generators.sysex.cpp.messageid_generator import generate_messageid_hpp
-from protocol_codegen.generators.sysex.cpp.struct_generator import generate_struct_hpp
-from protocol_codegen.generators.sysex.cpp.protocol_generator import generate_protocol_template_hpp
-from protocol_codegen.generators.sysex.java.callbacks_generator import generate_protocol_callbacks_java
-from protocol_codegen.generators.sysex.java.constants_generator import (
-    ProtocolConfig as JavaProtocolConfig,
-)
-from protocol_codegen.generators.sysex.java.constants_generator import generate_constants_java
-from protocol_codegen.generators.sysex.java.decoder_generator import generate_decoder_java
-from protocol_codegen.generators.sysex.java.decoder_registry_generator import (
-    generate_decoder_registry_java,
-)
-from protocol_codegen.generators.sysex.java.encoder_generator import generate_encoder_java
-from protocol_codegen.generators.sysex.java.messageid_generator import generate_messageid_java
-from protocol_codegen.generators.sysex.java.struct_generator import generate_struct_java
-from protocol_codegen.generators.sysex.java.protocol_generator import generate_protocol_template_java
-from protocol_codegen.methods.sysex.config import SysExConfig
+from protocol_codegen.generators.serial8.cpp.messageid_generator import generate_messageid_hpp
+from protocol_codegen.generators.serial8.cpp.struct_generator import generate_struct_hpp
+from protocol_codegen.generators.serial8.cpp.protocol_generator import generate_protocol_template_hpp
+from protocol_codegen.generators.serial8.java.callbacks_generator import generate_protocol_callbacks_java
+from protocol_codegen.generators.serial8.java.constants_generator import ProtocolConfig as JavaProtocolConfig
+from protocol_codegen.generators.serial8.java.constants_generator import generate_constants_java
+from protocol_codegen.generators.serial8.java.decoder_generator import generate_decoder_java
+from protocol_codegen.generators.serial8.java.decoder_registry_generator import generate_decoder_registry_java
+from protocol_codegen.generators.serial8.java.encoder_generator import generate_encoder_java
+from protocol_codegen.generators.serial8.java.messageid_generator import generate_messageid_java
+from protocol_codegen.generators.serial8.java.struct_generator import generate_struct_java
+from protocol_codegen.generators.serial8.java.protocol_generator import generate_protocol_template_java
+from protocol_codegen.methods.serial8.config import Serial8Config
 
 if TYPE_CHECKING:
     from types import ModuleType
 
 
-def _convert_sysex_config_to_cpp_protocol_config(config: SysExConfig) -> CppProtocolConfig:
-    """Convert Pydantic SysExConfig to TypedDict ProtocolConfig for C++ generators."""
-    return CppProtocolConfig(
-        sysex={
-            "start": config.framing.start,
-            "end": config.framing.end,
-            "manufacturer_id": config.framing.manufacturer_id,
-            "device_id": config.framing.device_id,
-            "min_message_length": config.structure.min_message_length,
-            "message_type_offset": config.structure.message_type_offset,
-            "from_host_offset": config.structure.from_host_offset,
-            "payload_offset": config.structure.payload_offset,
-        },
-        limits={
-            "string_max_length": config.limits.string_max_length,
-            "array_max_items": config.limits.array_max_items,
-            "max_payload_size": config.limits.max_payload_size,
-            "max_message_size": config.limits.max_message_size,
-        },
-    )
-
-
-def _convert_sysex_config_to_java_protocol_config(config: SysExConfig) -> JavaProtocolConfig:
-    """Convert Pydantic SysExConfig to TypedDict ProtocolConfig for Java generators."""
+def _convert_serial8_config_to_java_protocol_config(config: Serial8Config) -> JavaProtocolConfig:
+    """Convert Pydantic Serial8Config to TypedDict ProtocolConfig for Java generators."""
     return JavaProtocolConfig(
-        sysex={
-            "start": config.framing.start,
-            "end": config.framing.end,
-            "manufacturer_id": config.framing.manufacturer_id,
-            "device_id": config.framing.device_id,
-            "min_message_length": config.structure.min_message_length,
+        structure={
             "message_type_offset": config.structure.message_type_offset,
             "from_host_offset": config.structure.from_host_offset,
             "payload_offset": config.structure.payload_offset,
@@ -101,7 +70,24 @@ def _convert_sysex_config_to_java_protocol_config(config: SysExConfig) -> JavaPr
     )
 
 
-def generate_sysex_protocol(
+def _convert_serial8_config_to_cpp_protocol_config(config: Serial8Config) -> CppProtocolConfig:
+    """Convert Pydantic Serial8Config to TypedDict ProtocolConfig for C++ generators."""
+    return CppProtocolConfig(
+        structure={
+            "message_type_offset": config.structure.message_type_offset,
+            "from_host_offset": config.structure.from_host_offset,
+            "payload_offset": config.structure.payload_offset,
+        },
+        limits={
+            "string_max_length": config.limits.string_max_length,
+            "array_max_items": config.limits.array_max_items,
+            "max_payload_size": config.limits.max_payload_size,
+            "max_message_size": config.limits.max_message_size,
+        },
+    )
+
+
+def generate_serial8_protocol(
     messages_dir: Path,
     config_path: Path,
     plugin_paths_path: Path,
@@ -109,7 +95,7 @@ def generate_sysex_protocol(
     verbose: bool = False,
 ) -> None:
     """
-    Generate SysEx protocol code from message definitions.
+    Generate Serial8 protocol code from message definitions.
 
     Args:
         messages_dir: Directory containing message definitions
@@ -125,7 +111,7 @@ def generate_sysex_protocol(
             print(msg)
 
     # Step 1: Load type registry
-    log("[1/7] Loading type registry...")
+    log("[1/6] Loading type registry...")
     registry = TypeRegistry()
     registry.load_builtins()
     type_names = list(registry.types.keys())
@@ -133,7 +119,7 @@ def generate_sysex_protocol(
     log(f"  ✓ Loaded {len(registry.types)} builtin types")
 
     # Step 2: Load configuration
-    log("[2/7] Loading configuration...")
+    log("[2/6] Loading configuration...")
 
     # Load protocol_config.py
     spec = importlib.util.spec_from_file_location("protocol_config", config_path)
@@ -152,11 +138,10 @@ def generate_sysex_protocol(
     plugin_paths: PluginPathsConfig = paths_module.PLUGIN_PATHS
 
     log("  ✓ Loaded protocol configuration")
-    log(f"  ✓ Manufacturer ID: 0x{protocol_config.framing.manufacturer_id:02X}")
-    log(f"  ✓ Device ID: 0x{protocol_config.framing.device_id:02X}")
+    log(f"  ✓ Max payload size: {protocol_config.limits.max_payload_size}")
 
     # Step 3: Import messages
-    log("[3/7] Importing messages...")
+    log("[3/6] Importing messages...")
 
     # Add messages directory parent to sys.path temporarily for import
     messages_parent = str(messages_dir.parent)
@@ -176,7 +161,7 @@ def generate_sysex_protocol(
             sys.path.remove(messages_parent)
 
     # Step 4: Validate messages
-    log("[4/7] Validating messages...")
+    log("[4/6] Validating messages...")
     validator = ProtocolValidator(registry)
     errors = validator.validate_messages(messages)
 
@@ -189,7 +174,7 @@ def generate_sysex_protocol(
     log(f"  ✓ Validation passed ({len(messages)} messages)")
 
     # Step 5: Allocate message IDs
-    log("[5/7] Allocating message IDs...")
+    log("[5/6] Allocating message IDs...")
     allocations = allocate_message_ids(messages)
     log(f"  ✓ Allocated {len(allocations)} message IDs (0x00-0x{len(allocations) - 1:02X})")
 
@@ -222,7 +207,7 @@ def _generate_cpp(
     messages: list[Message],
     allocations: dict[str, int],
     registry: TypeRegistry,
-    protocol_config: SysExConfig,
+    protocol_config: Serial8Config,
     plugin_paths: PluginPathsConfig,
     output_base: Path,
     verbose: bool,
@@ -234,7 +219,7 @@ def _generate_cpp(
     cpp_base.mkdir(parents=True, exist_ok=True)
 
     # Convert protocol config to TypedDict for generators
-    protocol_config_dict = _convert_sysex_config_to_cpp_protocol_config(protocol_config)
+    protocol_config_dict = _convert_serial8_config_to_cpp_protocol_config(protocol_config)
 
     # Generate base files with incremental updates
     cpp_encoder_path = cpp_base / "Encoder.hpp"
@@ -321,7 +306,7 @@ def _generate_java(
     messages: list[Message],
     allocations: dict[str, int],
     registry: TypeRegistry,
-    protocol_config: SysExConfig,
+    protocol_config: Serial8Config,
     plugin_paths: PluginPathsConfig,
     output_base: Path,
     verbose: bool,
@@ -332,14 +317,12 @@ def _generate_java(
     java_base = output_base / plugin_paths["output_java"]["base_path"]
     java_base.mkdir(parents=True, exist_ok=True)
 
-    # Extract Java package from plugin_paths
     java_package = plugin_paths["output_java"]["package"]
-    java_struct_package = f"{java_package}.struct"
 
     # Convert protocol config to TypedDict for generators
-    protocol_config_dict = _convert_sysex_config_to_java_protocol_config(protocol_config)
+    protocol_config_dict = _convert_serial8_config_to_java_protocol_config(protocol_config)
 
-    # Generate base files with incremental updates
+    # Generate base files
     java_encoder_path = java_base / "Encoder.java"
     was_written = write_if_changed(
         java_encoder_path, generate_encoder_java(registry, java_encoder_path, java_package)
@@ -387,9 +370,11 @@ def _generate_java(
     )
     stats.record_write(java_protocol_template_path, was_written)
 
-    # Generate struct files (structs path is relative to base_path)
+    # Generate struct files
     java_struct_dir = java_base / plugin_paths["output_java"]["structs"]
     java_struct_dir.mkdir(parents=True, exist_ok=True)
+
+    struct_package = f"{java_package}.struct"
 
     struct_stats = GenerationStats()
     for message in messages:
@@ -404,7 +389,7 @@ def _generate_java(
             registry,
             java_output_path,
             protocol_config.limits.string_max_length,
-            java_struct_package,
+            struct_package,
         )
         was_written = write_if_changed(java_output_path, java_code)
         struct_stats.record_write(java_output_path, was_written)

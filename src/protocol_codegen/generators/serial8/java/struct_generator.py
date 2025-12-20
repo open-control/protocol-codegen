@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 from protocol_codegen.core.field import CompositeField, FieldBase, PrimitiveField
 
 # Import logger generator
-from protocol_codegen.generators.java.logger_generator import generate_log_method
+from protocol_codegen.generators.serial8.java.logger_generator import generate_log_method
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -145,7 +145,7 @@ def _generate_header(
  * Description: {description}
  *
  * This class is immutable and uses Encoder for encode/decode operations.
- * All encoding is 7-bit MIDI-safe.
+ * All encoding is 8-bit binary (Serial8).
  */
 public final class {class_name} {{
 """
@@ -309,7 +309,7 @@ def _generate_encode_method(
     )
     lines.append("")
     lines.append("    /**")
-    lines.append("     * Maximum payload size in bytes (7-bit encoded)")
+    lines.append("     * Maximum payload size in bytes (8-bit encoded)")
     lines.append("     */")
     lines.append(f"    public static final int MAX_PAYLOAD_SIZE = {max_size};")
     lines.append("")
@@ -786,7 +786,7 @@ def _calculate_max_payload_size(
     fields: Sequence[FieldBase], type_registry: TypeRegistry, string_max_length: int
 ) -> int:
     """
-    Calculate maximum payload size in bytes (7-bit encoded).
+    Calculate maximum payload size in bytes (8-bit encoded).
 
     Args:
         fields: List of Field objects
@@ -849,7 +849,7 @@ def _calculate_min_payload_size(
     fields: Sequence[FieldBase], type_registry: TypeRegistry, string_max_length: int
 ) -> int:
     """
-    Calculate minimum payload size in bytes (7-bit encoded) with empty strings.
+    Calculate minimum payload size in bytes (8-bit encoded) with empty strings.
     Used for decode validation to allow variable-length messages.
 
     Args:
@@ -917,33 +917,36 @@ def _calculate_min_payload_size(
 
 def _get_encoded_size(type_name: str, raw_size: int) -> int:
     """
-    Get 7-bit encoded size for a builtin type.
+    Get 8-bit encoded size for a builtin type.
+
+    For Serial8 protocol, there is no expansion - raw sizes are preserved.
 
     Args:
         type_name: Builtin type name (e.g., 'bool', 'uint8', 'float32')
         raw_size: Raw size in bytes
 
     Returns:
-        Encoded size in bytes
+        Encoded size in bytes (same as raw_size for 8-bit protocol)
     """
-    # bool: 1 byte (0x00 or 0x01)
+    # 8-bit protocol: no expansion, sizes are preserved
+    # bool: 1 byte
     if type_name == "bool":
         return 1
 
-    # uint8, int8, norm8: 1 byte (no encoding)
+    # uint8, int8, norm8: 1 byte
     if type_name in ("uint8", "int8", "norm8"):
         return 1
 
-    # uint16, int16, norm16: 2 → 3 bytes
+    # uint16, int16, norm16: 2 bytes (no expansion)
     if type_name in ("uint16", "int16", "norm16"):
-        return 3
+        return 2
 
-    # uint32, int32, float32: 4 → 5 bytes
+    # uint32, int32, float32: 4 bytes (no expansion)
     if type_name in ("uint32", "int32", "float32"):
-        return 5
+        return 4
 
-    # Default: assume 7-bit encoding (size * 8 / 7, rounded up)
-    return ((raw_size * 8) + 6) // 7
+    # Default: return raw size (no expansion in 8-bit protocol)
+    return raw_size
 
 
 def _capitalize_first(s: str) -> str:

@@ -12,6 +12,7 @@ from protocol_codegen.core.message import collect_messages
 
 from .network import *
 from .sensor import *
+from .system import *
 
 # Automatically collect all Message instances and inject names
 # This replaces the manual _message_map pattern

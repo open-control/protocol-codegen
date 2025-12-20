@@ -23,9 +23,9 @@ def cli():
 @cli.command()
 @click.option(
     "--method",
-    type=click.Choice(["sysex"], case_sensitive=False),
+    type=click.Choice(["sysex", "serial8"], case_sensitive=False),
     required=True,
-    help="Protocol method to use (sysex, osc, etc.)",
+    help="Protocol method to use (sysex, serial8)",
 )
 @click.option(
     "--messages",
@@ -85,10 +85,10 @@ def generate(
         click.echo()
 
     # Import generator based on method
-    if method.lower() == "sysex":
-        from protocol_codegen.methods.sysex.generator import generate_sysex_protocol
+    try:
+        if method.lower() == "sysex":
+            from protocol_codegen.methods.sysex.generator import generate_sysex_protocol
 
-        try:
             generate_sysex_protocol(
                 messages_dir=messages_path,
                 config_path=config_path,
@@ -96,28 +96,39 @@ def generate(
                 output_base=output_base_path,
                 verbose=verbose,
             )
-            if verbose:
-                click.echo()
-                click.echo("=" * 70)
-            click.echo("✅ Code generation completed successfully!")
-            if verbose:
-                click.echo("=" * 70)
-        except Exception as e:
-            click.echo(f"❌ Error during generation: {e}", err=True)
-            if verbose:
-                import traceback
+        elif method.lower() == "serial8":
+            from protocol_codegen.methods.serial8.generator import generate_serial8_protocol
 
-                traceback.print_exc()
+            generate_serial8_protocol(
+                messages_dir=messages_path,
+                config_path=config_path,
+                plugin_paths_path=plugin_paths_path,
+                output_base=output_base_path,
+                verbose=verbose,
+            )
+        else:
+            click.echo(f"❌ Method '{method}' not yet implemented", err=True)
             sys.exit(1)
-    else:
-        click.echo(f"❌ Method '{method}' not yet implemented", err=True)
+
+        if verbose:
+            click.echo()
+            click.echo("=" * 70)
+        click.echo("✅ Code generation completed successfully!")
+        if verbose:
+            click.echo("=" * 70)
+    except Exception as e:
+        click.echo(f"❌ Error during generation: {e}", err=True)
+        if verbose:
+            import traceback
+
+            traceback.print_exc()
         sys.exit(1)
 
 
 @cli.command()
 @click.option(
     "--method",
-    type=click.Choice(["sysex"], case_sensitive=False),
+    type=click.Choice(["sysex", "serial8"], case_sensitive=False),
     required=True,
     help="Protocol method to validate for",
 )
@@ -235,9 +246,9 @@ def list_methods():
     """List available protocol methods."""
     click.echo("📋 Available Protocol Methods:")
     click.echo()
-    click.echo("  ✅ sysex    - MIDI System Exclusive protocol")
+    click.echo("  ✅ sysex    - MIDI System Exclusive protocol (7-bit)")
+    click.echo("  ✅ serial8  - Serial binary protocol (8-bit)")
     click.echo("  🔮 osc      - Open Sound Control (planned)")
-    click.echo("  🔮 custom   - Custom binary protocol (planned)")
     click.echo()
 
 
@@ -257,7 +268,7 @@ def list_generators():
 @cli.command()
 @click.option(
     "--method",
-    type=click.Choice(["sysex"], case_sensitive=False),
+    type=click.Choice(["sysex", "serial8"], case_sensitive=False),
     default="sysex",
     help="Protocol method for scaffolding",
 )

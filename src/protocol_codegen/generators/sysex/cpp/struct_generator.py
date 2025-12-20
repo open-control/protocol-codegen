@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 # Import field classes for runtime isinstance checks
 from protocol_codegen.core.field import CompositeField, FieldBase, PrimitiveField
-from protocol_codegen.generators.cpp.logger_generator import generate_log_method
+from protocol_codegen.generators.sysex.cpp.logger_generator import generate_log_method
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
