@@ -365,14 +365,13 @@ def _generate_encode_method(
             field_type_name = field.type_name.value
             if field.is_array():
                 # Primitive array (e.g., List<String>)
-                # Only encode count prefix for dynamic arrays
-                if field.dynamic:
-                    lines.append(
-                        f"        byte[] {field.name}_count = Encoder.encodeUint8({field.name}.size());"
-                    )
-                    lines.append(f"        System.arraycopy({field.name}_count, 0, buffer, offset, 1);")
-                    lines.append("        offset += 1;")
-                    lines.append("")
+                # ALWAYS encode count prefix (same as composite arrays for consistency)
+                lines.append(
+                    f"        byte[] {field.name}_count = Encoder.encodeUint8({field.name}.size());"
+                )
+                lines.append(f"        System.arraycopy({field.name}_count, 0, buffer, offset, 1);")
+                lines.append("        offset += 1;")
+                lines.append("")
                 lines.append(
                     f"        for ({_get_java_type(field_type_name, type_registry)} item : {field.name}) {{"
                 )
@@ -545,14 +544,11 @@ def _generate_decode_method(
             if field.is_array():
                 # Primitive array (e.g., List<String>)
                 boxed_type = _get_boxed_java_type(java_type)
-                # For dynamic arrays, read count from message; for fixed arrays, use known size
-                if field.dynamic:
-                    lines.append(f"        int count_{field.name} = Decoder.decodeUint8(data, offset);")
-                    lines.append("        offset += 1;")
-                    lines.append("")
-                    count_var = f"count_{field.name}"
-                else:
-                    count_var = str(field.array)
+                # ALWAYS read count from message (same as composite arrays for consistency)
+                lines.append(f"        int count_{field.name} = Decoder.decodeUint8(data, offset);")
+                lines.append("        offset += 1;")
+                lines.append("")
+                count_var = f"count_{field.name}"
                 lines.append(f"        List<{boxed_type}> {field.name}_list = new ArrayList<>();")
                 lines.append(f"        for (int i = 0; i < {count_var}; i++) {{")
                 decoder_call = _get_decoder_call(
@@ -871,9 +867,9 @@ def _calculate_max_payload_size(
                     # Nested struct - not supported in Python-unified architecture
                     raise ValueError(f"Nested structs not supported: {base_type}")
 
-                # For dynamic arrays, add 1 byte for the count prefix
-                if field.array and field.dynamic:
-                    total_size += 1  # Array count byte for dynamic arrays only
+                # ALWAYS add 1 byte for the count prefix (same as composite arrays)
+                if field.array:
+                    total_size += 1  # Array count byte for all arrays
                 total_size += base_size * array_size
         else:  # Composite
             assert isinstance(field, CompositeField)
@@ -937,12 +933,8 @@ def _calculate_min_payload_size(
                     raise ValueError(f"Nested structs not supported: {base_type}")
 
                 if field.array:
-                    if field.dynamic:
-                        # Dynamic array: count byte only (minimum = 0 elements)
-                        total_size += 1  # Array count byte
-                    else:
-                        # Fixed array: all elements must be present
-                        total_size += base_size * array_size
+                    # ALL arrays: count byte only (minimum = 0 elements)
+                    total_size += 1  # Array count byte
                 else:
                     total_size += base_size
         else:  # Composite
