@@ -87,13 +87,13 @@ def generate_struct_java(
         needs_constants,
         package,
     )
-    message_id_constant = _generate_message_id_constant(message.name)
+    message_id_constant = _generate_message_id_constant(message.name, pascal_name)
     inner_classes = _generate_inner_classes(fields, type_registry)
     field_declarations = _generate_field_declarations(fields, type_registry)
     constructor = _generate_constructor(class_name, fields, type_registry)
     getters = _generate_getters(fields, type_registry)
-    encode_method = _generate_encode_method(class_name, fields, type_registry, string_max_length)
-    decode_method = _generate_decode_method(class_name, fields, type_registry, string_max_length)
+    encode_method = _generate_encode_method(class_name, pascal_name, fields, type_registry, string_max_length)
+    decode_method = _generate_decode_method(class_name, pascal_name, fields, type_registry, string_max_length)
     log_method = generate_log_method(class_name, fields, type_registry)
     footer = _generate_footer()
 
@@ -151,14 +151,17 @@ public final class {class_name} {{
 """
 
 
-def _generate_message_id_constant(message_name: str) -> str:
-    """Generate MESSAGE_ID constant for auto-detection in protocol.send()."""
+def _generate_message_id_constant(message_name: str, pascal_name: str) -> str:
+    """Generate MESSAGE_ID and MESSAGE_NAME constants for auto-detection and logging."""
     return f"""
     // ============================================================================
     // Auto-detected MessageID for protocol.send()
     // ============================================================================
 
     public static final MessageID MESSAGE_ID = MessageID.{message_name};
+
+    // Message name for logging (encoded in payload)
+    public static final String MESSAGE_NAME = "{pascal_name}";
 """
 
 
@@ -293,12 +296,15 @@ def _generate_getters(fields: Sequence[FieldBase], type_registry: TypeRegistry) 
 
 def _generate_encode_method(
     class_name: str,
+    pascal_name: str,
     fields: Sequence[FieldBase],
     type_registry: TypeRegistry,
     string_max_length: int,
 ) -> str:
     """Generate encode() method calling Encoder."""
-    max_size = _calculate_max_payload_size(fields, type_registry, string_max_length)
+    # Calculate max and min payload sizes (including MESSAGE_NAME prefix)
+    name_prefix_size = 1 + len(pascal_name)  # 1 byte length + name chars
+    max_size = name_prefix_size + _calculate_max_payload_size(fields, type_registry, string_max_length)
 
     lines: list[str] = [
         "    // ============================================================================"
@@ -314,13 +320,24 @@ def _generate_encode_method(
     lines.append(f"    public static final int MAX_PAYLOAD_SIZE = {max_size};")
     lines.append("")
 
-    # Simplified encode for empty messages
+    # Simplified encode for empty messages (still need to encode MESSAGE_NAME)
     if not fields:
         lines.append("    /**")
-        lines.append("     * Encode message to MIDI-safe bytes (empty message)")
-        lines.append("     * @return Empty byte array")
+        lines.append("     * Encode message to MIDI-safe bytes (message name only, no fields)")
+        lines.append("     * @return Encoded byte array")
         lines.append("     */")
-        lines.append("    public byte[] encode() { return new byte[0]; }")
+        lines.append("    public byte[] encode() {")
+        lines.append("        byte[] buffer = new byte[MAX_PAYLOAD_SIZE];")
+        lines.append("        int offset = 0;")
+        lines.append("")
+        lines.append("        // Encode message name (length-prefixed string for bridge logging)")
+        lines.append("        buffer[offset++] = (byte) MESSAGE_NAME.length();")
+        lines.append("        for (int i = 0; i < MESSAGE_NAME.length(); i++) {")
+        lines.append("            buffer[offset++] = (byte) MESSAGE_NAME.charAt(i);")
+        lines.append("        }")
+        lines.append("")
+        lines.append("        return java.util.Arrays.copyOf(buffer, offset);")
+        lines.append("    }")
         lines.append("")
         return "\n".join(lines)
 
@@ -333,6 +350,12 @@ def _generate_encode_method(
     lines.append("    public byte[] encode() {")
     lines.append("        byte[] buffer = new byte[MAX_PAYLOAD_SIZE];")
     lines.append("        int offset = 0;")
+    lines.append("")
+    lines.append("        // Encode message name (length-prefixed string for bridge logging)")
+    lines.append("        buffer[offset++] = (byte) MESSAGE_NAME.length();")
+    lines.append("        for (int i = 0; i < MESSAGE_NAME.length(); i++) {")
+    lines.append("            buffer[offset++] = (byte) MESSAGE_NAME.charAt(i);")
+    lines.append("        }")
     lines.append("")
 
     # Add encode calls for each field
@@ -435,12 +458,15 @@ def _generate_encode_method(
 
 def _generate_decode_method(
     class_name: str,
+    pascal_name: str,
     fields: Sequence[FieldBase],
     type_registry: TypeRegistry,
     string_max_length: int,
 ) -> str:
     """Generate static decode() factory method."""
-    min_size = _calculate_min_payload_size(fields, type_registry, string_max_length)
+    # Calculate min payload size (including MESSAGE_NAME prefix)
+    name_prefix_size = 1 + len(pascal_name)  # 1 byte length + name chars
+    min_size = name_prefix_size + _calculate_min_payload_size(fields, type_registry, string_max_length)
 
     lines: list[str] = [
         "    // ============================================================================"
@@ -451,14 +477,32 @@ def _generate_decode_method(
     )
     lines.append("")
 
-    # Simplified decode for empty messages (no MIN_PAYLOAD_SIZE needed)
+    # Simplified decode for empty messages (still need to skip MESSAGE_NAME prefix)
     if not fields:
         lines.append("    /**")
-        lines.append("     * Decode message from MIDI-safe bytes (empty message)")
-        lines.append(f"     * @param data Input buffer (unused)")
-        lines.append(f"     * @return New {class_name} instance")
+        lines.append("     * Minimum payload size in bytes (message name only)")
         lines.append("     */")
-        lines.append(f"    public static {class_name} decode(byte[] data) {{ return new {class_name}(); }}")
+        lines.append(f"    private static final int MIN_PAYLOAD_SIZE = {min_size};")
+        lines.append("")
+        lines.append("    /**")
+        lines.append("     * Decode message from MIDI-safe bytes (message name only, no fields)")
+        lines.append(f"     * @param data Input buffer")
+        lines.append(f"     * @return New {class_name} instance")
+        lines.append("     * @throws IllegalArgumentException if data is invalid or insufficient")
+        lines.append("     */")
+        lines.append(f"    public static {class_name} decode(byte[] data) {{")
+        lines.append("        if (data.length < MIN_PAYLOAD_SIZE) {")
+        lines.append(f'            throw new IllegalArgumentException("Insufficient data for {class_name} decode");')
+        lines.append("        }")
+        lines.append("")
+        lines.append("        int offset = 0;")
+        lines.append("")
+        lines.append("        // Skip message name prefix (length + name bytes)")
+        lines.append("        int nameLen = data[offset++] & 0xFF;")
+        lines.append("        offset += nameLen;")
+        lines.append("")
+        lines.append(f"        return new {class_name}();")
+        lines.append("    }")
         lines.append("")
         return "\n".join(lines)
 
@@ -485,6 +529,10 @@ def _generate_decode_method(
     lines.append("        }")
     lines.append("")
     lines.append("        int offset = 0;")
+    lines.append("")
+    lines.append("        // Skip message name prefix (length + name bytes)")
+    lines.append("        int nameLen = data[offset++] & 0xFF;")
+    lines.append("        offset += nameLen;")
     lines.append("")
 
     # Add decode calls for each field

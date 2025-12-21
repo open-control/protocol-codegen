@@ -70,9 +70,9 @@ def generate_struct_hpp(
     composite_structs = _generate_composite_structs(fields, type_registry)
 
     struct_def = _generate_struct_definition(
-        struct_name, message.name, message_id, fields, type_registry
+        struct_name, message.name, pascal_name, message_id, fields, type_registry
     )
-    encode_fn = _generate_encode_function(struct_name, fields, type_registry, string_max_length)
+    encode_fn = _generate_encode_function(struct_name, pascal_name, fields, type_registry, string_max_length)
     decode_fn = _generate_decode_function(struct_name, fields, type_registry, string_max_length)
 
     # Generate toString() method for logging
@@ -137,7 +137,7 @@ def _generate_header(
     needs_array, needs_string, needs_vector = _analyze_includes_needed(fields, type_registry)
 
     # Build conditional includes
-    std_includes = ["#include <cstdint>", "#include <optional>"]
+    std_includes = ["#include <cstdint>", "#include <cstring>", "#include <optional>"]
     if needs_array:
         std_includes.insert(0, "#include <array>")
     if needs_string:
@@ -177,6 +177,7 @@ namespace Protocol {{
 def _generate_struct_definition(
     struct_name: str,
     message_name: str,  # SCREAMING_SNAKE_CASE name (e.g., "TRANSPORT_PLAY")
+    pascal_name: str,  # PascalCase name (e.g., "TransportPlay") - used for MESSAGE_NAME
     message_id: int,  # Allocated ID (e.g., 0x40)
     fields: Sequence[FieldBase],  # Sequence of Field objects (primitive OR composite)
     type_registry: TypeRegistry,
@@ -187,6 +188,11 @@ def _generate_struct_definition(
     # Add static MESSAGE_ID constant
     lines.append("    // Auto-detected MessageID for protocol.send()")
     lines.append(f"    static constexpr MessageID MESSAGE_ID = MessageID::{message_name};")
+    lines.append("")
+
+    # Add static MESSAGE_NAME constant (for logging/debugging)
+    lines.append("    // Message name for logging (encoded in payload)")
+    lines.append(f'    static constexpr const char* MESSAGE_NAME = "{pascal_name}";')
     lines.append("")
 
     # Add fields FIRST (use new helper that handles both primitive and composite)
@@ -206,14 +212,16 @@ def _generate_struct_definition(
 
 def _generate_encode_function(
     struct_name: str,
+    pascal_name: str,  # PascalCase name for MESSAGE_NAME encoding
     fields: Sequence[FieldBase],  # Sequence of Field objects
     type_registry: TypeRegistry,
     string_max_length: int,
 ) -> str:
     """Generate encode() function calling Encoder."""
-    # Calculate max and min payload sizes
-    max_size = _calculate_max_payload_size(fields, type_registry, string_max_length)
-    min_size = _calculate_min_payload_size(fields, type_registry, string_max_length)
+    # Calculate max and min payload sizes (including MESSAGE_NAME prefix)
+    name_prefix_size = 1 + len(pascal_name)  # 1 byte length + name chars
+    max_size = name_prefix_size + _calculate_max_payload_size(fields, type_registry, string_max_length)
+    min_size = name_prefix_size + _calculate_min_payload_size(fields, type_registry, string_max_length)
 
     lines = [
         "    /**",
@@ -228,14 +236,29 @@ def _generate_encode_function(
         "",
     ]
 
-    # Simplified encode for empty messages
+    # Encode for empty messages (still need to encode MESSAGE_NAME)
     if not fields:
         lines.extend([
             "    /**",
-            "     * Encode struct to MIDI-safe bytes (empty message)",
-            "     * @return Always 0 (no payload)",
+            "     * Encode struct to MIDI-safe bytes (message name only, no fields)",
+            "     *",
+            "     * @param buffer Output buffer (must have >= MAX_PAYLOAD_SIZE bytes)",
+            "     * @param bufferSize Size of output buffer",
+            "     * @return Number of bytes written, or 0 if buffer too small",
             "     */",
-            "    uint16_t encode(uint8_t*, uint16_t) const { return 0; }",
+            "    uint16_t encode(uint8_t* buffer, uint16_t bufferSize) const {",
+            "        if (bufferSize < MAX_PAYLOAD_SIZE) return 0;",
+            "",
+            "        uint8_t* ptr = buffer;",
+            "",
+            "        // Encode message name (length-prefixed string for bridge logging)",
+            "        encodeUint8(ptr, static_cast<uint8_t>(strlen(MESSAGE_NAME)));",
+            "        for (size_t i = 0; i < strlen(MESSAGE_NAME); ++i) {",
+            "            *ptr++ = static_cast<uint8_t>(MESSAGE_NAME[i]);",
+            "        }",
+            "",
+            "        return ptr - buffer;",
+            "    }",
             "",
         ])
         return "\n".join(lines)
@@ -253,6 +276,12 @@ def _generate_encode_function(
         "        if (bufferSize < MAX_PAYLOAD_SIZE) return 0;",
         "",
         "        uint8_t* ptr = buffer;",
+        "",
+        "        // Encode message name (length-prefixed string for bridge logging)",
+        "        encodeUint8(ptr, static_cast<uint8_t>(strlen(MESSAGE_NAME)));",
+        "        for (size_t i = 0; i < strlen(MESSAGE_NAME); ++i) {",
+        "            *ptr++ = static_cast<uint8_t>(MESSAGE_NAME[i]);",
+        "        }",
         "",
     ])
 
@@ -333,13 +362,28 @@ def _generate_decode_function(
     string_max_length: int,
 ) -> str:
     """Generate static decode() function calling Decoder."""
-    # Simplified decode for empty messages
+    # Decode for empty messages (still need to skip MESSAGE_NAME prefix)
     if not fields:
         return f"""    /**
-     * Decode struct from MIDI-safe bytes (empty message)
-     * @return Always returns empty struct
+     * Decode struct from MIDI-safe bytes (message name only, no fields)
+     *
+     * @param data Input buffer with encoded data
+     * @param len Length of input buffer
+     * @return Decoded struct, or std::nullopt if invalid/insufficient data
      */
-    static std::optional<{struct_name}> decode(const uint8_t*, uint16_t) {{
+    static std::optional<{struct_name}> decode(const uint8_t* data, uint16_t len) {{
+        if (len < MIN_PAYLOAD_SIZE) return std::nullopt;
+
+        const uint8_t* ptr = data;
+        size_t remaining = len;
+
+        // Skip message name prefix (length + name bytes)
+        uint8_t nameLen;
+        if (!decodeUint8(ptr, remaining, nameLen)) return std::nullopt;
+        if (remaining < nameLen) return std::nullopt;
+        ptr += nameLen;
+        remaining -= nameLen;
+
         return {struct_name}{{}};
     }}
 """
@@ -360,6 +404,13 @@ def _generate_decode_function(
         "",
         "        const uint8_t* ptr = data;",
         "        size_t remaining = len;",
+        "",
+        "        // Skip message name prefix (length + name bytes)",
+        "        uint8_t nameLen;",
+        "        if (!decodeUint8(ptr, remaining, nameLen)) return std::nullopt;",
+        "        if (remaining < nameLen) return std::nullopt;",
+        "        ptr += nameLen;",
+        "        remaining -= nameLen;",
         "",
         "        // Decode fields",
     ]
