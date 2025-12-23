@@ -367,17 +367,14 @@ def _generate_encode_method(
                 # Primitive array (e.g., List<String>)
                 # ALWAYS encode count prefix (same as composite arrays for consistency)
                 lines.append(
-                    f"        byte[] {field.name}_count = Encoder.encodeUint8({field.name}.size());"
+                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.size());"
                 )
-                lines.append(f"        System.arraycopy({field.name}_count, 0, buffer, offset, 1);")
-                lines.append("        offset += 1;")
                 lines.append("")
                 lines.append(
                     f"        for ({_get_java_type(field_type_name, type_registry)} item : {field.name}) {{"
                 )
                 encoder_call = _get_encoder_call("item", field_type_name, type_registry)
-                for line in encoder_call.split("\n"):
-                    lines.append(f"    {line}")
+                lines.append(f"            {encoder_call}")
                 lines.append("        }")
                 lines.append("")
             else:
@@ -389,10 +386,8 @@ def _generate_encode_method(
             if field.array:
                 # Encode array count
                 lines.append(
-                    f"        byte[] {field.name}_count = Encoder.encodeUint8({field.name}.size());"
+                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.size());"
                 )
-                lines.append(f"        System.arraycopy({field.name}_count, 0, buffer, offset, 1);")
-                lines.append("        offset += 1;")
                 lines.append("")
                 # Encode each item
                 class_name = _field_to_pascal_case(field.name)
@@ -405,29 +400,21 @@ def _generate_encode_method(
                             # Nested array of primitives - encode count for dynamic arrays
                             java_type = _get_java_type(nested_field.type_name.value, type_registry)
                             lines.append(
-                                f"            byte[] count_{nested_field.name} = Encoder.encodeUint8((byte) item.{getter_name}().length);"
+                                f"            offset += Encoder.writeUint8(buffer, offset, item.{getter_name}().length);"
                             )
-                            lines.append(
-                                f"            System.arraycopy(count_{nested_field.name}, 0, buffer, offset, 1);"
-                            )
-                            lines.append("            offset += 1;")
                             lines.append(
                                 f"            for ({java_type} type : item.{getter_name}()) {{"
                             )
                             encoder_call = _get_encoder_call(
                                 "type", nested_field.type_name.value, type_registry
                             )
-                            # Indent by 16 spaces (4 levels)
-                            for line in encoder_call.split("\n"):
-                                lines.append(f"        {line}")
+                            lines.append(f"                {encoder_call}")
                             lines.append("            }")
                         else:
                             encoder_call = _get_encoder_call(
                                 f"item.{getter_name}()", nested_field.type_name.value, type_registry
                             )
-                            # Indent by 12 spaces (3 levels)
-                            for line in encoder_call.split("\n"):
-                                lines.append(f"    {line}")
+                            lines.append(f"            {encoder_call}")
                 lines.append("        }")
                 lines.append("")
             else:
@@ -763,10 +750,10 @@ def _sanitize_var_name(field_expr: str) -> str:
 
 def _get_encoder_call(field_name: str, field_type: str, type_registry: TypeRegistry) -> str:
     """
-    Generate Encoder method call for encoding a field.
+    Generate Encoder streaming write call for encoding a field.
 
     Returns:
-        Java code lines calling appropriate Encoder method
+        Java code line calling appropriate Encoder.writeXxx() method
     """
     # Extract base type (handle arrays)
     base_type = field_type.split("[")[0]
@@ -776,22 +763,19 @@ def _get_encoder_call(field_name: str, field_type: str, type_registry: TypeRegis
 
     atomic = type_registry.get(base_type)
 
-    # Create valid variable name from field expression
-    var_name = _sanitize_var_name(field_name)
-
     if atomic.is_builtin:
-        # Call Encoder.encodeXXX()
-        encoder_name = f"encode{_capitalize_first(base_type)}"
+        # Call Encoder.writeXxx() - streaming, zero allocation
+        writer_name = f"write{_capitalize_first(base_type)}"
 
         if base_type == "string":
-            # String needs max length parameter (using ProtocolConstants.STRING_MAX_LENGTH from config)
-            return f"byte[] {var_name}_encoded = Encoder.{encoder_name}({field_name}, ProtocolConstants.STRING_MAX_LENGTH);\n        System.arraycopy({var_name}_encoded, 0, buffer, offset, {var_name}_encoded.length);\n        offset += {var_name}_encoded.length;"
+            # String needs max length parameter
+            return f"offset += Encoder.{writer_name}(buffer, offset, {field_name}, ProtocolConstants.STRING_MAX_LENGTH);"
         else:
-            # Other types
-            return f"byte[] {var_name}_encoded = Encoder.{encoder_name}({field_name});\n        System.arraycopy({var_name}_encoded, 0, buffer, offset, {var_name}_encoded.length);\n        offset += {var_name}_encoded.length;"
+            # Other types - direct write
+            return f"offset += Encoder.{writer_name}(buffer, offset, {field_name});"
     else:
-        # Nested struct - call its encode()
-        return f"byte[] {var_name}_encoded = {field_name}.encode();\n        System.arraycopy({var_name}_encoded, 0, buffer, offset, {var_name}_encoded.length);\n        offset += {var_name}_encoded.length;"
+        # Nested struct - call its encodeTo()
+        return f"offset += {field_name}.encodeTo(buffer, offset);"
 
 
 def _get_decoder_call(

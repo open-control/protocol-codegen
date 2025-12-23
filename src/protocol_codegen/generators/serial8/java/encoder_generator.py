@@ -1,18 +1,19 @@
 """
 Java Encoder Generator for Serial8 Protocol
-Generates Encoder.java with 8-bit binary encoding methods.
+Generates Encoder.java with 8-bit binary streaming encoding methods.
 
-This generator creates static encode methods for all builtin types.
-Uses full 8-bit byte range for maximum efficiency.
+This generator creates static streaming write methods for all builtin types.
+Uses full 8-bit byte range for maximum efficiency with zero allocations.
 
 Key Features:
 - Direct 8-bit encoding (no 7-bit constraint)
 - Little-endian byte order for multi-byte types
-- Static methods with byte[] arrays
+- Streaming pattern: writeXxx(buffer, offset, value) returns bytes written
+- Zero allocation - writes directly to provided buffer
 - Auto-generated from builtin_types.yaml
 
 Generated Output:
-- Encoder.java (~120 lines)
+- Encoder.java (~150 lines)
 - Package: Configurable via plugin_paths
 - All methods: public static (utility class)
 """
@@ -59,26 +60,27 @@ def _generate_header(builtin_types: dict[str, AtomicType], package: str) -> str:
     return f"""package {package};
 
 /**
- * Encoder - 8-bit Binary Encoder (Serial8 Protocol)
+ * Encoder - 8-bit Binary Streaming Encoder (Serial8 Protocol)
  *
  * AUTO-GENERATED - DO NOT EDIT
  * Generated from: builtin_types.yaml
  *
- * This class provides static encode methods for all builtin primitive
- * types. Uses full 8-bit byte range for efficient encoding.
+ * This class provides static streaming write methods for all builtin primitive
+ * types. Uses full 8-bit byte range for efficient zero-allocation encoding.
  *
  * Supported types: {type_list}
  *
  * Encoding Strategy:
- * - Direct byte writes (no 7-bit constraint)
+ * - Streaming pattern: writeXxx(buffer, offset, value) returns bytes written
+ * - Direct byte writes to provided buffer (zero allocation)
  * - Little-endian for multi-byte integers
  * - IEEE 754 for floats
  * - 8-bit length prefix for strings/arrays
  *
  * Performance:
- * - Static methods for zero overhead
- * - Direct byte array manipulation
- * - More efficient than 7-bit encoding (no expansion)
+ * - Zero allocation per encode call
+ * - Direct buffer manipulation
+ * - Compiler-optimized inline writes
  */
 public final class Encoder {{
 
@@ -88,13 +90,13 @@ public final class Encoder {{
     }}
 
     // ============================================================================
-    // ENCODE METHODS (Type -> 8-bit binary bytes)
+    // STREAMING WRITE METHODS (Type -> buffer, returns bytes written)
     // ============================================================================
 """
 
 
 def _generate_encoders(builtin_types: dict[str, AtomicType]) -> str:
-    """Generate encode methods for each builtin type."""
+    """Generate streaming write methods for each builtin type."""
     encoders: list[str] = []
 
     for type_name, atomic_type in sorted(builtin_types.items()):
@@ -104,209 +106,226 @@ def _generate_encoders(builtin_types: dict[str, AtomicType]) -> str:
         if type_name == "bool":
             encoders.append(f"""
     /**
-     * Encode bool (1 byte: 0x00 or 0x01)
+     * Write bool (1 byte: 0x00 or 0x01)
      * {desc}
      *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
      * @param value Value to encode
-     * @return Encoded byte array (1 byte)
+     * @return Number of bytes written (1)
      */
-    public static byte[] encodeBool({java_type} value) {{
-        return new byte[]{{ (byte) (value ? 0x01 : 0x00) }};
+    public static int writeBool(byte[] buffer, int offset, {java_type} value) {{
+        buffer[offset] = (byte) (value ? 0x01 : 0x00);
+        return 1;
     }}
 """)
 
         elif type_name == "uint8":
             encoders.append(f"""
     /**
-     * Encode uint8 (1 byte, direct)
+     * Write uint8 (1 byte, direct)
      * {desc}
      *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
      * @param value Value to encode (treated as unsigned)
-     * @return Encoded byte array (1 byte)
+     * @return Number of bytes written (1)
      */
-    public static byte[] encodeUint8({java_type} value) {{
-        return new byte[]{{ (byte) (value & 0xFF) }};
+    public static int writeUint8(byte[] buffer, int offset, {java_type} value) {{
+        buffer[offset] = (byte) (value & 0xFF);
+        return 1;
     }}
 """)
 
         elif type_name == "int8":
             encoders.append(f"""
     /**
-     * Encode int8 (1 byte, direct)
+     * Write int8 (1 byte, direct)
      * {desc}
      *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
      * @param value Value to encode
-     * @return Encoded byte array (1 byte)
+     * @return Number of bytes written (1)
      */
-    public static byte[] encodeInt8({java_type} value) {{
-        return new byte[]{{ (byte) value }};
+    public static int writeInt8(byte[] buffer, int offset, {java_type} value) {{
+        buffer[offset] = value;
+        return 1;
     }}
 """)
 
         elif type_name == "uint16":
             encoders.append(f"""
     /**
-     * Encode uint16 (2 bytes, little-endian)
+     * Write uint16 (2 bytes, little-endian)
      * {desc}
      *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
      * @param value Value to encode (treated as unsigned)
-     * @return Encoded byte array (2 bytes)
+     * @return Number of bytes written (2)
      */
-    public static byte[] encodeUint16({java_type} value) {{
+    public static int writeUint16(byte[] buffer, int offset, {java_type} value) {{
         int val = value & 0xFFFF;
-        return new byte[]{{
-            (byte) (val & 0xFF),         // low byte
-            (byte) ((val >> 8) & 0xFF)   // high byte
-        }};
+        buffer[offset] = (byte) (val & 0xFF);
+        buffer[offset + 1] = (byte) ((val >> 8) & 0xFF);
+        return 2;
     }}
 """)
 
         elif type_name == "int16":
             encoders.append(f"""
     /**
-     * Encode int16 (2 bytes, little-endian)
+     * Write int16 (2 bytes, little-endian)
      * {desc}
      *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
      * @param value Value to encode
-     * @return Encoded byte array (2 bytes)
+     * @return Number of bytes written (2)
      */
-    public static byte[] encodeInt16({java_type} value) {{
+    public static int writeInt16(byte[] buffer, int offset, {java_type} value) {{
         int bits = value & 0xFFFF;
-        return new byte[]{{
-            (byte) (bits & 0xFF),
-            (byte) ((bits >> 8) & 0xFF)
-        }};
+        buffer[offset] = (byte) (bits & 0xFF);
+        buffer[offset + 1] = (byte) ((bits >> 8) & 0xFF);
+        return 2;
     }}
 """)
 
         elif type_name == "uint32":
             encoders.append(f"""
     /**
-     * Encode uint32 (4 bytes, little-endian)
+     * Write uint32 (4 bytes, little-endian)
      * {desc}
      *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
      * @param value Value to encode (treated as unsigned)
-     * @return Encoded byte array (4 bytes)
+     * @return Number of bytes written (4)
      */
-    public static byte[] encodeUint32({java_type} value) {{
+    public static int writeUint32(byte[] buffer, int offset, {java_type} value) {{
         long val = value & 0xFFFFFFFFL;
-        return new byte[]{{
-            (byte) (val & 0xFF),
-            (byte) ((val >> 8) & 0xFF),
-            (byte) ((val >> 16) & 0xFF),
-            (byte) ((val >> 24) & 0xFF)
-        }};
+        buffer[offset] = (byte) (val & 0xFF);
+        buffer[offset + 1] = (byte) ((val >> 8) & 0xFF);
+        buffer[offset + 2] = (byte) ((val >> 16) & 0xFF);
+        buffer[offset + 3] = (byte) ((val >> 24) & 0xFF);
+        return 4;
     }}
 """)
 
         elif type_name == "int32":
             encoders.append(f"""
     /**
-     * Encode int32 (4 bytes, little-endian)
+     * Write int32 (4 bytes, little-endian)
      * {desc}
      *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
      * @param value Value to encode
-     * @return Encoded byte array (4 bytes)
+     * @return Number of bytes written (4)
      */
-    public static byte[] encodeInt32({java_type} value) {{
-        return new byte[]{{
-            (byte) (value & 0xFF),
-            (byte) ((value >> 8) & 0xFF),
-            (byte) ((value >> 16) & 0xFF),
-            (byte) ((value >> 24) & 0xFF)
-        }};
+    public static int writeInt32(byte[] buffer, int offset, {java_type} value) {{
+        buffer[offset] = (byte) (value & 0xFF);
+        buffer[offset + 1] = (byte) ((value >> 8) & 0xFF);
+        buffer[offset + 2] = (byte) ((value >> 16) & 0xFF);
+        buffer[offset + 3] = (byte) ((value >> 24) & 0xFF);
+        return 4;
     }}
 """)
 
         elif type_name == "float32":
             encoders.append(f"""
     /**
-     * Encode float32 (4 bytes, IEEE 754 little-endian)
+     * Write float32 (4 bytes, IEEE 754 little-endian)
      * {desc}
      *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
      * @param value Value to encode
-     * @return Encoded byte array (4 bytes)
+     * @return Number of bytes written (4)
      */
-    public static byte[] encodeFloat32({java_type} value) {{
+    public static int writeFloat32(byte[] buffer, int offset, {java_type} value) {{
         int bits = Float.floatToRawIntBits(value);
-        return new byte[]{{
-            (byte) (bits & 0xFF),
-            (byte) ((bits >> 8) & 0xFF),
-            (byte) ((bits >> 16) & 0xFF),
-            (byte) ((bits >> 24) & 0xFF)
-        }};
+        buffer[offset] = (byte) (bits & 0xFF);
+        buffer[offset + 1] = (byte) ((bits >> 8) & 0xFF);
+        buffer[offset + 2] = (byte) ((bits >> 16) & 0xFF);
+        buffer[offset + 3] = (byte) ((bits >> 24) & 0xFF);
+        return 4;
     }}
 """)
 
         elif type_name == "norm8":
             encoders.append(f"""
     /**
-     * Encode norm8 (1 byte, full 8-bit range)
+     * Write norm8 (1 byte, full 8-bit range)
      * {desc}
      *
      * Converts float 0.0-1.0 to 8-bit value 0-255 for optimal precision.
      * Precision: ~0.4% (1/255), better than 7-bit norm8.
      *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
      * @param value Float value to encode (clamped to 0.0-1.0)
-     * @return Encoded byte array (1 byte)
+     * @return Number of bytes written (1)
      */
-    public static byte[] encodeNorm8({java_type} value) {{
+    public static int writeNorm8(byte[] buffer, int offset, {java_type} value) {{
         float clamped = Math.max(0.0f, Math.min(1.0f, value));
-        int val = Math.round(clamped * 255.0f) & 0xFF;
-        return new byte[]{{ (byte) val }};
+        buffer[offset] = (byte) (Math.round(clamped * 255.0f) & 0xFF);
+        return 1;
     }}
 """)
 
         elif type_name == "norm16":
             encoders.append(f"""
     /**
-     * Encode norm16 (2 bytes, little-endian)
+     * Write norm16 (2 bytes, little-endian)
      * {desc}
      *
      * Converts float 0.0-1.0 to uint16 0-65535 for high precision.
      * Precision: ~0.0015% (1/65535)
      *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
      * @param value Float value to encode (clamped to 0.0-1.0)
-     * @return Encoded byte array (2 bytes)
+     * @return Number of bytes written (2)
      */
-    public static byte[] encodeNorm16({java_type} value) {{
+    public static int writeNorm16(byte[] buffer, int offset, {java_type} value) {{
         float clamped = Math.max(0.0f, Math.min(1.0f, value));
         int val = Math.round(clamped * 65535.0f) & 0xFFFF;
-        return new byte[]{{
-            (byte) (val & 0xFF),
-            (byte) ((val >> 8) & 0xFF)
-        }};
+        buffer[offset] = (byte) (val & 0xFF);
+        buffer[offset + 1] = (byte) ((val >> 8) & 0xFF);
+        return 2;
     }}
 """)
 
         elif type_name == "string":
             encoders.append(f"""
     /**
-     * Encode string (variable length: 1 byte length + data)
+     * Write string (variable length: 1 byte length + data)
      * {desc}
      *
      * Format: [length (8-bit)] [char0] [char1] ... [charN-1]
      * Max length: 255 chars (8-bit length encoding)
      *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
      * @param value String to encode
      * @param maxLength Maximum allowed string length
-     * @return Encoded byte array (1 + string.length bytes)
+     * @return Number of bytes written (1 + string.length)
      */
-    public static byte[] encodeString(String value, int maxLength) {{
+    public static int writeString(byte[] buffer, int offset, String value, int maxLength) {{
         if (value == null) {{
             value = "";
         }}
 
         int len = Math.min(value.length(), Math.min(maxLength, 255));
-        byte[] result = new byte[1 + len];
-
-        result[0] = (byte) len;
+        buffer[offset] = (byte) len;
 
         for (int i = 0; i < len; i++) {{
-            result[1 + i] = (byte) value.charAt(i);
+            buffer[offset + 1 + i] = (byte) value.charAt(i);
         }}
 
-        return result;
+        return 1 + len;
     }}
 """)
 
