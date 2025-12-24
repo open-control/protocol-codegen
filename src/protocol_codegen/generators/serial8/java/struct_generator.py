@@ -187,13 +187,14 @@ def _generate_field_declarations(fields: Sequence[FieldBase], type_registry: Typ
             field_type_name = field.type_name.value
             java_type = _get_java_type(field_type_name, type_registry)
             if field.is_array():
-                boxed_type = _get_boxed_java_type(java_type)
-                lines.append(f"    private final List<{boxed_type}> {field.name};")
+                # Primitive arrays use T[] (no boxing, zero-allocation)
+                lines.append(f"    private final {java_type}[] {field.name};")
             else:
                 lines.append(f"    private final {java_type} {field.name};")
         else:  # Composite
             class_name = _field_to_pascal_case(field.name)
             if field.array:
+                # Composite arrays still use List<T> (Java limitation)
                 lines.append(f"    private final List<{class_name}> {field.name};")
             else:
                 lines.append(f"    private final {class_name} {field.name};")
@@ -232,8 +233,8 @@ def _generate_constructor(
             field_type_name = field.type_name.value
             java_type = _get_java_type(field_type_name, type_registry)
             if field.is_array():
-                boxed_type = _get_boxed_java_type(java_type)
-                params.append(f"List<{boxed_type}> {field.name}")
+                # Primitive arrays use T[] (no boxing)
+                params.append(f"{java_type}[] {field.name}")
             else:
                 params.append(f"{java_type} {field.name}")
         else:  # Composite
@@ -273,8 +274,8 @@ def _generate_getters(fields: Sequence[FieldBase], type_registry: TypeRegistry) 
             field_type_name = field.type_name.value
             java_type = _get_java_type(field_type_name, type_registry)
             if field.is_array():
-                boxed_type = _get_boxed_java_type(java_type)
-                java_type = f"List<{boxed_type}>"
+                # Primitive arrays use T[] (no boxing)
+                java_type = f"{java_type}[]"
         else:  # Composite
             class_name = _field_to_pascal_case(field.name)
             java_type = f"List<{class_name}>" if field.array else class_name
@@ -301,7 +302,7 @@ def _generate_encode_method(
     type_registry: TypeRegistry,
     string_max_length: int,
 ) -> str:
-    """Generate encode() method calling Encoder."""
+    """Generate encode() method calling Encoder (streaming, zero-allocation)."""
     # Calculate max and min payload sizes (including MESSAGE_NAME prefix)
     name_prefix_size = 1 + len(pascal_name)  # 1 byte length + name chars
     max_size = name_prefix_size + _calculate_max_payload_size(fields, type_registry, string_max_length)
@@ -320,36 +321,16 @@ def _generate_encode_method(
     lines.append(f"    public static final int MAX_PAYLOAD_SIZE = {max_size};")
     lines.append("")
 
-    # Simplified encode for empty messages (still need to encode MESSAGE_NAME)
-    if not fields:
-        lines.append("    /**")
-        lines.append("     * Encode message to MIDI-safe bytes (message name only, no fields)")
-        lines.append("     * @return Encoded byte array")
-        lines.append("     */")
-        lines.append("    public byte[] encode() {")
-        lines.append("        byte[] buffer = new byte[MAX_PAYLOAD_SIZE];")
-        lines.append("        int offset = 0;")
-        lines.append("")
-        lines.append("        // Encode message name (length-prefixed string for bridge logging)")
-        lines.append("        buffer[offset++] = (byte) MESSAGE_NAME.length();")
-        lines.append("        for (int i = 0; i < MESSAGE_NAME.length(); i++) {")
-        lines.append("            buffer[offset++] = (byte) MESSAGE_NAME.charAt(i);")
-        lines.append("        }")
-        lines.append("")
-        lines.append("        return java.util.Arrays.copyOf(buffer, offset);")
-        lines.append("    }")
-        lines.append("")
-        return "\n".join(lines)
-
-    # Standard encode for messages with fields
+    # Generate encode(buffer, offset) method - streaming, zero-allocation
     lines.append("    /**")
-    lines.append("     * Encode message to MIDI-safe bytes")
+    lines.append("     * Encode message directly into provided buffer (zero allocation)")
     lines.append("     *")
-    lines.append("     * @return Encoded byte array")
+    lines.append("     * @param buffer Output buffer (must have enough space)")
+    lines.append("     * @param startOffset Starting position in buffer")
+    lines.append("     * @return Number of bytes written")
     lines.append("     */")
-    lines.append("    public byte[] encode() {")
-    lines.append("        byte[] buffer = new byte[MAX_PAYLOAD_SIZE];")
-    lines.append("        int offset = 0;")
+    lines.append("    public int encode(byte[] buffer, int startOffset) {")
+    lines.append("        int offset = startOffset;")
     lines.append("")
     lines.append("        // Encode message name (length-prefixed string for bridge logging)")
     lines.append("        buffer[offset++] = (byte) MESSAGE_NAME.length();")
@@ -358,16 +339,22 @@ def _generate_encode_method(
     lines.append("        }")
     lines.append("")
 
+    # Empty messages - just MESSAGE_NAME
+    if not fields:
+        lines.append("        return offset - startOffset;")
+        lines.append("    }")
+        lines.append("")
+        return "\n".join(lines)
+
     # Add encode calls for each field
     for field in fields:
         if field.is_primitive():
             assert isinstance(field, PrimitiveField)
             field_type_name = field.type_name.value
             if field.is_array():
-                # Primitive array (e.g., List<String>)
-                # ALWAYS encode count prefix (same as composite arrays for consistency)
+                # Primitive arrays use .length (no boxing)
                 lines.append(
-                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.size());"
+                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.length);"
                 )
                 lines.append("")
                 lines.append(
@@ -378,26 +365,22 @@ def _generate_encode_method(
                 lines.append("        }")
                 lines.append("")
             else:
-                # Scalar primitive
                 encoder_call = _get_encoder_call(field.name, field_type_name, type_registry)
                 lines.append(f"        {encoder_call}")
         else:  # Composite
             assert isinstance(field, CompositeField)
             if field.array:
-                # Encode array count
                 lines.append(
                     f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.size());"
                 )
                 lines.append("")
-                # Encode each item
-                class_name = _field_to_pascal_case(field.name)
-                lines.append(f"        for ({class_name} item : {field.name}) {{")
+                class_name_inner = _field_to_pascal_case(field.name)
+                lines.append(f"        for ({class_name_inner} item : {field.name}) {{")
                 for nested_field in field.fields:
                     if nested_field.is_primitive():
                         assert isinstance(nested_field, PrimitiveField)
                         getter_name = _to_getter_name(nested_field.name)
                         if nested_field.is_array():
-                            # Nested array of primitives - encode count for dynamic arrays
                             java_type = _get_java_type(nested_field.type_name.value, type_registry)
                             lines.append(
                                 f"            offset += Encoder.writeUint8(buffer, offset, item.{getter_name}().length);"
@@ -418,7 +401,6 @@ def _generate_encode_method(
                 lines.append("        }")
                 lines.append("")
             else:
-                # Single composite - encode nested fields directly
                 for nested_field in field.fields:
                     if nested_field.is_primitive():
                         assert isinstance(nested_field, PrimitiveField)
@@ -431,11 +413,7 @@ def _generate_encode_method(
                         lines.append(f"        {encoder_call}")
 
     lines.append("")
-    # Return statement depends on whether we have fields
-    if fields:
-        lines.append("        return java.util.Arrays.copyOf(buffer, offset);")
-    else:
-        lines.append("        return new byte[0];")
+    lines.append("        return offset - startOffset;")
     lines.append("    }")
     lines.append("")
 
@@ -529,24 +507,24 @@ def _generate_decode_method(
             field_type_name = field.type_name.value
             java_type = _get_java_type(field_type_name, type_registry)
             if field.is_array():
-                # Primitive array (e.g., List<String>)
-                boxed_type = _get_boxed_java_type(java_type)
-                # ALWAYS read count from message (same as composite arrays for consistency)
+                # Primitive array - use T[] (no boxing, zero-allocation)
                 lines.append(f"        int count_{field.name} = Decoder.decodeUint8(data, offset);")
                 lines.append("        offset += 1;")
                 lines.append("")
-                count_var = f"count_{field.name}"
-                lines.append(f"        List<{boxed_type}> {field.name}_list = new ArrayList<>();")
-                lines.append(f"        for (int i = 0; i < {count_var}; i++) {{")
-                decoder_call = _get_decoder_call(
-                    f"item_{field.name}", field_type_name, java_type, type_registry
-                )
-                for line in decoder_call.split("\n"):
-                    lines.append(f"    {line}")
-                lines.append(f"            {field.name}_list.add(item_{field.name});")
+                lines.append(f"        {java_type}[] {field.name} = new {java_type}[count_{field.name}];")
+                lines.append(f"        for (int i = 0; i < count_{field.name}; i++) {{")
+                # Generate array assignment directly (avoid variable declaration)
+                decoder_name = f"decode{_capitalize_first(field_type_name)}"
+                if field_type_name == "string":
+                    lines.append(f"            {field.name}[i] = Decoder.{decoder_name}(data, offset, ProtocolConstants.STRING_MAX_LENGTH);")
+                    lines.append(f"            offset += 1 + {field.name}[i].length();")
+                else:
+                    encoded_size = _get_encoded_size(field_type_name, 0)
+                    lines.append(f"            {field.name}[i] = Decoder.{decoder_name}(data, offset);")
+                    lines.append(f"            offset += {encoded_size};")
                 lines.append("        }")
                 lines.append("")
-                field_vars.append(f"{field.name}_list")
+                field_vars.append(field.name)
             else:
                 # Scalar primitive
                 decoder_call = _get_decoder_call(
@@ -1156,15 +1134,17 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
 
 
 def _needs_list_import(fields: Sequence[FieldBase]) -> bool:
-    """Check if List import is needed (any array field)."""
+    """Check if List import is needed (only for composite arrays, not primitive arrays)."""
     for field in fields:
-        if field.is_array():
-            return True
         if field.is_composite():
             assert isinstance(field, CompositeField)
+            # Composite arrays use List<T> (Java limitation with generic arrays)
+            if field.array:
+                return True
             # Check nested fields recursively
             if _needs_list_import(field.fields):
                 return True
+    # Primitive arrays use T[] - no List import needed
     return False
 
 

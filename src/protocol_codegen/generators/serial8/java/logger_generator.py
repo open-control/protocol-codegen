@@ -239,7 +239,8 @@ def _format_primitive_array(
 
     lines: list[str] = []
     lines.append(f'        sb.append("{indent_str}{field.name}:");')
-    lines.append(f"        if ({getter}().isEmpty()) {{")
+    # Primitive arrays use .length == 0 instead of .isEmpty()
+    lines.append(f"        if ({getter}().length == 0) {{")
     lines.append('            sb.append(" []\\n");')
     lines.append("        } else {")
     lines.append('            sb.append("\\n");')
