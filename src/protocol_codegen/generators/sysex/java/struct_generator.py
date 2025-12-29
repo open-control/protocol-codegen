@@ -347,7 +347,9 @@ def _generate_encode_method(
                     lines.append(
                         f"        byte[] {field.name}_count = Encoder.encodeUint8({field.name}.size());"
                     )
-                    lines.append(f"        System.arraycopy({field.name}_count, 0, buffer, offset, 1);")
+                    lines.append(
+                        f"        System.arraycopy({field.name}_count, 0, buffer, offset, 1);"
+                    )
                     lines.append("        offset += 1;")
                     lines.append("")
                 lines.append(
@@ -455,10 +457,12 @@ def _generate_decode_method(
     if not fields:
         lines.append("    /**")
         lines.append("     * Decode message from MIDI-safe bytes (empty message)")
-        lines.append(f"     * @param data Input buffer (unused)")
+        lines.append("     * @param data Input buffer (unused)")
         lines.append(f"     * @return New {class_name} instance")
         lines.append("     */")
-        lines.append(f"    public static {class_name} decode(byte[] data) {{ return new {class_name}(); }}")
+        lines.append(
+            f"    public static {class_name} decode(byte[] data) {{ return new {class_name}(); }}"
+        )
         lines.append("")
         return "\n".join(lines)
 
@@ -499,7 +503,9 @@ def _generate_decode_method(
                 boxed_type = _get_boxed_java_type(java_type)
                 # For dynamic arrays, read count from message; for fixed arrays, use known size
                 if field.dynamic:
-                    lines.append(f"        int count_{field.name} = Decoder.decodeUint8(data, offset);")
+                    lines.append(
+                        f"        int count_{field.name} = Decoder.decodeUint8(data, offset);"
+                    )
                     lines.append("        offset += 1;")
                     lines.append("")
                     count_var = f"count_{field.name}"

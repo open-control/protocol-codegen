@@ -40,10 +40,7 @@ def generate_protocol_template_java(
     for message in messages[:3]:  # Show first 3 as examples
         pascal_name = "".join(word.capitalize() for word in message.name.split("_"))
         callback_name = f"on{pascal_name}"
-        class_name = f"{pascal_name}Message"
-        callback_examples.append(
-            f"        // protocol.{callback_name} = msg -> {{ }};"
-        )
+        callback_examples.append(f"        // protocol.{callback_name} = msg -> {{ }};")
 
     callback_examples_str = "\n".join(callback_examples)
 

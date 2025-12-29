@@ -25,20 +25,28 @@ from protocol_codegen.core.loader import TypeRegistry
 from protocol_codegen.core.message import Message
 from protocol_codegen.core.plugin_types import PluginPathsConfig
 from protocol_codegen.core.validator import ProtocolValidator
-from protocol_codegen.generators.sysex.cpp.callbacks_generator import generate_protocol_callbacks_hpp
-from protocol_codegen.generators.sysex.cpp.constants_generator import ProtocolConfig as CppProtocolConfig
+from protocol_codegen.generators.sysex.cpp.callbacks_generator import (
+    generate_protocol_callbacks_hpp,
+)
+from protocol_codegen.generators.sysex.cpp.constants_generator import (
+    ProtocolConfig as CppProtocolConfig,
+)
 from protocol_codegen.generators.sysex.cpp.constants_generator import generate_constants_hpp
 from protocol_codegen.generators.sysex.cpp.decoder_generator import generate_decoder_hpp
-from protocol_codegen.generators.sysex.cpp.decoder_registry_generator import generate_decoder_registry_hpp
+from protocol_codegen.generators.sysex.cpp.decoder_registry_generator import (
+    generate_decoder_registry_hpp,
+)
 from protocol_codegen.generators.sysex.cpp.encoder_generator import generate_encoder_hpp
 from protocol_codegen.generators.sysex.cpp.logger_generator import generate_logger_hpp
 from protocol_codegen.generators.sysex.cpp.message_structure_generator import (
     generate_message_structure_hpp,
 )
 from protocol_codegen.generators.sysex.cpp.messageid_generator import generate_messageid_hpp
-from protocol_codegen.generators.sysex.cpp.struct_generator import generate_struct_hpp
 from protocol_codegen.generators.sysex.cpp.protocol_generator import generate_protocol_template_hpp
-from protocol_codegen.generators.sysex.java.callbacks_generator import generate_protocol_callbacks_java
+from protocol_codegen.generators.sysex.cpp.struct_generator import generate_struct_hpp
+from protocol_codegen.generators.sysex.java.callbacks_generator import (
+    generate_protocol_callbacks_java,
+)
 from protocol_codegen.generators.sysex.java.constants_generator import (
     ProtocolConfig as JavaProtocolConfig,
 )
@@ -49,8 +57,10 @@ from protocol_codegen.generators.sysex.java.decoder_registry_generator import (
 )
 from protocol_codegen.generators.sysex.java.encoder_generator import generate_encoder_java
 from protocol_codegen.generators.sysex.java.messageid_generator import generate_messageid_java
+from protocol_codegen.generators.sysex.java.protocol_generator import (
+    generate_protocol_template_java,
+)
 from protocol_codegen.generators.sysex.java.struct_generator import generate_struct_java
-from protocol_codegen.generators.sysex.java.protocol_generator import generate_protocol_template_java
 from protocol_codegen.methods.sysex.config import SysExConfig
 
 if TYPE_CHECKING:

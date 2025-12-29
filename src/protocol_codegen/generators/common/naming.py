@@ -10,9 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
-    from protocol_codegen.core.field import FieldBase
+    pass
 
 
 # Fields to exclude from method parameters (implicit or deprecated)

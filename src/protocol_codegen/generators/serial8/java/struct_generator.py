@@ -92,8 +92,12 @@ def generate_struct_java(
     field_declarations = _generate_field_declarations(fields, type_registry)
     constructor = _generate_constructor(class_name, fields, type_registry)
     getters = _generate_getters(fields, type_registry)
-    encode_method = _generate_encode_method(class_name, pascal_name, fields, type_registry, string_max_length)
-    decode_method = _generate_decode_method(class_name, pascal_name, fields, type_registry, string_max_length)
+    encode_method = _generate_encode_method(
+        class_name, pascal_name, fields, type_registry, string_max_length
+    )
+    decode_method = _generate_decode_method(
+        class_name, pascal_name, fields, type_registry, string_max_length
+    )
     log_method = generate_log_method(class_name, fields, type_registry)
     footer = _generate_footer()
 
@@ -302,7 +306,9 @@ def _generate_encode_method(
     """Generate encode() method calling Encoder (streaming, zero-allocation)."""
     # Calculate max and min payload sizes (including MESSAGE_NAME prefix)
     name_prefix_size = 1 + len(pascal_name)  # 1 byte length + name chars
-    max_size = name_prefix_size + _calculate_max_payload_size(fields, type_registry, string_max_length)
+    max_size = name_prefix_size + _calculate_max_payload_size(
+        fields, type_registry, string_max_length
+    )
 
     lines: list[str] = [
         "    // ============================================================================"
@@ -427,7 +433,9 @@ def _generate_decode_method(
     """Generate static decode() factory method."""
     # Calculate min payload size (including MESSAGE_NAME prefix)
     name_prefix_size = 1 + len(pascal_name)  # 1 byte length + name chars
-    min_size = name_prefix_size + _calculate_min_payload_size(fields, type_registry, string_max_length)
+    min_size = name_prefix_size + _calculate_min_payload_size(
+        fields, type_registry, string_max_length
+    )
 
     lines: list[str] = [
         "    // ============================================================================"
@@ -447,13 +455,15 @@ def _generate_decode_method(
         lines.append("")
         lines.append("    /**")
         lines.append("     * Decode message from MIDI-safe bytes (message name only, no fields)")
-        lines.append(f"     * @param data Input buffer")
+        lines.append("     * @param data Input buffer")
         lines.append(f"     * @return New {class_name} instance")
         lines.append("     * @throws IllegalArgumentException if data is invalid or insufficient")
         lines.append("     */")
         lines.append(f"    public static {class_name} decode(byte[] data) {{")
         lines.append("        if (data.length < MIN_PAYLOAD_SIZE) {")
-        lines.append(f'            throw new IllegalArgumentException("Insufficient data for {class_name} decode");')
+        lines.append(
+            f'            throw new IllegalArgumentException("Insufficient data for {class_name} decode");'
+        )
         lines.append("        }")
         lines.append("")
         lines.append("        int offset = 0;")
@@ -508,16 +518,22 @@ def _generate_decode_method(
                 lines.append(f"        int count_{field.name} = Decoder.decodeUint8(data, offset);")
                 lines.append("        offset += 1;")
                 lines.append("")
-                lines.append(f"        {java_type}[] {field.name} = new {java_type}[count_{field.name}];")
+                lines.append(
+                    f"        {java_type}[] {field.name} = new {java_type}[count_{field.name}];"
+                )
                 lines.append(f"        for (int i = 0; i < count_{field.name}; i++) {{")
                 # Generate array assignment directly (avoid variable declaration)
                 decoder_name = f"decode{_capitalize_first(field_type_name)}"
                 if field_type_name == "string":
-                    lines.append(f"            {field.name}[i] = Decoder.{decoder_name}(data, offset, ProtocolConstants.STRING_MAX_LENGTH);")
+                    lines.append(
+                        f"            {field.name}[i] = Decoder.{decoder_name}(data, offset, ProtocolConstants.STRING_MAX_LENGTH);"
+                    )
                     lines.append(f"            offset += 1 + {field.name}[i].length();")
                 else:
                     encoded_size = _get_encoded_size(field_type_name, 0)
-                    lines.append(f"            {field.name}[i] = Decoder.{decoder_name}(data, offset);")
+                    lines.append(
+                        f"            {field.name}[i] = Decoder.{decoder_name}(data, offset);"
+                    )
                     lines.append(f"            offset += {encoded_size};")
                 lines.append("        }")
                 lines.append("")
@@ -871,7 +887,6 @@ def _calculate_min_payload_size(
             assert isinstance(field, PrimitiveField)
             field_type_name = field.type_name.value
             base_type = field_type_name
-            array_size = field.array if field.array else 1
 
             # Get size for base type
             if type_registry.is_atomic(base_type):

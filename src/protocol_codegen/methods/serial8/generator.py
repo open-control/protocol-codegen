@@ -16,7 +16,7 @@ if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING
 
 from protocol_codegen.core.allocator import allocate_message_ids
 from protocol_codegen.core.field import populate_type_names
@@ -25,30 +25,46 @@ from protocol_codegen.core.loader import TypeRegistry
 from protocol_codegen.core.message import Message
 from protocol_codegen.core.plugin_types import PluginPathsConfig
 from protocol_codegen.core.validator import ProtocolValidator
-from protocol_codegen.generators.serial8.cpp.callbacks_generator import generate_protocol_callbacks_hpp
-from protocol_codegen.generators.serial8.cpp.constants_generator import ProtocolConfig as CppProtocolConfig
+from protocol_codegen.generators.serial8.cpp.callbacks_generator import (
+    generate_protocol_callbacks_hpp,
+)
+from protocol_codegen.generators.serial8.cpp.constants_generator import (
+    ProtocolConfig as CppProtocolConfig,
+)
 from protocol_codegen.generators.serial8.cpp.constants_generator import generate_constants_hpp
 from protocol_codegen.generators.serial8.cpp.decoder_generator import generate_decoder_hpp
-from protocol_codegen.generators.serial8.cpp.decoder_registry_generator import generate_decoder_registry_hpp
+from protocol_codegen.generators.serial8.cpp.decoder_registry_generator import (
+    generate_decoder_registry_hpp,
+)
 from protocol_codegen.generators.serial8.cpp.encoder_generator import generate_encoder_hpp
 from protocol_codegen.generators.serial8.cpp.logger_generator import generate_logger_hpp
 from protocol_codegen.generators.serial8.cpp.message_structure_generator import (
     generate_message_structure_hpp,
 )
 from protocol_codegen.generators.serial8.cpp.messageid_generator import generate_messageid_hpp
-from protocol_codegen.generators.serial8.cpp.struct_generator import generate_struct_hpp
-from protocol_codegen.generators.serial8.cpp.protocol_generator import generate_protocol_template_hpp
 from protocol_codegen.generators.serial8.cpp.method_generator import generate_protocol_methods_hpp
-from protocol_codegen.generators.serial8.java.callbacks_generator import generate_protocol_callbacks_java
-from protocol_codegen.generators.serial8.java.method_generator import generate_protocol_methods_java
-from protocol_codegen.generators.serial8.java.constants_generator import ProtocolConfig as JavaProtocolConfig
+from protocol_codegen.generators.serial8.cpp.protocol_generator import (
+    generate_protocol_template_hpp,
+)
+from protocol_codegen.generators.serial8.cpp.struct_generator import generate_struct_hpp
+from protocol_codegen.generators.serial8.java.callbacks_generator import (
+    generate_protocol_callbacks_java,
+)
+from protocol_codegen.generators.serial8.java.constants_generator import (
+    ProtocolConfig as JavaProtocolConfig,
+)
 from protocol_codegen.generators.serial8.java.constants_generator import generate_constants_java
 from protocol_codegen.generators.serial8.java.decoder_generator import generate_decoder_java
-from protocol_codegen.generators.serial8.java.decoder_registry_generator import generate_decoder_registry_java
+from protocol_codegen.generators.serial8.java.decoder_registry_generator import (
+    generate_decoder_registry_java,
+)
 from protocol_codegen.generators.serial8.java.encoder_generator import generate_encoder_java
 from protocol_codegen.generators.serial8.java.messageid_generator import generate_messageid_java
+from protocol_codegen.generators.serial8.java.method_generator import generate_protocol_methods_java
+from protocol_codegen.generators.serial8.java.protocol_generator import (
+    generate_protocol_template_java,
+)
 from protocol_codegen.generators.serial8.java.struct_generator import generate_struct_java
-from protocol_codegen.generators.serial8.java.protocol_generator import generate_protocol_template_java
 from protocol_codegen.methods.serial8.config import Serial8Config
 
 if TYPE_CHECKING:
@@ -157,7 +173,9 @@ def generate_serial8_protocol(
         deprecated_count = sum(1 for m in all_messages if m.deprecated)
         messages = [m for m in all_messages if not m.deprecated]
         if deprecated_count > 0:
-            log(f"  ✓ Imported {len(all_messages)} messages ({deprecated_count} deprecated, {len(messages)} active)")
+            log(
+                f"  ✓ Imported {len(all_messages)} messages ({deprecated_count} deprecated, {len(messages)} active)"
+            )
         else:
             log(f"  ✓ Imported {len(messages)} messages")
     finally:

@@ -11,7 +11,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from protocol_codegen.generators.common.naming import (
-    message_name_to_callback_name,
     message_name_to_method_name,
     should_exclude_field,
     to_pascal_case,
@@ -112,17 +111,15 @@ def generate_protocol_methods_hpp(
         Generated C++ code
     """
     to_host_methods: list[str] = []
-    to_controller_callbacks: list[str] = []
 
     for msg in messages:
         if msg.is_legacy() or msg.deprecated:
             continue
 
-        # Add Protocol:: namespace prefix for C++ usage in .inl file
-        struct_name = "Protocol::" + to_pascal_case(msg.name) + "Message"
-
         if msg.is_to_host():
             # Controller sends to Host -> generate send method
+            # Add Protocol:: namespace prefix for C++ usage in .inl file
+            struct_name = "Protocol::" + to_pascal_case(msg.name) + "Message"
             method_name = message_name_to_method_name(msg.name)
             params = _generate_method_params(list(msg.fields))
             args = _generate_struct_args(list(msg.fields))
@@ -137,19 +134,7 @@ def generate_protocol_methods_hpp(
                 to_host_methods.append("    }")
             to_host_methods.append("")
 
-        elif msg.is_to_controller():
-            # Host sends to Controller -> generate callback declaration
-            callback_name = message_name_to_callback_name(msg.name)
-            to_controller_callbacks.append(
-                f"    std::function<void(const {struct_name}&)> {callback_name};"
-            )
-
     to_host_str = "\n".join(to_host_methods) if to_host_methods else "    // No TO_HOST messages"
-    to_controller_str = (
-        "\n".join(to_controller_callbacks)
-        if to_controller_callbacks
-        else "    // No TO_CONTROLLER messages"
-    )
 
     return f"""/**
  * ProtocolMethods.inl - Explicit Protocol API (inline include)

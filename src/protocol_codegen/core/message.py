@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from .enums import Direction, Intent
 
@@ -75,10 +75,10 @@ class Message:
     name: str = ""  # Default empty, but always overwritten by auto-discovery
 
     # New fields for protocol API migration (optional for backward compatibility)
-    direction: Optional[Direction] = None  # TO_HOST or TO_CONTROLLER
-    intent: Optional[Intent] = None  # COMMAND, QUERY, NOTIFY, RESPONSE
+    direction: Direction | None = None  # TO_HOST or TO_CONTROLLER
+    intent: Intent | None = None  # COMMAND, QUERY, NOTIFY, RESPONSE
     deprecated: bool = False  # If True, excluded from code generation
-    response_to: Optional[str] = None  # For RESPONSE messages, links to QUERY name
+    response_to: str | None = None  # For RESPONSE messages, links to QUERY name
 
     def __str__(self) -> str:
         """String representation for debugging and display"""

@@ -41,9 +41,7 @@ def _field_to_pascal_case(field_name: str) -> str:
     return field_name[0].upper() + field_name[1:]
 
 
-def _get_java_type(
-    field: FieldBase, message_struct_name: str, type_registry: TypeRegistry
-) -> str:
+def _get_java_type(field: FieldBase, message_struct_name: str, type_registry: TypeRegistry) -> str:
     """
     Get Java type for a field using the type_registry as source of truth.
 
@@ -147,9 +145,7 @@ def generate_protocol_methods_java(
         if msg.is_to_host():
             # Controller sends to Host -> generate callback declaration
             callback_name = message_name_to_callback_name(msg.name)
-            to_host_callbacks.append(
-                f"    public Consumer<{struct_name}> {callback_name} = null;"
-            )
+            to_host_callbacks.append(f"    public Consumer<{struct_name}> {callback_name} = null;")
 
         elif msg.is_to_controller():
             # Host sends to Controller -> generate send method

@@ -72,7 +72,9 @@ def generate_struct_hpp(
     struct_def = _generate_struct_definition(
         struct_name, message.name, pascal_name, message_id, fields, type_registry
     )
-    encode_fn = _generate_encode_function(struct_name, pascal_name, fields, type_registry, string_max_length)
+    encode_fn = _generate_encode_function(
+        struct_name, pascal_name, fields, type_registry, string_max_length
+    )
     decode_fn = _generate_decode_function(struct_name, fields, type_registry, string_max_length)
 
     # Generate toString() method for logging
@@ -214,8 +216,12 @@ def _generate_encode_function(
     """Generate encode() function calling Encoder."""
     # Calculate max and min payload sizes (including MESSAGE_NAME prefix)
     name_prefix_size = 1 + len(pascal_name)  # 1 byte length + name chars
-    max_size = name_prefix_size + _calculate_max_payload_size(fields, type_registry, string_max_length)
-    min_size = name_prefix_size + _calculate_min_payload_size(fields, type_registry, string_max_length)
+    max_size = name_prefix_size + _calculate_max_payload_size(
+        fields, type_registry, string_max_length
+    )
+    min_size = name_prefix_size + _calculate_min_payload_size(
+        fields, type_registry, string_max_length
+    )
 
     lines = [
         "    /**",
@@ -232,9 +238,38 @@ def _generate_encode_function(
 
     # Encode for empty messages (still need to encode MESSAGE_NAME)
     if not fields:
-        lines.extend([
+        lines.extend(
+            [
+                "    /**",
+                "     * Encode struct to MIDI-safe bytes (message name only, no fields)",
+                "     *",
+                "     * @param buffer Output buffer (must have >= MAX_PAYLOAD_SIZE bytes)",
+                "     * @param bufferSize Size of output buffer",
+                "     * @return Number of bytes written, or 0 if buffer too small",
+                "     */",
+                "    uint16_t encode(uint8_t* buffer, uint16_t bufferSize) const {",
+                "        if (bufferSize < MAX_PAYLOAD_SIZE) return 0;",
+                "",
+                "        uint8_t* ptr = buffer;",
+                "",
+                "        // Encode message name (length-prefixed string for bridge logging)",
+                "        encodeUint8(ptr, static_cast<uint8_t>(strlen(MESSAGE_NAME)));",
+                "        for (size_t i = 0; i < strlen(MESSAGE_NAME); ++i) {",
+                "            *ptr++ = static_cast<uint8_t>(MESSAGE_NAME[i]);",
+                "        }",
+                "",
+                "        return ptr - buffer;",
+                "    }",
+                "",
+            ]
+        )
+        return "\n".join(lines)
+
+    # Standard encode for messages with fields
+    lines.extend(
+        [
             "    /**",
-            "     * Encode struct to MIDI-safe bytes (message name only, no fields)",
+            "     * Encode struct to MIDI-safe bytes",
             "     *",
             "     * @param buffer Output buffer (must have >= MAX_PAYLOAD_SIZE bytes)",
             "     * @param bufferSize Size of output buffer",
@@ -251,33 +286,8 @@ def _generate_encode_function(
             "            *ptr++ = static_cast<uint8_t>(MESSAGE_NAME[i]);",
             "        }",
             "",
-            "        return ptr - buffer;",
-            "    }",
-            "",
-        ])
-        return "\n".join(lines)
-
-    # Standard encode for messages with fields
-    lines.extend([
-        "    /**",
-        "     * Encode struct to MIDI-safe bytes",
-        "     *",
-        "     * @param buffer Output buffer (must have >= MAX_PAYLOAD_SIZE bytes)",
-        "     * @param bufferSize Size of output buffer",
-        "     * @return Number of bytes written, or 0 if buffer too small",
-        "     */",
-        "    uint16_t encode(uint8_t* buffer, uint16_t bufferSize) const {",
-        "        if (bufferSize < MAX_PAYLOAD_SIZE) return 0;",
-        "",
-        "        uint8_t* ptr = buffer;",
-        "",
-        "        // Encode message name (length-prefixed string for bridge logging)",
-        "        encodeUint8(ptr, static_cast<uint8_t>(strlen(MESSAGE_NAME)));",
-        "        for (size_t i = 0; i < strlen(MESSAGE_NAME); ++i) {",
-        "            *ptr++ = static_cast<uint8_t>(MESSAGE_NAME[i]);",
-        "        }",
-        "",
-    ])
+        ]
+    )
 
     # Add encode calls for each field
     for field in fields:
@@ -768,7 +778,6 @@ def _calculate_min_payload_size(
             assert isinstance(field, PrimitiveField)
             # Primitive field
             field_type_name = field.type_name.value
-            array_size = field.array if field.array else 1
 
             # Get size for base type
             if type_registry.is_atomic(field_type_name):

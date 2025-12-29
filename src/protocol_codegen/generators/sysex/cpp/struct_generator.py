@@ -230,31 +230,35 @@ def _generate_encode_function(
 
     # Simplified encode for empty messages
     if not fields:
-        lines.extend([
-            "    /**",
-            "     * Encode struct to MIDI-safe bytes (empty message)",
-            "     * @return Always 0 (no payload)",
-            "     */",
-            "    uint16_t encode(uint8_t*, uint16_t) const { return 0; }",
-            "",
-        ])
+        lines.extend(
+            [
+                "    /**",
+                "     * Encode struct to MIDI-safe bytes (empty message)",
+                "     * @return Always 0 (no payload)",
+                "     */",
+                "    uint16_t encode(uint8_t*, uint16_t) const { return 0; }",
+                "",
+            ]
+        )
         return "\n".join(lines)
 
     # Standard encode for messages with fields
-    lines.extend([
-        "    /**",
-        "     * Encode struct to MIDI-safe bytes",
-        "     *",
-        "     * @param buffer Output buffer (must have >= MAX_PAYLOAD_SIZE bytes)",
-        "     * @param bufferSize Size of output buffer",
-        "     * @return Number of bytes written, or 0 if buffer too small",
-        "     */",
-        "    uint16_t encode(uint8_t* buffer, uint16_t bufferSize) const {",
-        "        if (bufferSize < MAX_PAYLOAD_SIZE) return 0;",
-        "",
-        "        uint8_t* ptr = buffer;",
-        "",
-    ])
+    lines.extend(
+        [
+            "    /**",
+            "     * Encode struct to MIDI-safe bytes",
+            "     *",
+            "     * @param buffer Output buffer (must have >= MAX_PAYLOAD_SIZE bytes)",
+            "     * @param bufferSize Size of output buffer",
+            "     * @return Number of bytes written, or 0 if buffer too small",
+            "     */",
+            "    uint16_t encode(uint8_t* buffer, uint16_t bufferSize) const {",
+            "        if (bufferSize < MAX_PAYLOAD_SIZE) return 0;",
+            "",
+            "        uint8_t* ptr = buffer;",
+            "",
+        ]
+    )
 
     # Add encode calls for each field
     for field in fields:
@@ -396,9 +400,7 @@ def _generate_decode_function(
                     lines.append("        }")
                 else:
                     # Fixed array: decode directly by index, using known array size
-                    lines.append(
-                        f"        for (uint8_t i = 0; i < {field.array}; ++i) {{"
-                    )
+                    lines.append(f"        for (uint8_t i = 0; i < {field.array}; ++i) {{")
                     decoder_call = _get_decoder_call(
                         "temp_item", field_type_name, type_registry, direct_target=f"{var_name}[i]"
                     )

@@ -149,9 +149,7 @@ def _generate_limits(limits_config: LimitsConfig, uint8_type: str, uint16_type: 
     # Payload limits
     max_payload: int = limits_config.get("max_payload_size", 4096)
     max_message: int = limits_config.get("max_message_size", 4096)
-    lines.append(
-        f"constexpr {uint16_type} MAX_PAYLOAD_SIZE = {max_payload};  // Max payload bytes"
-    )
+    lines.append(f"constexpr {uint16_type} MAX_PAYLOAD_SIZE = {max_payload};  // Max payload bytes")
     lines.append(
         f"constexpr {uint16_type} MAX_MESSAGE_SIZE = {max_message};  // Max total message bytes"
     )
