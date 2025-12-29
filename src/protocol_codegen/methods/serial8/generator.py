@@ -38,7 +38,9 @@ from protocol_codegen.generators.serial8.cpp.message_structure_generator import 
 from protocol_codegen.generators.serial8.cpp.messageid_generator import generate_messageid_hpp
 from protocol_codegen.generators.serial8.cpp.struct_generator import generate_struct_hpp
 from protocol_codegen.generators.serial8.cpp.protocol_generator import generate_protocol_template_hpp
+from protocol_codegen.generators.serial8.cpp.method_generator import generate_protocol_methods_hpp
 from protocol_codegen.generators.serial8.java.callbacks_generator import generate_protocol_callbacks_java
+from protocol_codegen.generators.serial8.java.method_generator import generate_protocol_methods_java
 from protocol_codegen.generators.serial8.java.constants_generator import ProtocolConfig as JavaProtocolConfig
 from protocol_codegen.generators.serial8.java.constants_generator import generate_constants_java
 from protocol_codegen.generators.serial8.java.decoder_generator import generate_decoder_java
@@ -301,9 +303,22 @@ def _generate_cpp(
         was_written = write_if_changed(cpp_output_path, cpp_code)
         struct_stats.record_write(cpp_output_path, was_written)
 
+    # Generate protocol methods for new-style messages (with direction)
+    new_style_messages = [m for m in messages if not m.is_legacy()]
+    methods_stats = GenerationStats()
+    if new_style_messages:
+        cpp_methods_path = cpp_base / "ProtocolMethods.hpp"
+        was_written = write_if_changed(
+            cpp_methods_path,
+            generate_protocol_methods_hpp(new_style_messages, cpp_methods_path),
+        )
+        methods_stats.record_write(cpp_methods_path, was_written)
+
     if verbose:
         print(f"  ✓ C++ base files: {stats.summary()}")
         print(f"  ✓ C++ struct files: {struct_stats.summary()}")
+        if new_style_messages:
+            print(f"  ✓ C++ methods file: {methods_stats.summary()}")
         print(f"  → Output: {cpp_base.relative_to(output_base)}")
 
 
@@ -399,7 +414,20 @@ def _generate_java(
         was_written = write_if_changed(java_output_path, java_code)
         struct_stats.record_write(java_output_path, was_written)
 
+    # Generate protocol methods for new-style messages (with direction)
+    new_style_messages = [m for m in messages if not m.is_legacy()]
+    methods_stats = GenerationStats()
+    if new_style_messages:
+        java_methods_path = java_base / "ProtocolMethods.java"
+        was_written = write_if_changed(
+            java_methods_path,
+            generate_protocol_methods_java(new_style_messages, java_methods_path, java_package),
+        )
+        methods_stats.record_write(java_methods_path, was_written)
+
     if verbose:
         print(f"  ✓ Java base files: {stats.summary()}")
         print(f"  ✓ Java struct files: {struct_stats.summary()}")
+        if new_style_messages:
+            print(f"  ✓ Java methods file: {methods_stats.summary()}")
         print(f"  → Output: {java_base.relative_to(output_base)}")
