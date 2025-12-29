@@ -2,6 +2,7 @@
 Method naming utilities for protocol generation.
 
 Converts message names to method/callback names following consistent conventions.
+No dynamic transformations - message names should be correctly defined at source.
 """
 
 from __future__ import annotations
@@ -14,9 +15,6 @@ if TYPE_CHECKING:
     from protocol_codegen.core.field import FieldBase
 
 
-# Suffixes to remove from message names for cleaner method names
-_REMOVABLE_SUFFIXES = ("_BY_INDEX", "_CHANGE", "_MESSAGE")
-
 # Fields to exclude from method parameters (implicit or deprecated)
 _EXCLUDED_FIELDS = frozenset({"fromHost", "isEcho"})
 
@@ -25,21 +23,15 @@ def message_name_to_method_name(message_name: str) -> str:
     """
     Convert MESSAGE_NAME to methodName.
 
-    Removes common suffixes for cleaner API.
+    Direct conversion without suffix manipulation.
+    Message names should be correctly defined at source.
 
     Examples:
         TRANSPORT_PLAY -> transportPlay
-        DEVICE_SELECT_BY_INDEX -> deviceSelect
-        REQUEST_DEVICE_LIST_WINDOW -> requestDeviceListWindow
-        DEVICE_REMOTE_CONTROL_VALUE_CHANGE -> deviceRemoteControlValue
+        DEVICE_SELECT -> deviceSelect
+        TRACK_VOLUME_STATE -> trackVolumeState
     """
-    name = message_name
-    for suffix in _REMOVABLE_SUFFIXES:
-        if name.endswith(suffix):
-            name = name[: -len(suffix)]
-            break  # Only remove one suffix
-
-    return to_camel_case(name)
+    return to_camel_case(message_name)
 
 
 def message_name_to_callback_name(message_name: str) -> str:

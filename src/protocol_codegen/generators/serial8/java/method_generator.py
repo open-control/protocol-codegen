@@ -21,24 +21,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from protocol_codegen.core.field import FieldBase, PrimitiveField
+    from protocol_codegen.core.loader import TypeRegistry
     from protocol_codegen.core.message import Message
-
-
-# Type mapping from protocol types to Java types
-# Note: Type enum values are lowercase (e.g., 'bool', 'uint8')
-_JAVA_TYPE_MAP = {
-    "bool": "boolean",
-    "uint8": "int",
-    "int8": "int",
-    "uint16": "int",
-    "int16": "int",
-    "uint32": "int",
-    "int32": "int",
-    "float32": "float",
-    "string": "String",
-    "norm8": "int",
-    "norm16": "int",
-}
 
 
 def _field_to_pascal_case(field_name: str) -> str:
@@ -57,14 +41,17 @@ def _field_to_pascal_case(field_name: str) -> str:
     return field_name[0].upper() + field_name[1:]
 
 
-def _get_java_type(field: FieldBase, message_struct_name: str) -> str:
+def _get_java_type(
+    field: FieldBase, message_struct_name: str, type_registry: TypeRegistry
+) -> str:
     """
-    Get Java type for a field.
+    Get Java type for a field using the type_registry as source of truth.
 
     Args:
         field: The field to get the type for
         message_struct_name: The parent message struct name (e.g., "DeviceChangeMessage")
                             Used to qualify composite types as inner classes.
+        type_registry: TypeRegistry for resolving primitive types
     """
     if field.is_composite():
         # Composite fields are inner classes of the message struct
@@ -75,9 +62,18 @@ def _get_java_type(field: FieldBase, message_struct_name: str) -> str:
             return f"{qualified_type}[]"
         return qualified_type
 
-    # Primitive field
+    # Primitive field - use type_registry as source of truth
     pfield: PrimitiveField = field  # type: ignore[assignment]
-    base_type = _JAVA_TYPE_MAP.get(pfield.type_name.value, "Object")
+    type_name = pfield.type_name.value
+
+    # Get Java type from type_registry (same source as struct_generator)
+    if type_registry.is_atomic(type_name):
+        atomic = type_registry.get(type_name)
+        base_type = atomic.java_type
+        if base_type is None:
+            raise ValueError(f"Missing Java type mapping for type: {type_name}")
+    else:
+        base_type = "Object"
 
     if field.is_array():
         return f"{base_type}[]"
@@ -94,13 +90,15 @@ def _get_field_arg_name(field: FieldBase) -> str:
     return name
 
 
-def _generate_method_params(fields: list[FieldBase], message_struct_name: str) -> str:
+def _generate_method_params(
+    fields: list[FieldBase], message_struct_name: str, type_registry: TypeRegistry
+) -> str:
     """Generate method parameters from fields."""
     params = []
     for field in fields:
         if should_exclude_field(field.name):
             continue
-        java_type = _get_java_type(field, message_struct_name)
+        java_type = _get_java_type(field, message_struct_name, type_registry)
         arg_name = _get_field_arg_name(field)
         params.append(f"{java_type} {arg_name}")
     return ", ".join(params)
@@ -120,6 +118,7 @@ def generate_protocol_methods_java(
     messages: list[Message],
     output_path: Path,
     package: str,
+    type_registry: TypeRegistry,
 ) -> str:
     """
     Generate ProtocolMethods.java with explicit API methods.
@@ -131,6 +130,7 @@ def generate_protocol_methods_java(
         messages: List of message definitions (only new-style with direction)
         output_path: Where to write ProtocolMethods.java
         package: Java package name
+        type_registry: TypeRegistry for resolving field types (source of truth)
 
     Returns:
         Generated Java code
@@ -154,7 +154,7 @@ def generate_protocol_methods_java(
         elif msg.is_to_controller():
             # Host sends to Controller -> generate send method
             method_name = message_name_to_method_name(msg.name)
-            params = _generate_method_params(list(msg.fields), struct_name)
+            params = _generate_method_params(list(msg.fields), struct_name, type_registry)
             args = _generate_struct_args(list(msg.fields))
 
             if params:

@@ -30,11 +30,10 @@ class TestNamingConversions:
     def test_simple_name_to_method(self) -> None:
         assert message_name_to_method_name("TRANSPORT_PLAY") == "transportPlay"
 
-    def test_remove_by_index_suffix(self) -> None:
-        assert message_name_to_method_name("DEVICE_SELECT_BY_INDEX") == "deviceSelect"
-
-    def test_remove_change_suffix(self) -> None:
-        assert message_name_to_method_name("TRACK_VOLUME_CHANGE") == "trackVolume"
+    def test_name_with_suffix_preserved(self) -> None:
+        """Suffixes are no longer removed - names should be correct at source."""
+        assert message_name_to_method_name("DEVICE_SELECT") == "deviceSelect"
+        assert message_name_to_method_name("TRACK_VOLUME_STATE") == "trackVolumeState"
 
     def test_request_prefix_preserved(self) -> None:
         assert message_name_to_method_name("REQUEST_DEVICE_LIST") == "requestDeviceList"

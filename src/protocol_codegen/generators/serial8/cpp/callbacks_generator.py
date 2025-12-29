@@ -48,6 +48,8 @@ def generate_protocol_callbacks_hpp(messages: list[Message], output_path: Path) 
  * Base class providing typed callbacks for each message type.
  * Protocol inherits this and DecoderRegistry calls these callbacks.
  *
+ * For explicit send methods, include ProtocolMethods.inl in your Protocol class.
+ *
  * Usage:
  *   protocol.onTransportPlay = [](const TransportPlayMessage& msg) {{
  *       // Handle message

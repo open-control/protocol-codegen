@@ -307,7 +307,7 @@ def _generate_cpp(
     new_style_messages = [m for m in messages if not m.is_legacy()]
     methods_stats = GenerationStats()
     if new_style_messages:
-        cpp_methods_path = cpp_base / "ProtocolMethods.hpp"
+        cpp_methods_path = cpp_base / "ProtocolMethods.inl"
         was_written = write_if_changed(
             cpp_methods_path,
             generate_protocol_methods_hpp(new_style_messages, cpp_methods_path),
@@ -421,7 +421,9 @@ def _generate_java(
         java_methods_path = java_base / "ProtocolMethods.java"
         was_written = write_if_changed(
             java_methods_path,
-            generate_protocol_methods_java(new_style_messages, java_methods_path, java_package),
+            generate_protocol_methods_java(
+                new_style_messages, java_methods_path, java_package, registry
+            ),
         )
         methods_stats.record_write(java_methods_path, was_written)
 

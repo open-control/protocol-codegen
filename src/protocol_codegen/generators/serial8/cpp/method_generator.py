@@ -118,7 +118,8 @@ def generate_protocol_methods_hpp(
         if msg.is_legacy() or msg.deprecated:
             continue
 
-        struct_name = to_pascal_case(msg.name) + "Message"
+        # Add Protocol:: namespace prefix for C++ usage in .inl file
+        struct_name = "Protocol::" + to_pascal_case(msg.name) + "Message"
 
         if msg.is_to_host():
             # Controller sends to Host -> generate send method
@@ -151,52 +152,27 @@ def generate_protocol_methods_hpp(
     )
 
     return f"""/**
- * ProtocolMethods.hpp - Explicit Protocol API
+ * ProtocolMethods.inl - Explicit Protocol API (inline include)
  *
  * AUTO-GENERATED - DO NOT EDIT
  *
- * This file provides explicit API methods instead of generic send<T>().
- * Include this file in your Protocol class definition.
+ * This file provides explicit send methods for TO_HOST messages.
+ * Include this file inside your Protocol class definition.
  *
- * Pattern:
- *   TO_HOST messages (Controller -> Host): void methodName(params)
- *   TO_CONTROLLER messages (Host -> Controller): std::function<void(...)> onMethodName
+ * Usage in BitwigProtocol.hpp:
+ *   class BitwigProtocol : public Protocol::ProtocolCallbacks {{
+ *   public:
+ *       template<typename T> void send(const T& msg) {{ ... }}
+ *
+ *       // Explicit API methods (generated)
+ *       #include "ProtocolMethods.inl"
+ *   }};
+ *
+ * Then use: protocol.transportPlay(true) instead of protocol.send(TransportPlayMessage{{true}})
  */
 
-#pragma once
+// =============================================================================
+// COMMANDS (Controller -> Host) - Explicit send methods
+// =============================================================================
 
-#include "MessageStructure.hpp"
-#include <functional>
-#include <string>
-#include <array>
-#include <vector>
-
-namespace Protocol {{
-
-/**
- * Explicit protocol methods (include in Protocol class)
- */
-class ProtocolMethods {{
-public:
-    // =========================================================================
-    // COMMANDS (Controller -> Host)
-    // =========================================================================
-
-{to_host_str}
-    // =========================================================================
-    // NOTIFICATIONS (Host -> Controller) - Callbacks
-    // =========================================================================
-
-{to_controller_str}
-
-protected:
-    ProtocolMethods() = default;
-    virtual ~ProtocolMethods() = default;
-
-    // Subclass must implement send
-    template <typename T>
-    void send(const T& msg);
-}};
-
-}}  // namespace Protocol
-"""
+{to_host_str}"""

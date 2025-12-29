@@ -194,8 +194,8 @@ def _generate_field_declarations(fields: Sequence[FieldBase], type_registry: Typ
         else:  # Composite
             class_name = _field_to_pascal_case(field.name)
             if field.array:
-                # Composite arrays still use List<T> (Java limitation)
-                lines.append(f"    private final List<{class_name}> {field.name};")
+                # Composite arrays use T[] (aligned with C++ std::array)
+                lines.append(f"    private final {class_name}[] {field.name};")
             else:
                 lines.append(f"    private final {class_name} {field.name};")
 
@@ -240,7 +240,8 @@ def _generate_constructor(
         else:  # Composite
             class_name_inner = _field_to_pascal_case(field.name)
             if field.array:
-                params.append(f"List<{class_name_inner}> {field.name}")
+                # Composite arrays use T[] (aligned with C++ std::array)
+                params.append(f"{class_name_inner}[] {field.name}")
             else:
                 params.append(f"{class_name_inner} {field.name}")
 
@@ -278,7 +279,8 @@ def _generate_getters(fields: Sequence[FieldBase], type_registry: TypeRegistry) 
                 java_type = f"{java_type}[]"
         else:  # Composite
             class_name = _field_to_pascal_case(field.name)
-            java_type = f"List<{class_name}>" if field.array else class_name
+            # Composite arrays use T[] (aligned with C++ std::array)
+            java_type = f"{class_name}[]" if field.array else class_name
 
         getter_name = _to_getter_name(field.name)
 
@@ -371,7 +373,7 @@ def _generate_encode_method(
             assert isinstance(field, CompositeField)
             if field.array:
                 lines.append(
-                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.size());"
+                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.length);"
                 )
                 lines.append("")
                 class_name_inner = _field_to_pascal_case(field.name)
@@ -539,9 +541,10 @@ def _generate_decode_method(
                 lines.append(f"        int count_{field.name} = Decoder.decodeUint8(data, offset);")
                 lines.append("        offset += 1;")
                 lines.append("")
-                # Decode items
+                # Decode items into array (aligned with C++ std::array)
+                composite_class = _field_to_pascal_case(field.name)
                 lines.append(
-                    f"        List<{_field_to_pascal_case(field.name)}> {field.name}_list = new ArrayList<>();"
+                    f"        {composite_class}[] {field.name} = new {composite_class}[count_{field.name}];"
                 )
                 lines.append(f"        for (int i = 0; i < count_{field.name}; i++) {{")
                 # Decode each nested field
@@ -583,18 +586,18 @@ def _generate_decode_method(
                             )
                             for line in decoder_call.split("\n"):
                                 lines.append(f"    {line}")
-                # Construct item
+                # Construct item and assign to array
                 item_params: list[str] = []
                 for nested_field in field.fields:
                     if nested_field.is_primitive():
                         item_params.append(f"item_{nested_field.name}")
                 item_params_str = ", ".join(item_params)
                 lines.append(
-                    f"            {field.name}_list.add(new {_field_to_pascal_case(field.name)}({item_params_str}));"
+                    f"            {field.name}[i] = new {_field_to_pascal_case(field.name)}({item_params_str});"
                 )
                 lines.append("        }")
                 lines.append("")
-                field_vars.append(f"{field.name}_list")
+                field_vars.append(field.name)
             else:
                 # Single composite - decode nested fields
                 for nested_field in field.fields:
@@ -1134,17 +1137,12 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
 
 
 def _needs_list_import(fields: Sequence[FieldBase]) -> bool:
-    """Check if List import is needed (only for composite arrays, not primitive arrays)."""
-    for field in fields:
-        if field.is_composite():
-            assert isinstance(field, CompositeField)
-            # Composite arrays use List<T> (Java limitation with generic arrays)
-            if field.array:
-                return True
-            # Check nested fields recursively
-            if _needs_list_import(field.fields):
-                return True
-    # Primitive arrays use T[] - no List import needed
+    """Check if List import is needed.
+
+    Since composite arrays now use T[] (aligned with C++ std::array),
+    List is no longer needed for any message types.
+    """
+    # All arrays (primitive and composite) now use T[] - no List import needed
     return False
 
 
