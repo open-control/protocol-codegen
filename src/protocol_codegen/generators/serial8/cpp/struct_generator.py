@@ -201,12 +201,6 @@ def _generate_struct_definition(
         lines.append(f"    {cpp_type} {field.name};")
 
     lines.append("")
-
-    # Add fromHost field LAST (injected by DecoderRegistry after construction)
-    lines.append("    // Origin tracking (set by DecoderRegistry during decode)")
-    lines.append("    bool fromHost = false;")
-
-    lines.append("")
     return "\n".join(lines)
 
 

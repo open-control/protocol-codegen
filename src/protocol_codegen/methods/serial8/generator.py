@@ -60,7 +60,6 @@ def _convert_serial8_config_to_java_protocol_config(config: Serial8Config) -> Ja
     return JavaProtocolConfig(
         structure={
             "message_type_offset": config.structure.message_type_offset,
-            "from_host_offset": config.structure.from_host_offset,
             "payload_offset": config.structure.payload_offset,
         },
         limits={
@@ -77,7 +76,6 @@ def _convert_serial8_config_to_cpp_protocol_config(config: Serial8Config) -> Cpp
     return CppProtocolConfig(
         structure={
             "message_type_offset": config.structure.message_type_offset,
-            "from_host_offset": config.structure.from_host_offset,
             "payload_offset": config.structure.payload_offset,
         },
         limits={

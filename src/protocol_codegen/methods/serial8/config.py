@@ -50,14 +50,8 @@ class Serial8Structure(BaseModel):
         description="Byte offset for message type ID",
     )
 
-    from_host_offset: int = Field(
-        default=1,
-        ge=0,
-        description="Byte offset for direction flag (0=from device, 1=from host)",
-    )
-
     payload_offset: int = Field(
-        default=2,
+        default=1,
         ge=0,
         description="Byte offset where payload starts",
     )

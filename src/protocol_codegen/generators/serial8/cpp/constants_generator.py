@@ -109,14 +109,10 @@ def _generate_structure_constants(structure_config: StructureConfig, uint8_type:
     lines: list[str] = []
 
     type_offset: int = structure_config.get("message_type_offset", 0)
-    from_host_offset: int = structure_config.get("from_host_offset", 1)
-    payload_offset: int = structure_config.get("payload_offset", 2)
+    payload_offset: int = structure_config.get("payload_offset", 1)
 
     lines.append(
         f"constexpr {uint8_type} MESSAGE_TYPE_OFFSET = {type_offset};  // Position of MessageID byte"
-    )
-    lines.append(
-        f"constexpr {uint8_type} FROM_HOST_OFFSET = {from_host_offset};      // Position of fromHost flag"
     )
     lines.append(
         f"constexpr {uint8_type} PAYLOAD_OFFSET = {payload_offset};          // Start of payload data"

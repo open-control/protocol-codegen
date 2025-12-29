@@ -85,9 +85,8 @@ public class Protocol extends ProtocolCallbacks {{
 
         try {{
             sendBuffer[0] = meta.messageId().getValue();
-            sendBuffer[1] = 1;  // fromHost = true
-            int payloadLen = (int) meta.encodeMethod().invoke(message, sendBuffer, 2);
-            int frameLen = 2 + payloadLen;
+            int payloadLen = (int) meta.encodeMethod().invoke(message, sendBuffer, 1);
+            int frameLen = 1 + payloadLen;
 
             socket.send(new DatagramPacket(sendBuffer, 0, frameLen, address, port));
         }} catch (Exception e) {{
@@ -102,12 +101,11 @@ public class Protocol extends ProtocolCallbacks {{
         MessageID id = MessageID.fromValue(idByte);
         if (id == null) return;
 
-        boolean fromHost = frame[ProtocolConstants.FROM_HOST_OFFSET] != 0;
         int payloadLen = frame.length - ProtocolConstants.PAYLOAD_OFFSET;
         byte[] payload = new byte[payloadLen];
         System.arraycopy(frame, ProtocolConstants.PAYLOAD_OFFSET, payload, 0, payloadLen);
 
-        DecoderRegistry.dispatch(this, id, payload, fromHost);
+        DecoderRegistry.dispatch(this, id, payload);
     }}
 
     public void close() {{

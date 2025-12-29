@@ -176,11 +176,6 @@ def _generate_field_declarations(fields: Sequence[FieldBase], type_registry: Typ
     )
     lines.append("")
 
-    # Add fromHost field (injected by DecoderRegistry, ignored during encode)
-    lines.append("    // Origin tracking (set by DecoderRegistry during decode)")
-    lines.append("    public boolean fromHost = false;")
-    lines.append("")
-
     for field in fields:
         if field.is_primitive():
             assert isinstance(field, PrimitiveField)

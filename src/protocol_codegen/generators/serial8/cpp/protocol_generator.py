@@ -162,13 +162,12 @@ public:
      */
     template<typename T>
     void send(const T& message) {{
-        // Build frame: [MessageID][fromHost][payload...]
+        // Build frame: [MessageID][payload...]
         uint8_t frame[ProtocolConstants::MAX_MESSAGE_SIZE];
         size_t offset = 0;
 
         // Header
         frame[offset++] = static_cast<uint8_t>(T::MESSAGE_ID);
-        frame[offset++] = 0x00;  // fromHost = false (we are the controller)
 
         // Payload
         uint8_t payload[T::MAX_PAYLOAD_SIZE];
@@ -202,14 +201,13 @@ public:
 
         // Parse header
         auto messageId = static_cast<MessageID>(data[ProtocolConstants::MESSAGE_TYPE_OFFSET]);
-        bool fromHost = data[ProtocolConstants::FROM_HOST_OFFSET] != 0;
 
         // Extract payload
         const uint8_t* payload = data + ProtocolConstants::PAYLOAD_OFFSET;
         size_t payloadLen = len - ProtocolConstants::PAYLOAD_OFFSET;
 
         // Dispatch to typed callback (inherited from ProtocolCallbacks)
-        DecoderRegistry::dispatch(*this, messageId, payload, payloadLen, fromHost);
+        DecoderRegistry::dispatch(*this, messageId, payload, payloadLen);
     }}
 
     // ========================================================================
