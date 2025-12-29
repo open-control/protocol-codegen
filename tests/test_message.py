@@ -6,6 +6,7 @@ Validates message creation and properties.
 
 from __future__ import annotations
 
+from protocol_codegen.core.enums import Direction, Intent
 from protocol_codegen.core.field import CompositeField, PrimitiveField, Type
 from protocol_codegen.core.message import (
     Message,
@@ -314,3 +315,96 @@ class TestCollectMessages:
         collect_messages(fake_globals)
 
         assert msg.name == "TEST_MESSAGE"  # Now set
+
+
+class TestMessageDirection:
+    """Tests for message direction and intent (Phase 0 of protocol migration)."""
+
+    def test_legacy_message_has_no_direction(self) -> None:
+        """Messages without direction are legacy."""
+        msg = Message(description="Legacy message", fields=[])
+
+        assert msg.is_legacy() is True
+        assert msg.direction is None
+        assert msg.intent is None
+
+    def test_new_message_has_direction(self) -> None:
+        """New messages have explicit direction."""
+        msg = Message(
+            description="New message",
+            fields=[],
+            direction=Direction.TO_HOST,
+            intent=Intent.COMMAND,
+        )
+
+        assert msg.is_legacy() is False
+        assert msg.is_to_host() is True
+        assert msg.is_to_controller() is False
+        assert msg.is_command() is True
+
+    def test_to_controller_direction(self) -> None:
+        """Message with TO_CONTROLLER direction."""
+        msg = Message(
+            description="Controller-bound message",
+            fields=[],
+            direction=Direction.TO_CONTROLLER,
+            intent=Intent.NOTIFY,
+        )
+
+        assert msg.is_to_host() is False
+        assert msg.is_to_controller() is True
+        assert msg.is_notify() is True
+
+    def test_query_message(self) -> None:
+        """Query message expects a response."""
+        msg = Message(
+            description="Query message",
+            fields=[],
+            direction=Direction.TO_HOST,
+            intent=Intent.QUERY,
+        )
+
+        assert msg.is_query() is True
+        assert msg.is_response() is False
+
+    def test_response_links_to_query(self) -> None:
+        """Response messages link to their query."""
+        response = Message(
+            description="Response",
+            fields=[],
+            direction=Direction.TO_CONTROLLER,
+            intent=Intent.RESPONSE,
+            response_to="DEVICE_LIST_QUERY",
+        )
+
+        assert response.is_response() is True
+        assert response.response_to == "DEVICE_LIST_QUERY"
+
+
+class TestMessageDeprecated:
+    """Tests for deprecated messages."""
+
+    def test_deprecated_default_is_false(self) -> None:
+        """Messages are not deprecated by default."""
+        msg = Message(description="Active message", fields=[])
+
+        assert msg.deprecated is False
+
+    def test_deprecated_message(self) -> None:
+        """Deprecated messages should be filterable."""
+        msg = Message(description="Old message", fields=[], deprecated=True)
+
+        assert msg.deprecated is True
+
+    def test_deprecated_with_direction(self) -> None:
+        """Deprecated messages can have direction."""
+        msg = Message(
+            description="Deprecated but typed",
+            fields=[],
+            direction=Direction.TO_HOST,
+            intent=Intent.COMMAND,
+            deprecated=True,
+        )
+
+        assert msg.deprecated is True
+        assert msg.is_to_host() is True

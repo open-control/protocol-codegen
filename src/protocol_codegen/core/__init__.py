@@ -5,6 +5,7 @@ Provides the core type system, message definitions, and validation.
 """
 
 from protocol_codegen.core.allocator import allocate_message_ids
+from protocol_codegen.core.enums import Direction, Intent
 from protocol_codegen.core.field import (
     CompositeField,
     PrimitiveField,
@@ -18,6 +19,8 @@ from protocol_codegen.core.types import BUILTIN_TYPES, BuiltinTypeDef
 from protocol_codegen.core.validator import ProtocolValidator
 
 __all__ = [
+    "Direction",
+    "Intent",
     "PrimitiveField",
     "CompositeField",
     "Type",

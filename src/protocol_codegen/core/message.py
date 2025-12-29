@@ -18,7 +18,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
+
+from .enums import Direction, Intent
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -29,11 +31,11 @@ if TYPE_CHECKING:
 @dataclass
 class Message:
     """
-    Pure data class for SysEx message definitions (no side effects).
+    Pure data class for protocol message definitions (no side effects).
 
     A message represents a unit of communication between the controller
-    and host. All messages are bidirectional - the direction is determined
-    by usage context (which class sends/receives the message).
+    and host. Direction and intent are explicitly defined for new messages.
+    Legacy messages (direction=None) are still supported during migration.
 
     This class is generic and reusable across all plugins. Plugin-specific
     message definitions are created by instantiating this class in the
@@ -45,20 +47,23 @@ class Message:
     Attributes:
         description: Human-readable description
         fields: List of Field objects defining the message structure
-        name: Message name (auto-injected by message/__init__.py, always set before use)
         optimistic: Enable optimistic updates for this message (default: False)
+        name: Message name (auto-injected by message/__init__.py, always set before use)
+        direction: Message direction (TO_HOST or TO_CONTROLLER), None for legacy
+        intent: Message intent (COMMAND, QUERY, NOTIFY, RESPONSE), None for legacy
+        deprecated: If True, message is excluded from code generation
+        response_to: For RESPONSE messages, links to the QUERY message name
 
     Example:
-        >>> from protocol import Message
-        >>> from field.transport import transport_play
+        >>> from protocol_codegen.core.message import Message
+        >>> from protocol_codegen.core.enums import Direction, Intent
         >>>
         >>> TRANSPORT_PLAY = Message(
-        ...     description='Transport play/pause state',
+        ...     direction=Direction.TO_HOST,
+        ...     intent=Intent.COMMAND,
+        ...     description='Command to set transport play state',
         ...     fields=[transport_play]
         ... )
-        >>>
-        >>> # Name is auto-injected by message/__init__.py
-        >>> TRANSPORT_PLAY.name  # 'TRANSPORT_PLAY'
     """
 
     description: str  # Human-readable description
@@ -69,10 +74,44 @@ class Message:
     # Always set before messages are used, so we type it as str (not Optional[str])
     name: str = ""  # Default empty, but always overwritten by auto-discovery
 
+    # New fields for protocol API migration (optional for backward compatibility)
+    direction: Optional[Direction] = None  # TO_HOST or TO_CONTROLLER
+    intent: Optional[Intent] = None  # COMMAND, QUERY, NOTIFY, RESPONSE
+    deprecated: bool = False  # If True, excluded from code generation
+    response_to: Optional[str] = None  # For RESPONSE messages, links to QUERY name
+
     def __str__(self) -> str:
         """String representation for debugging and display"""
         name_str = self.name or "UNNAMED"
         return f"Message({name_str}, {len(self.fields)} fields)"
+
+    def is_legacy(self) -> bool:
+        """Check if message uses old format (no direction)."""
+        return self.direction is None
+
+    def is_to_host(self) -> bool:
+        """Check if message goes Controller -> Host."""
+        return self.direction == Direction.TO_HOST
+
+    def is_to_controller(self) -> bool:
+        """Check if message goes Host -> Controller."""
+        return self.direction == Direction.TO_CONTROLLER
+
+    def is_command(self) -> bool:
+        """Check if message is a fire-and-forget command."""
+        return self.intent == Intent.COMMAND
+
+    def is_query(self) -> bool:
+        """Check if message is a query expecting a response."""
+        return self.intent == Intent.QUERY
+
+    def is_notify(self) -> bool:
+        """Check if message is a state notification."""
+        return self.intent == Intent.NOTIFY
+
+    def is_response(self) -> bool:
+        """Check if message is a response to a query."""
+        return self.intent == Intent.RESPONSE
 
 
 def collect_messages(globals_dict: Mapping[str, object]) -> list[Message]:

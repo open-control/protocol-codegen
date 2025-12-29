@@ -153,8 +153,13 @@ def generate_serial8_protocol(
         if not hasattr(message_module, "ALL_MESSAGES"):
             raise ValueError("message module must define ALL_MESSAGES")
 
-        messages: list[Message] = message_module.ALL_MESSAGES  # type: ignore[attr-defined]
-        log(f"  ✓ Imported {len(messages)} messages")
+        all_messages: list[Message] = message_module.ALL_MESSAGES  # type: ignore[attr-defined]
+        deprecated_count = sum(1 for m in all_messages if m.deprecated)
+        messages = [m for m in all_messages if not m.deprecated]
+        if deprecated_count > 0:
+            log(f"  ✓ Imported {len(all_messages)} messages ({deprecated_count} deprecated, {len(messages)} active)")
+        else:
+            log(f"  ✓ Imported {len(messages)} messages")
     finally:
         # Always clean up sys.path to avoid pollution
         if messages_parent in sys.path:
