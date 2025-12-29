@@ -41,21 +41,45 @@ _JAVA_TYPE_MAP = {
 }
 
 
-def _get_java_type(field: FieldBase) -> str:
-    """Get Java type for a field."""
+def _field_to_pascal_case(field_name: str) -> str:
+    """
+    Convert camelCase field name to PascalCase class name.
+
+    This matches the struct generator's naming for inner classes.
+
+    Examples:
+        pageInfo → PageInfo
+        remoteControls → RemoteControls
+        deviceName → DeviceName
+    """
+    if not field_name:
+        return field_name
+    return field_name[0].upper() + field_name[1:]
+
+
+def _get_java_type(field: FieldBase, message_struct_name: str) -> str:
+    """
+    Get Java type for a field.
+
+    Args:
+        field: The field to get the type for
+        message_struct_name: The parent message struct name (e.g., "DeviceChangeMessage")
+                            Used to qualify composite types as inner classes.
+    """
     if field.is_composite():
-        # For composite fields, use the struct name
-        struct_name = to_pascal_case(field.name)
+        # Composite fields are inner classes of the message struct
+        # e.g., DeviceChangeMessage.PageInfo, DeviceChangeMessage.RemoteControls
+        inner_class_name = _field_to_pascal_case(field.name)
+        qualified_type = f"{message_struct_name}.{inner_class_name}"
         if field.is_array():
-            return f"{struct_name}[]"
-        return struct_name
+            return f"{qualified_type}[]"
+        return qualified_type
 
     # Primitive field
     pfield: PrimitiveField = field  # type: ignore[assignment]
     base_type = _JAVA_TYPE_MAP.get(pfield.type_name.value, "Object")
 
     if field.is_array():
-        # Java arrays
         return f"{base_type}[]"
 
     return base_type
@@ -70,13 +94,13 @@ def _get_field_arg_name(field: FieldBase) -> str:
     return name
 
 
-def _generate_method_params(fields: list[FieldBase]) -> str:
+def _generate_method_params(fields: list[FieldBase], message_struct_name: str) -> str:
     """Generate method parameters from fields."""
     params = []
     for field in fields:
         if should_exclude_field(field.name):
             continue
-        java_type = _get_java_type(field)
+        java_type = _get_java_type(field, message_struct_name)
         arg_name = _get_field_arg_name(field)
         params.append(f"{java_type} {arg_name}")
     return ", ".join(params)
@@ -130,7 +154,7 @@ def generate_protocol_methods_java(
         elif msg.is_to_controller():
             # Host sends to Controller -> generate send method
             method_name = message_name_to_method_name(msg.name)
-            params = _generate_method_params(list(msg.fields))
+            params = _generate_method_params(list(msg.fields), struct_name)
             args = _generate_struct_args(list(msg.fields))
 
             if params:
