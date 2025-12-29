@@ -1,14 +1,8 @@
 """
 Protocol.hpp.template Generator for Serial8
 
-Generates a template Protocol class that users should copy and customize.
-The template is NOT compiled directly - users copy it to Protocol.hpp and
-adapt it to their specific transport layer.
-
-This approach is needed because:
-- Protocol depends on project-specific I/O (MidiAPI, Serial, TCP, etc.)
-- Different projects have different lifecycle requirements
-- Helper methods are project-specific
+Generates a template Protocol class for USB Serial communication.
+Uses ISerialTransport for COBS-framed serial communication.
 """
 
 from __future__ import annotations
@@ -30,229 +24,190 @@ def generate_protocol_template_hpp(messages: list[Message], output_path: Path) -
         output_path: Where to write Protocol.hpp.template
 
     Returns:
-        Generated C++ template code with TODO comments
+        Generated C++ template code
     """
-    # Generate example callback assignments
+    # Generate example callback assignments (TO_CONTROLLER messages)
     callback_examples: list[str] = []
-    for message in messages[:3]:  # Show first 3 as examples
-        pascal_name = "".join(word.capitalize() for word in message.name.split("_"))
-        callback_name = f"on{pascal_name}"
-        class_name = f"{pascal_name}Message"
-        callback_examples.append(
-            f"    // protocol.{callback_name} = [](const {class_name}& msg) {{ }};"
-        )
+    for message in messages[:5]:
+        if message.is_to_controller():
+            pascal_name = "".join(word.capitalize() for word in message.name.split("_"))
+            callback_name = f"on{pascal_name}"
+            class_name = f"{pascal_name}Message"
+            callback_examples.append(
+                f"//     protocol.{callback_name} = [](const {class_name}& msg) {{ }};"
+            )
+    if not callback_examples:
+        callback_examples.append("//     // Register callbacks here...")
 
     callback_examples_str = "\n".join(callback_examples)
 
+    # Generate example API method calls (TO_HOST messages)
+    method_examples: list[str] = []
+    for message in messages[:5]:
+        if message.is_to_host():
+            parts = message.name.lower().split("_")
+            method_name = parts[0] + "".join(word.capitalize() for word in parts[1:])
+            method_examples.append(f"//     protocol.{method_name}(...);")
+    if not method_examples:
+        method_examples.append("//     // Call API methods here...")
+
+    method_examples_str = "\n".join(method_examples)
+
     code = f"""/**
- * Protocol.hpp.template - Serial8 Protocol Handler Template
+ * Protocol.hpp.template - Serial8 Protocol Handler (USB Serial)
  *
  * ============================================================================
  * HOW TO USE THIS TEMPLATE
  * ============================================================================
  *
- * 1. Copy this file to your project as Protocol.hpp (remove .template)
- * 2. Replace YOUR_TRANSPORT_TYPE with your actual transport
- * 3. Implement send() and dispatch() for your transport
- * 4. Add any project-specific helper methods
+ * 1. Copy this file to your project as YourProtocol.hpp
+ * 2. Rename the class (e.g., BitwigProtocol)
+ * 3. Implement constructor with ISerialTransport&
  *
- * This template is NOT compiled directly. It provides the structure and
- * includes you need to create your Protocol class.
+ * Wire format: [MessageID][payload...]
+ * Framing: COBS (handled automatically by ISerialTransport)
  *
  * ============================================================================
- * TRANSPORT EXAMPLES
+ * ARCHITECTURE
  * ============================================================================
  *
- * Serial8 over USB Serial (Teensy):
- *   - Transport: oc::hal::ISerialTransport& (UsbSerial)
- *   - Framing: COBS (handled by transport)
- *   - Header: [MessageID][fromHost][payload...]
- *
- * Serial8 over TCP Socket:
- *   - Transport: TcpSocket& or similar
- *   - Framing: Length-prefix or COBS
- *   - Header: [MessageID][fromHost][payload...]
- *
- * SysEx over MIDI:
- *   - Transport: oc::api::MidiAPI& + EventBus
- *   - Framing: F0 ... F7
- *   - Header: [F0][MFR][DEV][MessageID][fromHost][payload...][F7]
+ * YourProtocol : ProtocolCallbacks
+ *   - Callbacks: onMessageName members (inherited from ProtocolCallbacks)
+ *   - API: explicit methods like transportPlay(), deviceSelect() (from ProtocolMethods.inl)
+ *   - send(): private, called by API methods
+ *   - dispatch(): private, called by transport on receive
  *
  * ============================================================================
  */
 
 #pragma once
 
-// ============================================================================
-// Required Includes (DO NOT REMOVE)
-// ============================================================================
-
-#include "MessageID.hpp"
-#include "ProtocolConstants.hpp"
-#include "ProtocolCallbacks.hpp"
-#include "DecoderRegistry.hpp"
-#include "MessageStructure.hpp"  // All message types
-
 #include <cstdint>
 #include <cstring>
 
-// ============================================================================
-// TODO: Add your transport include here
-// ============================================================================
-// Examples:
-//   #include <oc/hal/ISerialTransport.hpp>  // For Serial8 over USB
-//   #include <oc/api/MidiAPI.hpp>           // For SysEx over MIDI
-//   #include "TcpSocket.hpp"                // For TCP socket
+#include <oc/hal/ISerialTransport.hpp>
+#include <oc/log/Log.hpp>
 
-namespace Protocol {{
+#include "DecoderRegistry.hpp"
+#include "MessageID.hpp"
+#include "ProtocolCallbacks.hpp"
+#include "ProtocolConstants.hpp"
+
+namespace YourNamespace {{
 
 /**
- * Serial8 Protocol Handler
+ * Serial8 Protocol Handler (USB Serial with COBS framing)
  *
- * TODO: Customize this class for your transport layer.
- *
- * Inherits from ProtocolCallbacks which provides typed callback members
- * for each message type (e.g., onSensorReading, onLog, etc.)
+ * Inherits from ProtocolCallbacks for message callbacks.
+ * Include ProtocolMethods.inl for explicit API methods.
  */
-class Protocol : public ProtocolCallbacks {{
+class YourProtocol : public Protocol::ProtocolCallbacks {{
 public:
-    // ========================================================================
-    // TODO: Constructor - adapt to your transport
-    // ========================================================================
+    /**
+     * Construct protocol with ISerialTransport
+     *
+     * The transport handles COBS framing internally.
+     * When a complete frame arrives, it calls our dispatch() callback.
+     *
+     * @param transport Reference to ISerialTransport (must outlive Protocol)
+     */
+    explicit YourProtocol(oc::hal::ISerialTransport& transport)
+        : transport_(transport) {{
+        transport_.setOnReceive([this](const uint8_t* data, size_t len) {{
+            dispatch(data, len);
+        }});
+    }}
+
+    ~YourProtocol() = default;
+
+    // Non-copyable, non-movable
+    YourProtocol(const YourProtocol&) = delete;
+    YourProtocol& operator=(const YourProtocol&) = delete;
+    YourProtocol(YourProtocol&&) = delete;
+    YourProtocol& operator=(YourProtocol&&) = delete;
+
+    // =========================================================================
+    // Explicit API Methods (generated)
+    // =========================================================================
+    // Examples: transportPlay(bool), deviceSelect(uint8_t), requestHostStatus()
+    // These methods call send() internally.
+#include "ProtocolMethods.inl"
+
+private:
+    oc::hal::ISerialTransport& transport_;
 
     /**
-     * Example for ISerialTransport:
-     *
-     *   explicit Protocol(oc::hal::ISerialTransport& transport)
-     *       : transport_(transport)
-     *   {{
-     *       transport_.setOnReceive([this](const uint8_t* data, size_t len) {{
-     *           dispatch(data, len);
-     *       }});
-     *   }}
-     *
-     * Example for MidiAPI + EventBus:
-     *
-     *   Protocol(oc::api::MidiAPI& midi, oc::core::event::IEventBus& events)
-     *       : midi_(midi), events_(events)
-     *   {{
-     *       subscriptionId_ = events_.on(EventCategory::MIDI, MidiEvent::SYSEX,
-     *           [this](const Event& evt) {{
-     *               const auto& sysex = static_cast<const SysExEvent&>(evt);
-     *               dispatch(sysex.data, sysex.length);
-     *           }});
-     *   }}
+     * Send a typed message (internal - called by API methods)
      */
-
-    // Non-copyable
-    Protocol(const Protocol&) = delete;
-    Protocol& operator=(const Protocol&) = delete;
-
-    // ========================================================================
-    // Send API
-    // ========================================================================
-
-    /**
-     * Send a typed message
-     *
-     * TODO: Implement for your transport.
-     *
-     * @tparam T Message type (has MESSAGE_ID and encode())
-     * @param message Message to send
-     */
-    template<typename T>
+    template <typename T>
     void send(const T& message) {{
-        // Build frame: [MessageID][payload...]
-        uint8_t frame[ProtocolConstants::MAX_MESSAGE_SIZE];
-        size_t offset = 0;
+        using Protocol::MAX_MESSAGE_SIZE;
 
-        // Header
-        frame[offset++] = static_cast<uint8_t>(T::MESSAGE_ID);
+        constexpr Protocol::MessageID messageId = T::MESSAGE_ID;
 
-        // Payload
+        // Encode payload
         uint8_t payload[T::MAX_PAYLOAD_SIZE];
-        size_t payloadLen = message.encode(payload);
+        uint16_t payloadLen = message.encode(payload, sizeof(payload));
+
+        // Build frame: [MessageID][payload...]
+        uint8_t frame[MAX_MESSAGE_SIZE];
+        uint16_t offset = 0;
+
+        frame[offset++] = static_cast<uint8_t>(messageId);
         std::memcpy(frame + offset, payload, payloadLen);
         offset += payloadLen;
 
-        // TODO: Send via your transport
-        // Examples:
-        //   transport_.send(frame, offset);           // ISerialTransport
-        //   midi_.sendSysEx(buildSysEx(frame, offset)); // MidiAPI
-        //   socket_.write(frame, offset);             // TCP
+        // Send (COBS framing handled by transport)
+        transport_.send(frame, offset);
     }}
-
-    // ========================================================================
-    // Receive / Dispatch
-    // ========================================================================
 
     /**
-     * Dispatch incoming frame to appropriate callback
-     *
-     * Called by your transport's receive callback.
-     *
-     * @param data Frame data (after transport-specific decoding)
-     * @param len Frame length
+     * Dispatch incoming frame to callbacks (called by transport)
      */
     void dispatch(const uint8_t* data, size_t len) {{
-        if (len < ProtocolConstants::MIN_MESSAGE_LENGTH) {{
-            return;  // Frame too short
+        using Protocol::MIN_MESSAGE_LENGTH;
+        using Protocol::MESSAGE_TYPE_OFFSET;
+        using Protocol::PAYLOAD_OFFSET;
+        using Protocol::MessageID;
+        using Protocol::DecoderRegistry;
+
+        if (data == nullptr || len < MIN_MESSAGE_LENGTH) {{
+            OC_LOG_WARN("[Protocol] Invalid frame (null or too short: {{}})", len);
+            return;
         }}
 
-        // Parse header
-        auto messageId = static_cast<MessageID>(data[ProtocolConstants::MESSAGE_TYPE_OFFSET]);
+        MessageID messageId = static_cast<MessageID>(data[MESSAGE_TYPE_OFFSET]);
+        uint16_t payloadLen = len - PAYLOAD_OFFSET;
+        const uint8_t* payload = data + PAYLOAD_OFFSET;
 
-        // Extract payload
-        const uint8_t* payload = data + ProtocolConstants::PAYLOAD_OFFSET;
-        size_t payloadLen = len - ProtocolConstants::PAYLOAD_OFFSET;
-
-        // Dispatch to typed callback (inherited from ProtocolCallbacks)
         DecoderRegistry::dispatch(*this, messageId, payload, payloadLen);
     }}
-
-    // ========================================================================
-    // TODO: Add project-specific helper methods here
-    // ========================================================================
-    // Examples:
-    //   void requestHostStatus();
-    //   void selectDevice(uint8_t index);
-    //   void sendParameterValue(uint8_t index, float value);
-
-private:
-    // ========================================================================
-    // TODO: Add your transport member(s) here
-    // ========================================================================
-    // Examples:
-    //   oc::hal::ISerialTransport& transport_;
-    //   oc::api::MidiAPI& midi_;
-    //   oc::core::event::IEventBus& events_;
-    //   oc::core::event::SubscriptionID subscriptionId_{{0}};
 }};
 
-}}  // namespace Protocol
+}}  // namespace YourNamespace
 
 // ============================================================================
 // USAGE EXAMPLE
 // ============================================================================
 //
-// #include "Protocol.hpp"
+// #include "YourProtocol.hpp"
 // #include <oc/teensy/UsbSerial.hpp>
 //
 // oc::teensy::UsbSerial serial;
-// Protocol::Protocol protocol(serial);
+// YourNamespace::YourProtocol protocol(serial);
 //
 // void setup() {{
 //     serial.init();
 //
-//     // Register callbacks
+//     // Register callbacks for messages FROM host (TO_CONTROLLER)
 {callback_examples_str}
 // }}
 //
 // void loop() {{
 //     serial.update();  // Polls and dispatches incoming messages
 //
-//     // Send messages
-//     // protocol.send(SensorReadingMessage{{...}});
+//     // Send messages TO host using explicit API
+{method_examples_str}
 // }}
 """
 
