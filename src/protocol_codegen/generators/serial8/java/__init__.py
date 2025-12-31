@@ -8,6 +8,7 @@ from .constants_generator import generate_constants_java
 from .decoder_generator import generate_decoder_java
 from .decoder_registry_generator import generate_decoder_registry_java
 from .encoder_generator import generate_encoder_java
+from .enum_generator import generate_enum_java
 from .messageid_generator import generate_messageid_java
 from .struct_generator import generate_struct_java
 
@@ -16,6 +17,7 @@ __all__ = [
     "generate_decoder_java",
     "generate_messageid_java",
     "generate_struct_java",
+    "generate_enum_java",
     "generate_constants_java",
     "generate_decoder_registry_java",
     "generate_protocol_callbacks_java",

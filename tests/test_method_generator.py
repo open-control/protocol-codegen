@@ -6,8 +6,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from protocol_codegen.core.enums import Direction, Intent
 from protocol_codegen.core.field import PrimitiveField, Type
+from protocol_codegen.core.loader import TypeRegistry
 from protocol_codegen.core.message import Message
 from protocol_codegen.generators.common.naming import (
     message_name_to_callback_name,
@@ -84,10 +87,10 @@ class TestCppMethodGenerator:
         code = generate_protocol_methods_hpp([msg], Path("test.hpp"))
 
         assert "void transportPlay(bool playing)" in code
-        assert "send(TransportPlayMessage{playing})" in code
+        assert "send(Protocol::TransportPlayMessage{playing})" in code
 
-    def test_to_controller_generates_callback(self) -> None:
-        """TO_CONTROLLER message generates a callback in C++."""
+    def test_to_controller_not_in_methods_inl(self) -> None:
+        """TO_CONTROLLER messages are not included in ProtocolMethods.inl (callbacks are in ProtocolCallbacks)."""
         msg = Message(
             description="Transport state",
             fields=[PrimitiveField("playing", type_name=Type.BOOL)],
@@ -98,8 +101,9 @@ class TestCppMethodGenerator:
 
         code = generate_protocol_methods_hpp([msg], Path("test.hpp"))
 
-        assert "std::function<void(const TransportStateMessage&)>" in code
-        assert "onTransportState" in code
+        # TO_CONTROLLER messages are handled by ProtocolCallbacks, not ProtocolMethods.inl
+        assert "transportState" not in code
+        assert "No TO_HOST messages" in code
 
     def test_empty_message_generates_no_args(self) -> None:
         """Message with no fields generates method with no args."""
@@ -114,7 +118,7 @@ class TestCppMethodGenerator:
         code = generate_protocol_methods_hpp([msg], Path("test.hpp"))
 
         assert "void requestStatus()" in code
-        assert "send(RequestStatusMessage{})" in code
+        assert "send(Protocol::RequestStatusMessage{})" in code
 
     def test_legacy_message_ignored(self) -> None:
         """Legacy messages (no direction) are ignored."""
@@ -147,7 +151,14 @@ class TestCppMethodGenerator:
 class TestJavaMethodGenerator:
     """Tests for Java method generation."""
 
-    def test_to_host_generates_callback(self) -> None:
+    @pytest.fixture
+    def type_registry(self) -> TypeRegistry:
+        """Create a TypeRegistry with builtins loaded for tests."""
+        registry = TypeRegistry()
+        registry.load_builtins()
+        return registry
+
+    def test_to_host_generates_callback(self, type_registry: TypeRegistry) -> None:
         """TO_HOST message generates a callback in Java (Host receives)."""
         msg = Message(
             description="Play transport",
@@ -157,12 +168,12 @@ class TestJavaMethodGenerator:
         )
         msg.name = "TRANSPORT_PLAY"
 
-        code = generate_protocol_methods_java([msg], Path("test.java"), "com.test")
+        code = generate_protocol_methods_java([msg], Path("test.java"), "com.test", type_registry)
 
         assert "Consumer<TransportPlayMessage>" in code
         assert "onTransportPlay" in code
 
-    def test_to_controller_generates_send_method(self) -> None:
+    def test_to_controller_generates_send_method(self, type_registry: TypeRegistry) -> None:
         """TO_CONTROLLER message generates a send method in Java (Host sends)."""
         msg = Message(
             description="Transport state",
@@ -172,12 +183,12 @@ class TestJavaMethodGenerator:
         )
         msg.name = "TRANSPORT_STATE"
 
-        code = generate_protocol_methods_java([msg], Path("test.java"), "com.test")
+        code = generate_protocol_methods_java([msg], Path("test.java"), "com.test", type_registry)
 
         assert "void transportState(boolean playing)" in code
         assert "send(new TransportStateMessage(playing))" in code
 
-    def test_package_declaration(self) -> None:
+    def test_package_declaration(self, type_registry: TypeRegistry) -> None:
         """Generated code includes correct package."""
         msg = Message(
             description="Test",
@@ -187,7 +198,7 @@ class TestJavaMethodGenerator:
         )
         msg.name = "TEST"
 
-        code = generate_protocol_methods_java([msg], Path("test.java"), "com.bitwig.protocol")
+        code = generate_protocol_methods_java([msg], Path("test.java"), "com.bitwig.protocol", type_registry)
 
         assert "package com.bitwig.protocol;" in code
         assert "import com.bitwig.protocol.struct.*;" in code

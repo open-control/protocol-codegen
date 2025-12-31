@@ -13,6 +13,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 
+from protocol_codegen.core.enum_def import EnumDef
+
 class Type(str, Enum):
     """
     Type-safe enum of builtin type names.
@@ -128,6 +130,34 @@ class CompositeField(FieldBase):
     def is_composite(self) -> bool: ...
     def is_primitive(self) -> bool: ...
     def validate_depth(self, max_depth: int = 3, current_depth: int = 0) -> None: ...
+
+@dataclass
+class EnumField(FieldBase):
+    """
+    Field referencing a shared enum definition.
+
+    Represents a field that uses an EnumDef for type-safe enum values.
+    On the wire, values are serialized as uint8, but in generated code,
+    the enum type is used for type safety.
+
+    Attributes:
+    name: Field name (typically camelCase)
+    enum_def: Reference to the EnumDef that defines valid values
+    array: Array size (None = scalar, int > 0 = fixed-size array)
+    """
+
+    name: str
+    enum_def: EnumDef
+    array: int | None = None
+    def __post_init__(self) -> None: ...
+    def __str__(self) -> str: ...
+    def is_composite(self) -> bool: ...
+    def is_primitive(self) -> bool: ...
+    def is_enum(self) -> bool: ...
+    def validate_depth(self, max_depth: int = 3, current_depth: int = 0) -> None: ...
+
+# Type alias for functions that accept any field type
+type FieldType = PrimitiveField | CompositeField | EnumField
 
 @dataclass
 class Message:

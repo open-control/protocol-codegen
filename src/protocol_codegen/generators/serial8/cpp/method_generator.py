@@ -19,7 +19,7 @@ from protocol_codegen.generators.common.naming import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from protocol_codegen.core.field import FieldBase, PrimitiveField
+    from protocol_codegen.core.field import EnumField, FieldBase, PrimitiveField
     from protocol_codegen.core.message import Message
 
 
@@ -42,12 +42,23 @@ _CPP_TYPE_MAP = {
 
 def _get_cpp_type(field: FieldBase) -> str:
     """Get C++ type for a field."""
+    # Import here to avoid circular import issues at module level
+    from protocol_codegen.core.field import EnumField
+
     if field.is_composite():
         # For composite fields, use the struct name
         struct_name = to_pascal_case(field.name)
         if field.is_array():
             return f"const std::array<{struct_name}, {field.array}>&"
         return f"const {struct_name}&"
+
+    # Enum field - use the enum's cpp_type (respects namespace config)
+    if isinstance(field, EnumField):
+        base_type = field.enum_def.cpp_type  # Returns "EnumName" or "Namespace::EnumName"
+
+        if field.is_array():
+            return f"const std::array<{base_type}, {field.array}>&"
+        return base_type
 
     # Primitive field
     pfield: PrimitiveField = field  # type: ignore[assignment]

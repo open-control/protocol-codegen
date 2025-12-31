@@ -29,7 +29,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 # Import field classes for runtime isinstance checks
-from protocol_codegen.core.field import CompositeField, FieldBase, PrimitiveField
+from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -143,18 +143,23 @@ def _format_field_for_log(field: FieldBase, type_registry: TypeRegistry, indent:
     Returns:
         List of Java code lines for formatting this field
     """
-    if field.is_primitive():
-        assert isinstance(field, PrimitiveField), "Primitive field must be PrimitiveField instance"
+    if isinstance(field, PrimitiveField):
         if field.is_array():
             return _format_primitive_array(field, type_registry, indent)
         else:
             return _format_primitive_scalar(field, type_registry, indent)
-    else:  # Composite
-        assert isinstance(field, CompositeField), "Composite field must be CompositeField instance"
+    elif isinstance(field, EnumField):
+        if field.is_array():
+            return _format_enum_array(field, indent)
+        else:
+            return _format_enum_scalar(field, indent)
+    elif isinstance(field, CompositeField):
         if field.array:
             return _format_composite_array(field, type_registry, indent)
         else:
             return _format_composite_scalar(field, type_registry, indent)
+    else:
+        raise TypeError(f"Unknown field type: {type(field)}")
 
 
 def _format_primitive_scalar(
@@ -280,6 +285,63 @@ def _format_primitive_array(
     return lines
 
 
+def _format_enum_scalar(field: EnumField, indent: int) -> list[str]:
+    """
+    Format enum scalar field.
+
+    Enums are displayed as their ordinal value.
+    Bitflags (int) are displayed directly.
+    Example: trackType: 1
+    """
+    indent_str = _get_indent_string(indent + 1)
+    getter = _to_getter_name(field.name, False)
+    is_bitflags = field.enum_def.is_bitflags
+
+    if is_bitflags:
+        # Bitflags are int - display directly
+        return [
+            f'        sb.append("{indent_str}{field.name}: ").append({getter}()).append("\\n");'
+        ]
+    else:
+        return [
+            f'        sb.append("{indent_str}{field.name}: ").append({getter}().ordinal()).append("\\n");'
+        ]
+
+
+def _format_enum_array(field: EnumField, indent: int) -> list[str]:
+    """
+    Format enum array field.
+
+    Example:
+        childrenTypes:
+          - 1
+          - 2
+    """
+    indent_str = _get_indent_string(indent + 1)
+    item_indent_str = _get_indent_string(indent + 2)
+    getter = _to_getter_name(field.name, False)
+    java_type = field.enum_def.java_type
+    is_bitflags = field.enum_def.is_bitflags
+
+    lines: list[str] = []
+    lines.append(f'        sb.append("{indent_str}{field.name}:\\n");')
+    lines.append(f"        if ({getter}() != null) {{")
+    lines.append(f"            for ({java_type} item : {getter}()) {{")
+    if is_bitflags:
+        # Bitflags are int - display directly
+        lines.append(
+            f'                sb.append("{item_indent_str}- ").append(item).append("\\n");'
+        )
+    else:
+        lines.append(
+            f'                sb.append("{item_indent_str}- ").append(item.ordinal()).append("\\n");'
+        )
+    lines.append("            }")
+    lines.append("        }")
+
+    return lines
+
+
 def _format_composite_scalar(
     field: CompositeField, type_registry: TypeRegistry, indent: int
 ) -> list[str]:
@@ -332,8 +394,7 @@ def _format_composite_nested_field(
     """
     indent_str = _get_indent_string(indent + 1)
 
-    if field.is_primitive():
-        assert isinstance(field, PrimitiveField), "Primitive field must be PrimitiveField instance"
+    if isinstance(field, PrimitiveField):
         type_name = field.type_name.value
         java_type = _get_java_type_name(type_name, type_registry)
         is_boolean = java_type == "boolean"
@@ -359,6 +420,19 @@ def _format_composite_nested_field(
             )
 
         return lines
+    elif isinstance(field, EnumField):
+        # Enum field - display as integer value
+        # Bitflags are int (display directly), regular enums use ordinal()
+        nested_getter = _to_getter_name(field.name, False)
+        is_bitflags = field.enum_def.is_bitflags
+        if is_bitflags:
+            return [
+                f'        sb.append("{indent_str}{field.name}: ").append({parent_getter}().{nested_getter}()).append("\\n");'
+            ]
+        else:
+            return [
+                f'        sb.append("{indent_str}{field.name}: ").append({parent_getter}().{nested_getter}().ordinal()).append("\\n");'
+            ]
     else:
         # Nested composite - would need recursive handling
         # For now, not implemented as it's not used in current messages
@@ -402,16 +476,12 @@ def _format_composite_array(
     for nested_field in field.fields:
         is_bool = (
             isinstance(nested_field, PrimitiveField)
-            and nested_field.is_primitive()
             and nested_field.type_name.value == "bool"
         )
         nested_getter = _to_getter_name(nested_field.name, is_bool)
 
-        if nested_field.is_primitive() and not nested_field.is_array():
+        if isinstance(nested_field, PrimitiveField) and not nested_field.is_array():
             # Primitive scalar in composite array
-            assert isinstance(nested_field, PrimitiveField), (
-                "Primitive field must be PrimitiveField instance"
-            )
             type_name = nested_field.type_name.value
 
             if first_field:
@@ -452,6 +522,30 @@ def _format_composite_array(
                     lines.append(
                         f'            sb.append("{field_indent}{nested_field.name}: ").append(item.{nested_getter}()).append("\\n");'
                     )
+        elif isinstance(nested_field, EnumField) and not nested_field.is_array():
+            # Enum scalar in composite array
+            # Bitflags are int (display directly), regular enums use ordinal()
+            is_bitflags = nested_field.enum_def.is_bitflags
+            if first_field:
+                if is_bitflags:
+                    lines.append(
+                        f'            sb.append("{item_indent_str}- {nested_field.name}: ").append(item.{nested_getter}()).append("\\n");'
+                    )
+                else:
+                    lines.append(
+                        f'            sb.append("{item_indent_str}- {nested_field.name}: ").append(item.{nested_getter}().ordinal()).append("\\n");'
+                    )
+                first_field = False
+            else:
+                field_indent = item_indent_str + "  "
+                if is_bitflags:
+                    lines.append(
+                        f'            sb.append("{field_indent}{nested_field.name}: ").append(item.{nested_getter}()).append("\\n");'
+                    )
+                else:
+                    lines.append(
+                        f'            sb.append("{field_indent}{nested_field.name}: ").append(item.{nested_getter}().ordinal()).append("\\n");'
+                    )
         else:
             # Arrays or nested composites need special handling
             # For now, we'll handle them similarly but may need refinement
@@ -479,15 +573,14 @@ def _contains_float_fields(fields: Sequence[FieldBase]) -> bool:
         True if any field contains float32, norm8, or norm16, False otherwise
     """
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField), "Primitive field must be PrimitiveField"
+        if isinstance(field, PrimitiveField):
             if field.type_name.value in ("float32", "norm8", "norm16"):
                 return True
-        elif field.is_composite():
-            assert isinstance(field, CompositeField), "Composite field must be CompositeField"
+        elif isinstance(field, CompositeField):
             # Recursively check nested fields
             if _contains_float_fields(field.fields):
                 return True
+        # EnumField doesn't contain float fields
     return False
 
 

@@ -20,7 +20,7 @@ from protocol_codegen.generators.common.naming import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from protocol_codegen.core.field import FieldBase, PrimitiveField
+    from protocol_codegen.core.field import EnumField, FieldBase, PrimitiveField
     from protocol_codegen.core.loader import TypeRegistry
     from protocol_codegen.core.message import Message
 
@@ -51,6 +51,9 @@ def _get_java_type(field: FieldBase, message_struct_name: str, type_registry: Ty
                             Used to qualify composite types as inner classes.
         type_registry: TypeRegistry for resolving primitive types
     """
+    # Import here to avoid circular import at module level
+    from protocol_codegen.core.field import EnumField
+
     if field.is_composite():
         # Composite fields are inner classes of the message struct
         # e.g., DeviceChangeMessage.PageInfo, DeviceChangeMessage.RemoteControls
@@ -59,6 +62,13 @@ def _get_java_type(field: FieldBase, message_struct_name: str, type_registry: Ty
         if field.is_array():
             return f"{qualified_type}[]"
         return qualified_type
+
+    # Enum field - use the enum's Java type (handles bitflags → int)
+    if isinstance(field, EnumField):
+        java_type = field.enum_def.java_type
+        if field.is_array():
+            return f"{java_type}[]"
+        return java_type
 
     # Primitive field - use type_registry as source of truth
     pfield: PrimitiveField = field  # type: ignore[assignment]
@@ -112,6 +122,34 @@ def _generate_struct_args(fields: list[FieldBase]) -> str:
     return ", ".join(args)
 
 
+def _collect_enum_names(messages: "list[Message]") -> set[str]:
+    """
+    Collect all non-bitflags enum names from messages.
+
+    Bitflags enums are int types and don't need imports.
+    Regular enums need to be imported.
+    """
+    from protocol_codegen.core.field import CompositeField, EnumField
+
+    enum_names: set[str] = set()
+
+    def collect_from_fields(fields: "list") -> None:
+        for field in fields:
+            if isinstance(field, EnumField):
+                # Only add non-bitflags enums (bitflags are int, no import needed)
+                if not field.enum_def.is_bitflags:
+                    enum_names.add(field.enum_def.name)
+            elif isinstance(field, CompositeField):
+                collect_from_fields(list(field.fields))
+
+    for msg in messages:
+        if msg.is_legacy() or msg.deprecated:
+            continue
+        collect_from_fields(list(msg.fields))
+
+    return enum_names
+
+
 def generate_protocol_methods_java(
     messages: list[Message],
     output_path: Path,
@@ -135,6 +173,7 @@ def generate_protocol_methods_java(
     """
     to_host_callbacks: list[str] = []
     to_controller_methods: list[str] = []
+    enum_names = _collect_enum_names(messages)
 
     for msg in messages:
         if msg.is_legacy() or msg.deprecated:
@@ -172,6 +211,11 @@ def generate_protocol_methods_java(
         else "    // No TO_CONTROLLER messages"
     )
 
+    # Build enum imports
+    enum_imports = "\n".join(f"import {package}.{name};" for name in sorted(enum_names))
+    if enum_imports:
+        enum_imports = "\n" + enum_imports
+
     return f"""/**
  * ProtocolMethods.java - Explicit Protocol API
  *
@@ -188,7 +232,7 @@ def generate_protocol_methods_java(
 package {package};
 
 import java.util.function.Consumer;
-import {package}.struct.*;
+import {package}.struct.*;{enum_imports}
 
 /**
  * Explicit protocol methods base class

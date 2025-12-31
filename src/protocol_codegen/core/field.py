@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+from protocol_codegen.core.enum_def import EnumDef
+
 
 class Type(str, Enum):
     """
@@ -266,11 +268,73 @@ class CompositeField(FieldBase):
 
 
 # ============================================================================
+# Enum Field (Type-Safe)
+# ============================================================================
+
+
+@dataclass
+class EnumField(FieldBase):
+    """
+    Field referencing a shared enum definition.
+
+    Represents a field that uses an EnumDef for type-safe enum values.
+    On the wire, values are serialized as uint8, but in generated code,
+    the enum type is used for type safety.
+
+    Attributes:
+        name: Field name (typically camelCase)
+        enum_def: Reference to the EnumDef that defines valid values
+        array: Array size (None = scalar, int > 0 = fixed-size array)
+
+    Examples:
+        >>> from protocol_codegen.core.enum_def import EnumDef
+        >>> TrackType = EnumDef(
+        ...     name="TrackType",
+        ...     values={"AUDIO": 0, "INSTRUMENT": 1}
+        ... )
+        >>> EnumField('trackType', enum_def=TrackType)
+    """
+
+    name: str
+    enum_def: EnumDef
+    array: int | None = None
+
+    def __post_init__(self) -> None:
+        """Validate enum field."""
+        if self.array is not None and self.array <= 0:
+            raise ValueError(f"Array size must be positive, got {self.array}")
+
+    def is_primitive(self) -> bool:
+        """Enum fields are primitive (serialized as uint8)."""
+        return True
+
+    def is_composite(self) -> bool:
+        """Enum fields are not composite."""
+        return False
+
+    def is_enum(self) -> bool:
+        """Check if this field is an enum type."""
+        return True
+
+    def validate_depth(self, max_depth: int = 3, current_depth: int = 0) -> None:
+        """Enum fields have no depth."""
+        if current_depth > max_depth:
+            raise ValueError(f"Field '{self.name}' exceeds maximum nesting depth of {max_depth}")
+
+    def __str__(self) -> str:
+        """String representation."""
+        type_str = self.enum_def.name
+        if self.is_array():
+            return f"{self.name}: {type_str}[{self.array}]"
+        return f"{self.name}: {type_str}"
+
+
+# ============================================================================
 # Type Alias for Union Type
 # ============================================================================
 
-# Type alias for functions that accept either PrimitiveField or CompositeField
-type FieldType = PrimitiveField | CompositeField
+# Type alias for functions that accept any field type
+type FieldType = PrimitiveField | CompositeField | EnumField
 
 __all__ = [
     "Type",
@@ -278,6 +342,7 @@ __all__ = [
     "FieldBase",
     "PrimitiveField",
     "CompositeField",
+    "EnumField",
     "FieldType",
 ]
 

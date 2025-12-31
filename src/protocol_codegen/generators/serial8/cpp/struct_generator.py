@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 # Import field classes for runtime isinstance checks
-from protocol_codegen.core.field import CompositeField, FieldBase, PrimitiveField
+from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
 from protocol_codegen.generators.serial8.cpp.logger_generator import generate_log_method
 
 if TYPE_CHECKING:
@@ -89,22 +89,27 @@ def generate_struct_hpp(
 
 def _analyze_includes_needed(
     fields: Sequence[FieldBase], type_registry: TypeRegistry
-) -> tuple[bool, bool, bool]:
+) -> tuple[bool, bool, bool, set[str]]:
     """
     Analyze fields to determine which standard includes are needed.
 
     Returns:
-        Tuple of (needs_array, needs_string, needs_vector)
+        Tuple of (needs_array, needs_string, needs_vector, enum_names)
     """
     needs_array = False
     needs_string = False
     needs_vector = False
+    enum_names: set[str] = set()
 
     def check_field(field: FieldBase) -> None:
         nonlocal needs_array, needs_string, needs_vector
 
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, EnumField):
+            # Enum field - collect enum name for include
+            enum_names.add(field.enum_def.name)
+            if field.array:
+                needs_array = True
+        elif isinstance(field, PrimitiveField):
             # Check for string type
             if field.type_name.value == "string":
                 needs_string = True
@@ -114,9 +119,8 @@ def _analyze_includes_needed(
                     needs_vector = True
                 else:
                     needs_array = True
-        else:
+        elif isinstance(field, CompositeField):
             # Composite field
-            assert isinstance(field, CompositeField)
             if field.array:
                 needs_array = True
             # Recursively check nested fields
@@ -126,7 +130,7 @@ def _analyze_includes_needed(
     for field in fields:
         check_field(field)
 
-    return needs_array, needs_string, needs_vector
+    return needs_array, needs_string, needs_vector, enum_names
 
 
 def _generate_header(
@@ -136,7 +140,9 @@ def _generate_header(
     type_registry: TypeRegistry,
 ) -> str:
     """Generate file header with conditional includes based on field analysis."""
-    needs_array, needs_string, needs_vector = _analyze_includes_needed(fields, type_registry)
+    needs_array, needs_string, needs_vector, enum_names = _analyze_includes_needed(
+        fields, type_registry
+    )
 
     # Build conditional includes
     std_includes = ["#include <cstdint>", "#include <cstring>", "#include <optional>"]
@@ -148,6 +154,12 @@ def _generate_header(
         std_includes.append("#include <vector>")
 
     std_includes_str = "\n".join(std_includes)
+
+    # Build enum includes
+    enum_includes = ""
+    if enum_names:
+        enum_include_lines = [f'#include "../{name}.hpp"' for name in sorted(enum_names)]
+        enum_includes = "\n" + "\n".join(enum_include_lines)
 
     return f"""/**
  * {struct_name}.hpp - Auto-generated Protocol Struct
@@ -168,7 +180,7 @@ def _generate_header(
 #include "../Decoder.hpp"
 #include "../MessageID.hpp"
 #include "../ProtocolConstants.hpp"
-#include "../Logger.hpp"
+#include "../Logger.hpp"{enum_includes}
 {std_includes_str}
 
 namespace Protocol {{
@@ -291,8 +303,16 @@ def _generate_encode_function(
 
     # Add encode calls for each field
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, EnumField):
+            # Enum field - encode as uint8 with cast
+            if field.is_array():
+                lines.append(f"        encodeUint8(ptr, {field.name}.size());")
+                lines.append(f"        for (const auto& item : {field.name}) {{")
+                lines.append("            encodeUint8(ptr, static_cast<uint8_t>(item));")
+                lines.append("        }")
+            else:
+                lines.append(f"        encodeUint8(ptr, static_cast<uint8_t>({field.name}));")
+        elif isinstance(field, PrimitiveField):
             field_type_name = field.type_name.value
             if field.is_array():
                 # Primitive array (e.g., string[16])
@@ -306,16 +326,30 @@ def _generate_encode_function(
                 # Scalar primitive
                 encoder_call = _get_encoder_call(field.name, field_type_name, type_registry)
                 lines.append(f"        {encoder_call}")
-        else:  # Composite - encode array of structs
-            assert isinstance(field, CompositeField)
+        elif isinstance(field, CompositeField):
+            # Composite - encode array of structs
             if field.array:
                 # Encode array count first
                 lines.append(f"        encodeUint8(ptr, {field.name}.size());")
                 # Loop over array and encode each struct's fields
                 lines.append(f"        for (const auto& item : {field.name}) {{")
                 for nested_field in field.fields:
-                    if nested_field.is_primitive():
-                        assert isinstance(nested_field, PrimitiveField)
+                    if isinstance(nested_field, EnumField):
+                        # Nested enum field
+                        if nested_field.is_array():
+                            lines.append(
+                                f"            encodeUint8(ptr, item.{nested_field.name}.size());"
+                            )
+                            lines.append(
+                                f"            for (const auto& e : item.{nested_field.name}) {{"
+                            )
+                            lines.append("                encodeUint8(ptr, static_cast<uint8_t>(e));")
+                            lines.append("            }")
+                        else:
+                            lines.append(
+                                f"            encodeUint8(ptr, static_cast<uint8_t>(item.{nested_field.name}));"
+                            )
+                    elif isinstance(nested_field, PrimitiveField):
                         if nested_field.is_array():
                             # Nested array of primitives - encode count for dynamic arrays
                             lines.append(
@@ -341,8 +375,11 @@ def _generate_encode_function(
             else:
                 # Single composite struct (not array)
                 for nested_field in field.fields:
-                    if nested_field.is_primitive():
-                        assert isinstance(nested_field, PrimitiveField)
+                    if isinstance(nested_field, EnumField):
+                        lines.append(
+                            f"        encodeUint8(ptr, static_cast<uint8_t>({field.name}.{nested_field.name}));"
+                        )
+                    elif isinstance(nested_field, PrimitiveField):
                         encoder_call = _get_encoder_call(
                             f"{field.name}.{nested_field.name}",
                             nested_field.type_name.value,
@@ -421,8 +458,38 @@ def _generate_decode_function(
     # Add decode calls for each field
     field_vars: list[str] = []
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, EnumField):
+            # Enum field - decode as uint8 and cast
+            cpp_type = field.enum_def.cpp_type
+            if field.is_array():
+                var_name = f"{field.name}_data"
+                array_type = _get_cpp_type_for_field(field, type_registry)
+                lines.append(f"        {array_type} {var_name};")
+                lines.append(f"        uint8_t count_{field.name};")
+                lines.append(
+                    f"        if (!decodeUint8(ptr, remaining, count_{field.name})) return std::nullopt;"
+                )
+                lines.append(
+                    f"        for (uint8_t i = 0; i < count_{field.name} && i < {field.array}; ++i) {{"
+                )
+                lines.append("            uint8_t temp_raw;")
+                lines.append(
+                    "            if (!decodeUint8(ptr, remaining, temp_raw)) return std::nullopt;"
+                )
+                lines.append(f"            {var_name}[i] = static_cast<{cpp_type}>(temp_raw);")
+                lines.append("        }")
+                field_vars.append(var_name)
+            else:
+                # Scalar enum
+                lines.append(f"        uint8_t {field.name}_raw;")
+                lines.append(
+                    f"        if (!decodeUint8(ptr, remaining, {field.name}_raw)) return std::nullopt;"
+                )
+                lines.append(
+                    f"        {cpp_type} {field.name} = static_cast<{cpp_type}>({field.name}_raw);"
+                )
+                field_vars.append(field.name)
+        elif isinstance(field, PrimitiveField):
             field_type_name = field.type_name.value
             if field.is_array():
                 # Primitive array (e.g., string[16])
@@ -465,8 +532,8 @@ def _generate_decode_function(
                 decoder_call = _get_decoder_call(field.name, field_type_name, type_registry)
                 lines.append(f"        {decoder_call}")
                 field_vars.append(field.name)
-        else:  # Composite - decode array of structs
-            assert isinstance(field, CompositeField)
+        elif isinstance(field, CompositeField):
+            # Composite - decode array of structs
             var_name = f"{field.name}_data"
             if field.array:
                 # Decode array count (BUG FIX: use output parameter syntax)
@@ -485,8 +552,34 @@ def _generate_decode_function(
                 lines.append(f"            {item_struct_name} item;")
                 # Decode each field of the struct
                 for nested_field in field.fields:
-                    if nested_field.is_primitive():
-                        assert isinstance(nested_field, PrimitiveField)
+                    if isinstance(nested_field, EnumField):
+                        # Nested enum field
+                        nested_cpp_type = nested_field.enum_def.cpp_type
+                        if nested_field.is_array():
+                            lines.append(f"            uint8_t count_{nested_field.name};")
+                            lines.append(
+                                f"            if (!decodeUint8(ptr, remaining, count_{nested_field.name})) return std::nullopt;"
+                            )
+                            lines.append(
+                                f"            for (uint8_t j = 0; j < count_{nested_field.name} && j < {nested_field.array}; ++j) {{"
+                            )
+                            lines.append("                uint8_t temp_raw;")
+                            lines.append(
+                                "                if (!decodeUint8(ptr, remaining, temp_raw)) return std::nullopt;"
+                            )
+                            lines.append(
+                                f"                item.{nested_field.name}[j] = static_cast<{nested_cpp_type}>(temp_raw);"
+                            )
+                            lines.append("            }")
+                        else:
+                            lines.append(f"            uint8_t {nested_field.name}_raw;")
+                            lines.append(
+                                f"            if (!decodeUint8(ptr, remaining, {nested_field.name}_raw)) return std::nullopt;"
+                            )
+                            lines.append(
+                                f"            item.{nested_field.name} = static_cast<{nested_cpp_type}>({nested_field.name}_raw);"
+                            )
+                    elif isinstance(nested_field, PrimitiveField):
                         if nested_field.is_array():
                             # Nested array of primitives - decode count for dynamic arrays
                             lines.append(f"            uint8_t count_{nested_field.name};")
@@ -552,8 +645,17 @@ def _generate_decode_function(
                 struct_type = field.name[0].upper() + field.name[1:]  # camelCase → PascalCase
                 lines.append(f"        {struct_type} {var_name};")
                 for nested_field in field.fields:
-                    if nested_field.is_primitive():
-                        assert isinstance(nested_field, PrimitiveField)
+                    if isinstance(nested_field, EnumField):
+                        # Nested enum field
+                        nested_cpp_type = nested_field.enum_def.cpp_type
+                        lines.append(f"        uint8_t {nested_field.name}_raw;")
+                        lines.append(
+                            f"        if (!decodeUint8(ptr, remaining, {nested_field.name}_raw)) return std::nullopt;"
+                        )
+                        lines.append(
+                            f"        {var_name}.{nested_field.name} = static_cast<{nested_cpp_type}>({nested_field.name}_raw);"
+                        )
+                    elif isinstance(nested_field, PrimitiveField):
                         # OPTION B: Write directly to struct member (no temporary variable)
                         direct_target = f"{var_name}.{nested_field.name}"
                         decoder_call = _get_decoder_call(
@@ -711,8 +813,7 @@ def _calculate_max_payload_size(
     total_size = 0
 
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, PrimitiveField):
             # Primitive field
             field_type_name = field.type_name.value
             array_size = field.array if field.array else 1
@@ -738,8 +839,14 @@ def _calculate_max_payload_size(
                     total_size += 1  # Array count byte for all arrays
                 total_size += base_size * array_size
 
-        else:  # Composite field
-            assert isinstance(field, CompositeField)
+        elif isinstance(field, EnumField):
+            # Enum field - always 1 byte (uint8)
+            array_size = field.array if field.array else 1
+            if field.array:
+                total_size += 1  # Array count byte
+            total_size += 1 * array_size  # 1 byte per enum value
+
+        elif isinstance(field, CompositeField):  # Composite field
             # Recursively calculate size of nested fields
             nested_size = _calculate_max_payload_size(
                 field.fields, type_registry, string_max_length
@@ -774,8 +881,7 @@ def _calculate_min_payload_size(
     total_size = 0
 
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, PrimitiveField):
             # Primitive field
             field_type_name = field.type_name.value
 
@@ -801,8 +907,14 @@ def _calculate_min_payload_size(
                 else:
                     total_size += base_size
 
-        else:  # Composite field
-            assert isinstance(field, CompositeField)
+        elif isinstance(field, EnumField):
+            # Enum field - always 1 byte (uint8)
+            if field.array:
+                total_size += 1  # Array count byte only (minimum = 0 elements)
+            else:
+                total_size += 1  # 1 byte for enum value
+
+        elif isinstance(field, CompositeField):  # Composite field
             # Recursively calculate size of nested fields
             nested_size = _calculate_min_payload_size(
                 field.fields, type_registry, string_max_length
@@ -945,8 +1057,7 @@ def _generate_single_composite_struct(field: CompositeField, type_registry: Type
 
     # Add member fields
     for nested_field in field.fields:
-        if nested_field.is_primitive():
-            assert isinstance(nested_field, PrimitiveField)
+        if isinstance(nested_field, PrimitiveField):
             # Get base C++ type without array wrapper
             base_type = _get_cpp_type(nested_field.type_name.value, type_registry)
             if nested_field.array:
@@ -959,8 +1070,14 @@ def _generate_single_composite_struct(field: CompositeField, type_registry: Type
                     )
             else:
                 lines.append(f"    {base_type} {nested_field.name};")
-        else:  # Nested composite
-            assert isinstance(nested_field, CompositeField)
+        elif isinstance(nested_field, EnumField):
+            # Enum field - use the enum's C++ type (handles bitflags → uint8_t)
+            enum_type = nested_field.enum_def.cpp_type
+            if nested_field.array:
+                lines.append(f"    std::array<{enum_type}, {nested_field.array}> {nested_field.name};")
+            else:
+                lines.append(f"    {enum_type} {nested_field.name};")
+        elif isinstance(nested_field, CompositeField):  # Nested composite
             nested_struct_name = _field_to_pascal_case(nested_field.name)
             if nested_field.array:
                 lines.append(
@@ -977,9 +1094,14 @@ def _generate_single_composite_struct(field: CompositeField, type_registry: Type
 
 
 def _get_cpp_type_for_field(field: FieldBase, type_registry: TypeRegistry) -> str:
-    """Get C++ type for a field (handles primitive and composite)."""
-    if field.is_primitive():
-        assert isinstance(field, PrimitiveField)
+    """Get C++ type for a field (handles primitive, composite, and enum)."""
+    if isinstance(field, EnumField):
+        # Enum field - use the enum's C++ type
+        cpp_type = field.enum_def.cpp_type
+        if field.array:
+            return f"std::array<{cpp_type}, {field.array}>"
+        return cpp_type
+    elif isinstance(field, PrimitiveField):
         base_type = _get_cpp_type(field.type_name.value, type_registry)
         if field.array:
             # Use std::vector for dynamic arrays, std::array for fixed

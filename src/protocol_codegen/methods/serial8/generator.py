@@ -47,6 +47,7 @@ from protocol_codegen.generators.serial8.cpp.protocol_generator import (
     generate_protocol_template_hpp,
 )
 from protocol_codegen.generators.serial8.cpp.struct_generator import generate_struct_hpp
+from protocol_codegen.generators.serial8.cpp.enum_generator import generate_enum_hpp
 from protocol_codegen.generators.serial8.java.callbacks_generator import (
     generate_protocol_callbacks_java,
 )
@@ -65,10 +66,39 @@ from protocol_codegen.generators.serial8.java.protocol_generator import (
     generate_protocol_template_java,
 )
 from protocol_codegen.generators.serial8.java.struct_generator import generate_struct_java
+from protocol_codegen.generators.serial8.java.enum_generator import generate_enum_java
 from protocol_codegen.methods.serial8.config import Serial8Config
 
 if TYPE_CHECKING:
     from types import ModuleType
+
+from protocol_codegen.core.enum_def import EnumDef
+from protocol_codegen.core.field import EnumField, CompositeField, FieldBase
+
+
+def _collect_enum_defs(messages: list[Message]) -> list[EnumDef]:
+    """
+    Collect all unique EnumDefs from all messages.
+
+    Traverses all fields (including nested composites) to find EnumFields
+    and returns their unique EnumDefs.
+    """
+    enum_defs: dict[str, EnumDef] = {}
+
+    def collect_from_fields(fields: list[FieldBase]) -> None:
+        for field in fields:
+            if isinstance(field, EnumField):
+                # Add if not already collected (by name)
+                if field.enum_def.name not in enum_defs:
+                    enum_defs[field.enum_def.name] = field.enum_def
+            elif isinstance(field, CompositeField):
+                # Recurse into composite fields
+                collect_from_fields(list(field.fields))
+
+    for message in messages:
+        collect_from_fields(list(message.fields))
+
+    return list(enum_defs.values())
 
 
 def _convert_serial8_config_to_java_protocol_config(config: Serial8Config) -> JavaProtocolConfig:
@@ -330,9 +360,20 @@ def _generate_cpp(
         )
         methods_stats.record_write(cpp_methods_path, was_written)
 
+    # Generate enum files
+    enum_defs = _collect_enum_defs(messages)
+    enum_stats = GenerationStats()
+    for enum_def in enum_defs:
+        cpp_enum_path = cpp_base / f"{enum_def.name}.hpp"
+        cpp_enum_code = generate_enum_hpp(enum_def, cpp_enum_path)
+        was_written = write_if_changed(cpp_enum_path, cpp_enum_code)
+        enum_stats.record_write(cpp_enum_path, was_written)
+
     if verbose:
         print(f"  ✓ C++ base files: {stats.summary()}")
         print(f"  ✓ C++ struct files: {struct_stats.summary()}")
+        if enum_defs:
+            print(f"  ✓ C++ enum files: {enum_stats.summary()}")
         if new_style_messages:
             print(f"  ✓ C++ methods file: {methods_stats.summary()}")
         print(f"  → Output: {cpp_base.relative_to(output_base)}")
@@ -443,9 +484,20 @@ def _generate_java(
         )
         methods_stats.record_write(java_methods_path, was_written)
 
+    # Generate enum files
+    enum_defs = _collect_enum_defs(messages)
+    enum_stats = GenerationStats()
+    for enum_def in enum_defs:
+        java_enum_path = java_base / f"{enum_def.name}.java"
+        java_enum_code = generate_enum_java(enum_def, java_enum_path)
+        was_written = write_if_changed(java_enum_path, java_enum_code)
+        enum_stats.record_write(java_enum_path, was_written)
+
     if verbose:
         print(f"  ✓ Java base files: {stats.summary()}")
         print(f"  ✓ Java struct files: {struct_stats.summary()}")
+        if enum_defs:
+            print(f"  ✓ Java enum files: {enum_stats.summary()}")
         if new_style_messages:
             print(f"  ✓ Java methods file: {methods_stats.summary()}")
         print(f"  → Output: {java_base.relative_to(output_base)}")
