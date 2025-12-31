@@ -62,10 +62,3 @@ class TestCLI:
 
         assert result.exit_code == 0
         assert "validate" in result.output.lower() or "Validate" in result.output
-
-    def test_init_command_exists(self) -> None:
-        """init command should exist."""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["init", "--help"])
-
-        assert result.exit_code == 0

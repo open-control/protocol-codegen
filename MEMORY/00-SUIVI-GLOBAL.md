@@ -2,7 +2,7 @@
 
 **Date de création** : 2025-12-31
 **Dernière mise à jour** : 2025-12-31
-**Statut** : 🔵 Phase 2 terminée, prêt pour Phase 3
+**Statut** : ✅ Phase 2B terminée, prêt pour Phase 3
 
 ---
 
@@ -19,14 +19,16 @@ Il référence tous les plans détaillés et trace les déviations.
 |-------|-------|--------|----------|--------|-------------|
 | 1 | Support EnumField + fromHost + MESSAGE_NAME | ✅ Terminé | 14 (2 créations, 12 modifs) | ~2h30 | Aucune |
 | 2 | Support deprecated + method_generator | ✅ Terminé | 5 (2 créations, 3 modifs) | ~45min | Phase 1 |
-| 3 | Tests de compilation + CI/CD | 🟢 Plan validé | ~15 fichiers | ~2h20 | Phase 1, Phase 2 |
+| **2B** | **Correction asymétries Serial8↔SysEx** | ✅ **Terminé** | 4 fichiers | ~30min | Phase 2 |
+| 3 | Tests de compilation + CI/CD | 🟢 Plan validé | ~15 fichiers | ~2h20 | Phase 2B |
 
-**Effort total estimé** : ~5h35
+**Effort total estimé** : ~6h05
 
 ### Détail des plans
 
 - [PHASE-01-ENUMFIELD.md](./PHASE-01-ENUMFIELD.md) - EnumField, fromHost, MESSAGE_NAME optionnel
 - [PHASE-02-DEPRECATED-DIRECTION.md](./PHASE-02-DEPRECATED-DIRECTION.md) - Filtrage deprecated, method_generator
+- [PHASE-02B-SYMMETRY-FIX.md](./PHASE-02B-SYMMETRY-FIX.md) - Correction asymétries (fromHost, arrays, count prefix)
 - [PHASE-03-TESTS-COMPILATION.md](./PHASE-03-TESTS-COMPILATION.md) - PlatformIO native, GitHub Actions, couverture 100%
 
 ---
@@ -74,6 +76,14 @@ Il référence tous les plans détaillés et trace les déviations.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
+│                       PHASE 2B                               │
+│         Correction asymétries Serial8↔SysEx                  │
+│    (fromHost, arrays Java, count prefix C++)                 │
+│                      (~30min)                                │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
 │                        PHASE 3                               │
 │              Tests compilation + CI/CD                       │
 │                      (~2h20)                                 │
@@ -91,6 +101,9 @@ Il référence tous les plans détaillés et trace les déviations.
 | 2025-12-31 | fromHost supprimé de sysex | Alignement serial8 | 1 |
 | 2025-12-31 | MESSAGE_NAME default=false | Rétrocompatibilité | 1 |
 | 2025-12-31 | GitHub Actions immédiat | Protection PR automatique | 3 |
+| 2025-12-31 | Arrays Java SysEx → T[] (comme Serial8) | Symétrie API Java | 2B |
+| 2025-12-31 | Count prefix C++ toujours (comme Serial8) | Symétrie format wire | 2B |
+| 2025-12-31 | Exporter tous générateurs dans __init__.py | Symétrie exports | 2B |
 
 ---
 
@@ -98,7 +111,9 @@ Il référence tous les plans détaillés et trace les déviations.
 
 | Date | Déviation | Cause | Action corrective | Phases impactées |
 |------|-----------|-------|-------------------|------------------|
-| _Aucune pour l'instant_ | | | | |
+| 2025-12-31 | fromHost encore présent dans SysEx | Phase 1 incomplète | Création Phase 2B | 2B |
+| 2025-12-31 | Arrays Java SysEx utilisent List<T> | Divergence non détectée | Correction Phase 2B | 2B |
+| 2025-12-31 | Count prefix C++ conditionnel dans SysEx | Divergence non détectée | Correction Phase 2B | 2B |
 
 ---
 
@@ -109,11 +124,15 @@ Phase 1 (EnumField)
     │
     ├──► Phase 2 (method_generator utilise EnumField)
     │
-    └──► Phase 3 (Tests nécessitent EnumField pour couverture 100%)
+    └──► Phase 2B (Correction asymétries détectées)
 
 Phase 2 (deprecated)
     │
-    └──► Phase 3 (Tests vérifient exclusion messages deprecated)
+    └──► Phase 2B (Vérification symétrie complète)
+
+Phase 2B (Symétrie Serial8↔SysEx)
+    │
+    └──► Phase 3 (Tests nécessitent symétrie pour validation)
 ```
 
 ---
@@ -135,6 +154,8 @@ Phase 2 (deprecated)
 - [x] Phase 1 : Décisions validées
 - [x] Phase 2 : Plan détaillé rédigé
 - [x] Phase 2 : Décisions validées
+- [x] Phase 2B : Plan détaillé rédigé
+- [x] Phase 2B : Décisions validées
 - [x] Phase 3 : Plan détaillé rédigé
 - [x] Phase 3 : Décisions validées
 - [x] Créer branche `feature/sync-sysex-serial8`
@@ -142,6 +163,8 @@ Phase 2 (deprecated)
 - [x] Tests Phase 1 passent (197 tests)
 - [x] Implémenter Phase 2
 - [x] Tests Phase 2 passent (197 tests + validation plugin-bitwig)
+- [x] Implémenter Phase 2B
+- [x] Tests Phase 2B passent (197 tests + génération plugin-bitwig validée)
 - [ ] Implémenter Phase 3
 - [ ] CI/CD fonctionne
 - [ ] PR review + merge

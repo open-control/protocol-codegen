@@ -52,10 +52,9 @@ def generate_decoder_registry_hpp(messages: list[Message], output_path: Path) ->
                 auto decoded = {class_name}::decode(payload, payloadLen);
                 if (decoded.has_value()) {{
                     auto& msg = decoded.value();  // Reference to avoid copy
-                    msg.fromHost = fromHost;  // Inject origin flag
 
-                    // Optimistic reconciliation (only for messages from host)
-                    if (fromHost && msg.sequenceNumber != 0) {{
+                    // Optimistic reconciliation for echoed updates
+                    if (msg.sequenceNumber != 0) {{
                         // Check if this is an echo of an optimistic update
                         bool shouldSkip = OptimisticTracker::shouldSkipCallback(
                             msg.parameterIndex,
@@ -79,9 +78,7 @@ def generate_decoder_registry_hpp(messages: list[Message], output_path: Path) ->
             if (callbacks.{callback_name}) {{
                 auto decoded = {class_name}::decode(payload, payloadLen);
                 if (decoded.has_value()) {{
-                    auto& msg = decoded.value();  // Reference to avoid copy
-                    msg.fromHost = fromHost;  // Inject origin flag
-                    callbacks.{callback_name}(msg);
+                    callbacks.{callback_name}(decoded.value());
                 }}
             }}
             break;""")
@@ -123,14 +120,12 @@ public:
      * @param messageId MessageID to decode
      * @param payload Raw payload bytes
      * @param payloadLen Payload length
-     * @param fromHost Origin flag (true if message from host, false if from controller)
      */
     static void dispatch(
         ProtocolCallbacks& callbacks,
         MessageID messageId,
         const uint8_t* payload,
-        uint16_t payloadLen,
-        bool fromHost
+        uint16_t payloadLen
     ) {{
         switch (messageId) {{
 {cases_str}

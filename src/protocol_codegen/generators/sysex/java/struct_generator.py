@@ -13,7 +13,6 @@ Key Features:
 - MAX_PAYLOAD_SIZE constant for validation
 - Clean getters following Java conventions
 - toString() method for YAML logging (matches C++ format)
-- fromHost field for origin tracking (SysEx-specific)
 
 Generated Output:
 - One .java file per message (e.g., TransportPlayMessage.java)
@@ -104,7 +103,7 @@ def generate_struct_java(
     return full_code
 
 
-def _collect_enum_names(fields: "Sequence[FieldBase]") -> set[str]:
+def _collect_enum_names(fields: Sequence[FieldBase]) -> set[str]:
     """
     Collect all non-bitflags enum names from fields (recursively).
 
@@ -113,7 +112,7 @@ def _collect_enum_names(fields: "Sequence[FieldBase]") -> set[str]:
     """
     enum_names: set[str] = set()
 
-    def collect_from_fields(field_list: "Sequence[FieldBase]") -> None:
+    def collect_from_fields(field_list: Sequence[FieldBase]) -> None:
         for field in field_list:
             if isinstance(field, EnumField):
                 # Only add non-bitflags enums (bitflags are int, no import needed)
@@ -204,11 +203,6 @@ def _generate_field_declarations(fields: Sequence[FieldBase], type_registry: Typ
     )
     lines.append("")
 
-    # Add fromHost field (injected by DecoderRegistry, ignored during encode)
-    lines.append("    // Origin tracking (set by DecoderRegistry during decode)")
-    lines.append("    public boolean fromHost = false;")
-    lines.append("")
-
     for field in fields:
         if isinstance(field, EnumField):
             # Enum field - use enum's Java type
@@ -221,15 +215,16 @@ def _generate_field_declarations(fields: Sequence[FieldBase], type_registry: Typ
             field_type_name = field.type_name.value
             java_type = _get_java_type(field_type_name, type_registry)
             if field.is_array():
-                boxed_type = _get_boxed_java_type(java_type)
-                lines.append(f"    private final List<{boxed_type}> {field.name};")
+                # Primitive arrays use T[] (no boxing, zero-allocation)
+                lines.append(f"    private final {java_type}[] {field.name};")
             else:
                 lines.append(f"    private final {java_type} {field.name};")
         elif isinstance(field, CompositeField):
             # Composite field
             class_name = _field_to_pascal_case(field.name)
             if field.array:
-                lines.append(f"    private final List<{class_name}> {field.name};")
+                # Composite arrays use T[] (aligned with C++ std::array)
+                lines.append(f"    private final {class_name}[] {field.name};")
             else:
                 lines.append(f"    private final {class_name} {field.name};")
 
@@ -272,15 +267,16 @@ def _generate_constructor(
             field_type_name = field.type_name.value
             java_type = _get_java_type(field_type_name, type_registry)
             if field.is_array():
-                boxed_type = _get_boxed_java_type(java_type)
-                params.append(f"List<{boxed_type}> {field.name}")
+                # Primitive arrays use T[] (no boxing)
+                params.append(f"{java_type}[] {field.name}")
             else:
                 params.append(f"{java_type} {field.name}")
         elif isinstance(field, CompositeField):
             # Composite field
             class_name_inner = _field_to_pascal_case(field.name)
             if field.array:
-                params.append(f"List<{class_name_inner}> {field.name}")
+                # Composite arrays use T[] (aligned with C++ std::array)
+                params.append(f"{class_name_inner}[] {field.name}")
             else:
                 params.append(f"{class_name_inner} {field.name}")
 
@@ -317,11 +313,12 @@ def _generate_getters(fields: Sequence[FieldBase], type_registry: TypeRegistry) 
             field_type_name = field.type_name.value
             java_type = _get_java_type(field_type_name, type_registry)
             if field.is_array():
-                boxed_type = _get_boxed_java_type(java_type)
-                java_type = f"List<{boxed_type}>"
+                # Primitive arrays use T[] (no boxing)
+                java_type = f"{java_type}[]"
         elif isinstance(field, CompositeField):
             class_name = _field_to_pascal_case(field.name)
-            java_type = f"List<{class_name}>" if field.array else class_name
+            # Composite arrays use T[] (aligned with C++ std::array)
+            java_type = f"{class_name}[]" if field.array else class_name
         else:
             continue  # Unknown field type
 
@@ -414,8 +411,9 @@ def _generate_encode_method(
         elif isinstance(field, PrimitiveField):
             field_type_name = field.type_name.value
             if field.is_array():
+                # Primitive arrays use .length (no boxing)
                 lines.append(
-                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.size());"
+                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.length);"
                 )
                 lines.append("")
                 lines.append(
@@ -432,7 +430,7 @@ def _generate_encode_method(
             # Composite field
             if field.array:
                 lines.append(
-                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.size());"
+                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.length);"
                 )
                 lines.append("")
                 class_name_inner = _field_to_pascal_case(field.name)
@@ -470,7 +468,7 @@ def _generate_encode_method(
                         if nested_field.is_array():
                             java_type = _get_java_type(nested_field.type_name.value, type_registry)
                             lines.append(
-                                f"            offset += Encoder.writeUint8(buffer, offset, item.{getter_name}().size());"
+                                f"            offset += Encoder.writeUint8(buffer, offset, item.{getter_name}().length);"
                             )
                             lines.append(
                                 f"            for ({java_type} type : item.{getter_name}()) {{"
@@ -536,18 +534,12 @@ def _generate_decode_method(
     )
     lines.append("")
 
-    # Simplified decode for empty messages
+    # Simplified decode for empty messages (no MIN_PAYLOAD_SIZE needed)
     if not fields:
-        lines.append("    /**")
-        lines.append("     * Minimum payload size in bytes (empty message)")
-        lines.append("     */")
-        lines.append(f"    private static final int MIN_PAYLOAD_SIZE = {min_size};")
-        lines.append("")
         lines.append("    /**")
         lines.append("     * Decode message from MIDI-safe bytes (no fields)")
         lines.append("     * @param data Input buffer")
         lines.append(f"     * @return New {class_name} instance")
-        lines.append("     * @throws IllegalArgumentException if data is invalid or insufficient")
         lines.append("     */")
         lines.append(f"    public static {class_name} decode(byte[] data) {{")
         lines.append(f"        return new {class_name}();")
@@ -623,20 +615,27 @@ def _generate_decode_method(
             field_type_name = field.type_name.value
             java_type = _get_java_type(field_type_name, type_registry)
             if field.is_array():
-                # Decode array count
+                # Primitive array - use T[] (no boxing, zero-allocation)
                 lines.append(f"        int count_{field.name} = Decoder.decodeUint8(data, offset);")
                 lines.append("        offset += 1;")
                 lines.append("")
-                boxed_type = _get_boxed_java_type(java_type)
                 lines.append(
-                    f"        List<{boxed_type}> {field.name} = new ArrayList<>(count_{field.name});"
+                    f"        {java_type}[] {field.name} = new {java_type}[count_{field.name}];"
                 )
                 lines.append(f"        for (int i = 0; i < count_{field.name}; i++) {{")
-                decoder_call = _get_decoder_call(
-                    f"{field.name}_item", field_type_name, java_type, type_registry
-                )
-                lines.append(f"            {decoder_call}")
-                lines.append(f"            {field.name}.add({field.name}_item);")
+                # Generate array assignment directly (avoid variable declaration)
+                decoder_name = f"decode{_capitalize_first(field_type_name)}"
+                if field_type_name == "string":
+                    lines.append(
+                        f"            {field.name}[i] = Decoder.{decoder_name}(data, offset, ProtocolConstants.STRING_MAX_LENGTH);"
+                    )
+                    lines.append(f"            offset += 1 + {field.name}[i].length();")
+                else:
+                    encoded_size = _get_encoded_size(field_type_name, 0)
+                    lines.append(
+                        f"            {field.name}[i] = Decoder.{decoder_name}(data, offset);"
+                    )
+                    lines.append(f"            offset += {encoded_size};")
                 lines.append("        }")
                 lines.append("")
                 field_vars.append(field.name)
@@ -653,10 +652,10 @@ def _generate_decode_method(
                 lines.append(f"        int count_{field.name} = Decoder.decodeUint8(data, offset);")
                 lines.append("        offset += 1;")
                 lines.append("")
-                # Decode items into list
+                # Decode items into array (aligned with C++ std::array)
                 composite_class = _field_to_pascal_case(field.name)
                 lines.append(
-                    f"        List<{composite_class}> {field.name} = new ArrayList<>(count_{field.name});"
+                    f"        {composite_class}[] {field.name} = new {composite_class}[count_{field.name}];"
                 )
                 lines.append(f"        for (int i = 0; i < count_{field.name}; i++) {{")
                 # Decode each nested field
@@ -704,9 +703,8 @@ def _generate_decode_method(
                                 f"            byte count_{nested_field.name} = (byte) Decoder.decodeUint8(data, offset);"
                             )
                             lines.append("            offset += 1;")
-                            boxed_type = _get_boxed_java_type(java_type)
                             lines.append(
-                                f"            List<{boxed_type}> item_{nested_field.name} = new ArrayList<>(count_{nested_field.name});"
+                                f"            {java_type}[] item_{nested_field.name} = new {java_type}[count_{nested_field.name}];"
                             )
                             lines.append(
                                 f"            for (int j = 0; j < count_{nested_field.name} && j < {nested_field.array}; j++) {{"
@@ -721,7 +719,7 @@ def _generate_decode_method(
                             for line in decoder_call.split("\n"):
                                 lines.append(f"        {line}")
                             lines.append(
-                                f"                item_{nested_field.name}.add(item_{nested_field.name}_j);"
+                                f"                item_{nested_field.name}[j] = item_{nested_field.name}_j;"
                             )
                             lines.append("            }")
                         else:
@@ -733,14 +731,14 @@ def _generate_decode_method(
                             )
                             for line in decoder_call.split("\n"):
                                 lines.append(f"    {line}")
-                # Construct item and add to list
+                # Construct item and assign to array
                 item_params: list[str] = []
                 for nested_field in field.fields:
                     if isinstance(nested_field, EnumField) or isinstance(nested_field, PrimitiveField):
                         item_params.append(f"item_{nested_field.name}")
                 item_params_str = ", ".join(item_params)
                 lines.append(
-                    f"            {field.name}.add(new {_field_to_pascal_case(field.name)}({item_params_str}));"
+                    f"            {field.name}[i] = new {_field_to_pascal_case(field.name)}({item_params_str});"
                 )
                 lines.append("        }")
                 lines.append("")
@@ -794,21 +792,6 @@ def _generate_decode_method(
 def _generate_footer() -> str:
     """Generate class closing."""
     return "}  // class Message\n"
-
-
-def _get_boxed_java_type(java_type: str) -> str:
-    """Convert primitive Java type to its boxed equivalent for generics."""
-    boxed_types = {
-        "byte": "Byte",
-        "short": "Short",
-        "int": "Integer",
-        "long": "Long",
-        "float": "Float",
-        "double": "Double",
-        "boolean": "Boolean",
-        "char": "Character",
-    }
-    return boxed_types.get(java_type, java_type)
 
 
 def _get_java_type(field_type: str, type_registry: TypeRegistry) -> str:
@@ -1204,8 +1187,7 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
             java_type = _get_java_type(nested_field.type_name.value, type_registry)
             if nested_field.is_array():
                 # Primitive array in inner class (e.g., childrenTypes which is uint8[4])
-                boxed_type = _get_boxed_java_type(java_type)
-                lines.append(f"        private final List<{boxed_type}> {nested_field.name};")
+                lines.append(f"        private final {java_type}[] {nested_field.name};")
             else:
                 lines.append(f"        private final {java_type} {nested_field.name};")
         elif isinstance(nested_field, EnumField):
@@ -1232,8 +1214,7 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
         if isinstance(nested_field, PrimitiveField):
             java_type = _get_java_type(nested_field.type_name.value, type_registry)
             if nested_field.is_array():
-                boxed_type = _get_boxed_java_type(java_type)
-                params.append(f"List<{boxed_type}> {nested_field.name}")
+                params.append(f"{java_type}[] {nested_field.name}")
             else:
                 params.append(f"{java_type} {nested_field.name}")
         elif isinstance(nested_field, EnumField):
@@ -1262,8 +1243,7 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
         if isinstance(nested_field, PrimitiveField):
             java_type = _get_java_type(nested_field.type_name.value, type_registry)
             if nested_field.is_array():
-                boxed_type = _get_boxed_java_type(java_type)
-                java_type = f"List<{boxed_type}>"
+                java_type = f"{java_type}[]"
         elif isinstance(nested_field, EnumField):
             enum_java_type = nested_field.enum_def.java_type
             java_type = f"{enum_java_type}[]" if nested_field.is_array() else enum_java_type
@@ -1290,18 +1270,12 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
 
 
 def _needs_list_import(fields: Sequence[FieldBase]) -> bool:
-    """Check if List import is needed (any array field or composite array)."""
-    for field in fields:
-        if isinstance(field, PrimitiveField):
-            if field.is_array():
-                return True
-        elif isinstance(field, CompositeField):
-            if field.array:
-                return True
-            # Check nested fields recursively
-            if _needs_list_import(field.fields):
-                return True
-        # EnumField arrays use T[] directly, no List needed
+    """Check if List import is needed.
+
+    Since composite arrays now use T[] (aligned with C++ std::array),
+    List is no longer needed for any message types.
+    """
+    # All arrays (primitive and composite) now use T[] - no List import needed
     return False
 
 

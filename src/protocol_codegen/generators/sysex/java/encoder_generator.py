@@ -53,9 +53,10 @@ def generate_encoder_java(type_registry: TypeRegistry, output_path: Path, packag
 
     header = _generate_header(builtin_types, package)
     encoders = _generate_encoders(builtin_types)
+    streaming_encoders = _generate_streaming_encoders(builtin_types)
     footer = _generate_footer()
 
-    full_code = f"{header}\n{encoders}\n{footer}"
+    full_code = f"{header}\n{encoders}\n{streaming_encoders}\n{footer}"
     return full_code
 
 
@@ -336,6 +337,250 @@ def _generate_encoders(builtin_types: dict[str, AtomicType]) -> str:
 
         return result;
     }}
+""")
+
+    return "\n".join(encoders)
+
+
+def _generate_streaming_encoders(builtin_types: dict[str, AtomicType]) -> str:
+    """Generate streaming write methods for each builtin type (zero-allocation)."""
+    encoders: list[str] = []
+
+    encoders.append("""
+    // ============================================================================
+    // STREAMING WRITE METHODS (Type → buffer, zero-allocation)
+    // ============================================================================
+""")
+
+    for type_name, atomic_type in sorted(builtin_types.items()):
+        java_type = atomic_type.java_type
+        desc = atomic_type.description
+
+        if type_name == "bool":
+            encoders.append(f"""
+    /**
+     * Write bool (1 byte: 0x00 or 0x01)
+     * {desc}
+     *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
+     * @param value Value to encode
+     * @return Number of bytes written (1)
+     */
+    public static int writeBool(byte[] buffer, int offset, {java_type} value) {{
+        buffer[offset] = (byte) (value ? 0x01 : 0x00);
+        return 1;
+    }}
+""")
+
+        elif type_name == "uint8":
+            encoders.append(f"""
+    /**
+     * Write uint8 (1 byte, 7-bit safe)
+     * {desc}
+     *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
+     * @param value Value to encode (must be < 128 for MIDI-safe)
+     * @return Number of bytes written (1)
+     */
+    public static int writeUint8(byte[] buffer, int offset, {java_type} value) {{
+        buffer[offset] = (byte) (value & 0x7F);
+        return 1;
+    }}
+""")
+
+        elif type_name == "int8":
+            encoders.append(f"""
+    /**
+     * Write int8 (1 byte, 7-bit safe)
+     * {desc}
+     *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
+     * @param value Value to encode
+     * @return Number of bytes written (1)
+     */
+    public static int writeInt8(byte[] buffer, int offset, {java_type} value) {{
+        buffer[offset] = (byte) (value & 0x7F);
+        return 1;
+    }}
+""")
+
+        elif type_name == "uint16":
+            encoders.append(f"""
+    /**
+     * Write uint16 (2 bytes → 3 bytes, 7-bit encoding)
+     * {desc}
+     *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
+     * @param value Value to encode (treated as unsigned)
+     * @return Number of bytes written (3)
+     */
+    public static int writeUint16(byte[] buffer, int offset, {java_type} value) {{
+        int val = value & 0xFFFF;
+        buffer[offset] = (byte) (val & 0x7F);
+        buffer[offset + 1] = (byte) ((val >> 7) & 0x7F);
+        buffer[offset + 2] = (byte) ((val >> 14) & 0x03);
+        return 3;
+    }}
+""")
+
+        elif type_name == "int16":
+            encoders.append(f"""
+    /**
+     * Write int16 (2 bytes → 3 bytes, 7-bit encoding)
+     * {desc}
+     *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
+     * @param value Value to encode
+     * @return Number of bytes written (3)
+     */
+    public static int writeInt16(byte[] buffer, int offset, {java_type} value) {{
+        int bits = value & 0xFFFF;
+        buffer[offset] = (byte) (bits & 0x7F);
+        buffer[offset + 1] = (byte) ((bits >> 7) & 0x7F);
+        buffer[offset + 2] = (byte) ((bits >> 14) & 0x03);
+        return 3;
+    }}
+""")
+
+        elif type_name == "uint32":
+            encoders.append(f"""
+    /**
+     * Write uint32 (4 bytes → 5 bytes, 7-bit encoding)
+     * {desc}
+     *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
+     * @param value Value to encode (treated as unsigned)
+     * @return Number of bytes written (5)
+     */
+    public static int writeUint32(byte[] buffer, int offset, {java_type} value) {{
+        long val = value & 0xFFFFFFFFL;
+        buffer[offset] = (byte) (val & 0x7F);
+        buffer[offset + 1] = (byte) ((val >> 7) & 0x7F);
+        buffer[offset + 2] = (byte) ((val >> 14) & 0x7F);
+        buffer[offset + 3] = (byte) ((val >> 21) & 0x7F);
+        buffer[offset + 4] = (byte) ((val >> 28) & 0x0F);
+        return 5;
+    }}
+""")
+
+        elif type_name == "int32":
+            encoders.append(f"""
+    /**
+     * Write int32 (4 bytes → 5 bytes, 7-bit encoding)
+     * {desc}
+     *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
+     * @param value Value to encode
+     * @return Number of bytes written (5)
+     */
+    public static int writeInt32(byte[] buffer, int offset, {java_type} value) {{
+        long bits = value & 0xFFFFFFFFL;
+        buffer[offset] = (byte) (bits & 0x7F);
+        buffer[offset + 1] = (byte) ((bits >> 7) & 0x7F);
+        buffer[offset + 2] = (byte) ((bits >> 14) & 0x7F);
+        buffer[offset + 3] = (byte) ((bits >> 21) & 0x7F);
+        buffer[offset + 4] = (byte) ((bits >> 28) & 0x0F);
+        return 5;
+    }}
+""")
+
+        elif type_name == "float32":
+            encoders.append(f"""
+    /**
+     * Write float32 (4 bytes → 5 bytes, 7-bit encoding)
+     * {desc}
+     *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
+     * @param value Value to encode
+     * @return Number of bytes written (5)
+     */
+    public static int writeFloat32(byte[] buffer, int offset, {java_type} value) {{
+        int bits = Float.floatToRawIntBits(value);
+        long unsignedBits = bits & 0xFFFFFFFFL;
+        buffer[offset] = (byte) (unsignedBits & 0x7F);
+        buffer[offset + 1] = (byte) ((unsignedBits >> 7) & 0x7F);
+        buffer[offset + 2] = (byte) ((unsignedBits >> 14) & 0x7F);
+        buffer[offset + 3] = (byte) ((unsignedBits >> 21) & 0x7F);
+        buffer[offset + 4] = (byte) ((unsignedBits >> 28) & 0x0F);
+        return 5;
+    }}
+""")
+
+        elif type_name == "norm8":
+            encoders.append(f"""
+    /**
+     * Write norm8 (1 byte, 7-bit encoding)
+     * {desc}
+     *
+     * Converts float 0.0-1.0 to 7-bit value 0-127.
+     *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
+     * @param value Float value to encode (clamped to 0.0-1.0)
+     * @return Number of bytes written (1)
+     */
+    public static int writeNorm8(byte[] buffer, int offset, {java_type} value) {{
+        float clamped = Math.max(0.0f, Math.min(1.0f, value));
+        buffer[offset] = (byte) (Math.round(clamped * 127.0f) & 0x7F);
+        return 1;
+    }}
+""")
+
+        elif type_name == "norm16":
+            encoders.append(f"""
+    /**
+     * Write norm16 (2 bytes → 3 bytes, 7-bit encoding)
+     * {desc}
+     *
+     * Converts float 0.0-1.0 to uint16 0-65535.
+     *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
+     * @param value Float value to encode (clamped to 0.0-1.0)
+     * @return Number of bytes written (3)
+     */
+    public static int writeNorm16(byte[] buffer, int offset, {java_type} value) {{
+        float clamped = Math.max(0.0f, Math.min(1.0f, value));
+        int val = Math.round(clamped * 65535.0f) & 0xFFFF;
+        buffer[offset] = (byte) (val & 0x7F);
+        buffer[offset + 1] = (byte) ((val >> 7) & 0x7F);
+        buffer[offset + 2] = (byte) ((val >> 14) & 0x03);
+        return 3;
+    }}
+""")
+
+        elif type_name == "string":
+            encoders.append("""
+    /**
+     * Write string (variable length: 1 byte length + data)
+     *
+     * Format: [length (7-bit)] [char0] [char1] ... [charN-1]
+     *
+     * @param buffer Output buffer
+     * @param offset Write position in buffer
+     * @param value String to encode
+     * @param maxLength Maximum allowed string length
+     * @return Number of bytes written (1 + string.length)
+     */
+    public static int writeString(byte[] buffer, int offset, String value, int maxLength) {
+        if (value == null) {
+            value = "";
+        }
+        int len = Math.min(value.length(), Math.min(maxLength, 127));
+        buffer[offset] = (byte) (len & 0x7F);
+        for (int i = 0; i < len; i++) {
+            buffer[offset + 1 + i] = (byte) (value.charAt(i) & 0x7F);
+        }
+        return 1 + len;
+    }
 """)
 
     return "\n".join(encoders)

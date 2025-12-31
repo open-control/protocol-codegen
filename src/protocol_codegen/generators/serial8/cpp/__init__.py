@@ -9,18 +9,24 @@ from .decoder_generator import generate_decoder_hpp
 from .decoder_registry_generator import generate_decoder_registry_hpp
 from .encoder_generator import generate_encoder_hpp
 from .enum_generator import generate_enum_hpp
+from .logger_generator import generate_logger_hpp
 from .message_structure_generator import generate_message_structure_hpp
 from .messageid_generator import generate_messageid_hpp
+from .method_generator import generate_protocol_methods_hpp
+from .protocol_generator import generate_protocol_template_hpp
 from .struct_generator import generate_struct_hpp
 
 __all__ = [
-    "generate_encoder_hpp",
-    "generate_decoder_hpp",
-    "generate_messageid_hpp",
-    "generate_struct_hpp",
-    "generate_enum_hpp",
     "generate_constants_hpp",
-    "generate_message_structure_hpp",
+    "generate_decoder_hpp",
     "generate_decoder_registry_hpp",
+    "generate_encoder_hpp",
+    "generate_enum_hpp",
+    "generate_logger_hpp",
+    "generate_message_structure_hpp",
+    "generate_messageid_hpp",
     "generate_protocol_callbacks_hpp",
+    "generate_protocol_methods_hpp",
+    "generate_protocol_template_hpp",
+    "generate_struct_hpp",
 ]

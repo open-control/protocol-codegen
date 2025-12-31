@@ -344,7 +344,9 @@ def _generate_cpp(
         message_id = allocations[message.name]
 
         cpp_code = generate_struct_hpp(
-            message, message_id, registry, cpp_output_path, protocol_config.limits.string_max_length
+            message, message_id, registry, cpp_output_path,
+            protocol_config.limits.string_max_length,
+            protocol_config.limits.include_message_name
         )
         was_written = write_if_changed(cpp_output_path, cpp_code)
         struct_stats.record_write(cpp_output_path, was_written)
@@ -467,6 +469,7 @@ def _generate_java(
             java_output_path,
             protocol_config.limits.string_max_length,
             struct_package,
+            protocol_config.limits.include_message_name,
         )
         was_written = write_if_changed(java_output_path, java_code)
         struct_stats.record_write(java_output_path, was_written)

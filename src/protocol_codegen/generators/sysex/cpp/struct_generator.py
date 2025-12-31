@@ -201,16 +201,10 @@ def _generate_struct_definition(
     lines.append(f"    static constexpr MessageID MESSAGE_ID = MessageID::{message_name};")
     lines.append("")
 
-    # Add fields FIRST (use new helper that handles both primitive and composite)
+    # Add fields (use new helper that handles both primitive and composite)
     for field in fields:
         cpp_type = _get_cpp_type_for_field(field, type_registry)
         lines.append(f"    {cpp_type} {field.name};")
-
-    lines.append("")
-
-    # Add fromHost field LAST (injected by DecoderRegistry after construction)
-    lines.append("    // Origin tracking (set by DecoderRegistry during decode)")
-    lines.append("    bool fromHost = false;")
 
     lines.append("")
     return "\n".join(lines)
@@ -287,9 +281,8 @@ def _generate_encode_function(
             field_type_name = field.type_name.value
             if field.is_array():
                 # Primitive array (e.g., string[16])
-                # Only encode count prefix for dynamic arrays
-                if field.dynamic:
-                    lines.append(f"        encodeUint8(ptr, {field.name}.size());")
+                # ALWAYS encode count prefix (same as composite arrays for consistency)
+                lines.append(f"        encodeUint8(ptr, {field.name}.size());")
                 lines.append(f"        for (const auto& item : {field.name}) {{")
                 encoder_call = _get_encoder_call("item", field_type_name, type_registry)
                 lines.append(f"            {encoder_call}")

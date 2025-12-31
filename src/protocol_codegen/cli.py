@@ -265,43 +265,6 @@ def list_generators():
     click.echo()
 
 
-@cli.command()
-@click.option(
-    "--method",
-    type=click.Choice(["sysex", "serial8"], case_sensitive=False),
-    default="sysex",
-    help="Protocol method for scaffolding",
-)
-@click.option(
-    "--generators", default="cpp,java", help="Comma-separated list of generators (e.g., cpp,java)"
-)
-@click.option(
-    "--output",
-    type=click.Path(),
-    default="./my-protocol",
-    help="Output directory for scaffolding",
-)
-def init(method: str, generators: str, output: str):
-    """
-    Initialize a new protocol project with scaffolding.
-
-    Examples:
-
-        # Create new SysEx project with C++ and Java
-        protocol-codegen init --method sysex --generators cpp,java --output ./my-protocol
-    """
-    output_path = Path(output)
-
-    click.echo("🏗️  Initializing new protocol project")
-    click.echo(f"Method: {method}")
-    click.echo(f"Generators: {generators}")
-    click.echo(f"Output: {output_path}")
-
-    # TODO: Implement scaffolding
-    click.echo("⚠️  Scaffolding not yet implemented")
-    sys.exit(1)
-
-
 def main():
     """Main entry point for CLI."""
     cli()

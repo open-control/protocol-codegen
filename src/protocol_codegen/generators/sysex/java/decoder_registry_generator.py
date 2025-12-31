@@ -37,9 +37,7 @@ def generate_decoder_registry_java(messages: list[Message], package: str, output
 
         cases.append(f"""            case {message.name}:
                 if (callbacks.{callback_name} != null) {{
-                    {class_name} msg = {class_name}.decode(payload);
-                    msg.fromHost = fromHost;  // Inject origin flag
-                    callbacks.{callback_name}.handle(msg);
+                    callbacks.{callback_name}.handle({class_name}.decode(payload));
                 }}
                 break;""")
 
@@ -67,13 +65,11 @@ public class DecoderRegistry {{
      * @param callbacks Object with typed callbacks (ProtocolCallbacks)
      * @param messageId MessageID to decode
      * @param payload Raw payload bytes
-     * @param fromHost Origin flag (true if message from host, false if from controller)
      */
     public static void dispatch(
         ProtocolCallbacks callbacks,
         MessageID messageId,
-        byte[] payload,
-        boolean fromHost
+        byte[] payload
     ) {{
         switch (messageId) {{
 {cases_str}

@@ -53,14 +53,17 @@ import {package}.struct.*;
  * AUTO-GENERATED - DO NOT EDIT
  *
  * Base class providing typed callbacks for each message type.
+ * Extends ProtocolMethods for explicit send API.
  * Protocol extends this and DecoderRegistry calls these callbacks.
+ *
+ * Inheritance: ProtocolMethods -> ProtocolCallbacks -> Protocol
  *
  * Usage:
  *   protocol.onTransportPlay = msg -> {{
  *       System.out.println("Playing: " + msg.isPlaying());
  *   }};
  */
-public class ProtocolCallbacks {{
+public abstract class ProtocolCallbacks extends ProtocolMethods {{
 
     /**
      * Functional interface for message handlers

@@ -40,6 +40,11 @@ class Serial8Limits(BaseModel):
         description="Maximum total message size in bytes",
     )
 
+    include_message_name: bool = Field(
+        default=False,
+        description="Include message name prefix in payload for bridge logging",
+    )
+
 
 class Serial8Structure(BaseModel):
     """Message structure offsets for Serial8 protocol."""
