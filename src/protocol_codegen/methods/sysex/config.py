@@ -154,6 +154,11 @@ class SysExLimits(BaseModel):
         default=261, gt=0, le=65535, description="Max total message bytes (framing + payload + end)"
     )
 
+    include_message_name: bool = Field(
+        default=False,
+        description="Include message name prefix in payload for bridge logging",
+    )
+
     @field_validator("max_message_size")
     @classmethod
     def message_larger_than_payload(cls, v: int, info: Any) -> int:
@@ -219,6 +224,7 @@ class SysExConfig(BaseModel):
                 "array_max_items": self.limits.array_max_items,
                 "max_payload_size": self.limits.max_payload_size,
                 "max_message_size": self.limits.max_message_size,
+                "include_message_name": self.limits.include_message_name,
             },
         }
 

@@ -58,38 +58,11 @@ from protocol_codegen.generators.serial8.java import (
 from protocol_codegen.generators.serial8.java.constants_generator import (
     ProtocolConfig as JavaProtocolConfig,
 )
+from protocol_codegen.methods.common import collect_enum_defs
 from protocol_codegen.methods.serial8.config import Serial8Config
 
 if TYPE_CHECKING:
     from types import ModuleType
-
-from protocol_codegen.core.enum_def import EnumDef
-from protocol_codegen.core.field import EnumField, CompositeField, FieldBase
-
-
-def _collect_enum_defs(messages: list[Message]) -> list[EnumDef]:
-    """
-    Collect all unique EnumDefs from all messages.
-
-    Traverses all fields (including nested composites) to find EnumFields
-    and returns their unique EnumDefs.
-    """
-    enum_defs: dict[str, EnumDef] = {}
-
-    def collect_from_fields(fields: list[FieldBase]) -> None:
-        for field in fields:
-            if isinstance(field, EnumField):
-                # Add if not already collected (by name)
-                if field.enum_def.name not in enum_defs:
-                    enum_defs[field.enum_def.name] = field.enum_def
-            elif isinstance(field, CompositeField):
-                # Recurse into composite fields
-                collect_from_fields(list(field.fields))
-
-    for message in messages:
-        collect_from_fields(list(message.fields))
-
-    return list(enum_defs.values())
 
 
 def _convert_serial8_config_to_java_protocol_config(config: Serial8Config) -> JavaProtocolConfig:
@@ -148,7 +121,7 @@ def generate_serial8_protocol(
             print(msg)
 
     # Step 1: Load type registry
-    log("[1/6] Loading type registry...")
+    log("[1/7] Loading type registry...")
     registry = TypeRegistry()
     registry.load_builtins()
     type_names = list(registry.types.keys())
@@ -156,7 +129,7 @@ def generate_serial8_protocol(
     log(f"  ✓ Loaded {len(registry.types)} builtin types")
 
     # Step 2: Load configuration
-    log("[2/6] Loading configuration...")
+    log("[2/7] Loading configuration...")
 
     # Load protocol_config.py
     spec = importlib.util.spec_from_file_location("protocol_config", config_path)
@@ -178,7 +151,7 @@ def generate_serial8_protocol(
     log(f"  ✓ Max payload size: {protocol_config.limits.max_payload_size}")
 
     # Step 3: Import messages
-    log("[3/6] Importing messages...")
+    log("[3/7] Importing messages...")
 
     # Add messages directory parent to sys.path temporarily for import
     messages_parent = str(messages_dir.parent)
@@ -191,21 +164,20 @@ def generate_serial8_protocol(
             raise ValueError("message module must define ALL_MESSAGES")
 
         all_messages: list[Message] = message_module.ALL_MESSAGES  # type: ignore[attr-defined]
-        deprecated_count = sum(1 for m in all_messages if m.deprecated)
+        log(f"  ✓ Imported {len(all_messages)} messages")
+
+        # Filter out deprecated messages
         messages = [m for m in all_messages if not m.deprecated]
+        deprecated_count = len(all_messages) - len(messages)
         if deprecated_count > 0:
-            log(
-                f"  ✓ Imported {len(all_messages)} messages ({deprecated_count} deprecated, {len(messages)} active)"
-            )
-        else:
-            log(f"  ✓ Imported {len(messages)} messages")
+            log(f"  ⚠ Filtered out {deprecated_count} deprecated message(s)")
     finally:
         # Always clean up sys.path to avoid pollution
         if messages_parent in sys.path:
             sys.path.remove(messages_parent)
 
     # Step 4: Validate messages
-    log("[4/6] Validating messages...")
+    log("[4/7] Validating messages...")
     validator = ProtocolValidator(registry)
     errors = validator.validate_messages(messages)
 
@@ -218,7 +190,7 @@ def generate_serial8_protocol(
     log(f"  ✓ Validation passed ({len(messages)} messages)")
 
     # Step 5: Allocate message IDs
-    log("[5/6] Allocating message IDs...")
+    log("[5/7] Allocating message IDs...")
     allocations = allocate_message_ids(messages)
     log(f"  ✓ Allocated {len(allocations)} message IDs (0x00-0x{len(allocations) - 1:02X})")
 
@@ -354,7 +326,7 @@ def _generate_cpp(
         methods_stats.record_write(cpp_methods_path, was_written)
 
     # Generate enum files
-    enum_defs = _collect_enum_defs(messages)
+    enum_defs = collect_enum_defs(messages)
     enum_stats = GenerationStats()
     for enum_def in enum_defs:
         cpp_enum_path = cpp_base / f"{enum_def.name}.hpp"
@@ -479,7 +451,7 @@ def _generate_java(
         methods_stats.record_write(java_methods_path, was_written)
 
     # Generate enum files
-    enum_defs = _collect_enum_defs(messages)
+    enum_defs = collect_enum_defs(messages)
     enum_stats = GenerationStats()
     for enum_def in enum_defs:
         java_enum_path = java_base / f"{enum_def.name}.java"

@@ -60,6 +60,7 @@ from protocol_codegen.generators.sysex.java import (
 from protocol_codegen.generators.sysex.java.constants_generator import (
     ProtocolConfig as JavaProtocolConfig,
 )
+from protocol_codegen.methods.common import collect_enum_defs
 from protocol_codegen.methods.sysex.config import SysExConfig
 
 if TYPE_CHECKING:
@@ -135,41 +136,6 @@ def _validate_enum_values_for_sysex(enum_defs: list[EnumDef]) -> list[str]:
                 )
 
     return errors
-
-
-def _collect_enum_defs(messages: list[Message]) -> list[EnumDef]:
-    """
-    Collect all unique EnumDef instances from message fields.
-
-    Traverses all messages and their fields (including nested composites)
-    to find EnumField instances and extract their EnumDef references.
-
-    Args:
-        messages: List of Message instances to scan
-
-    Returns:
-        List of unique EnumDef instances (deduplicated by name)
-    """
-    from protocol_codegen.core.field import CompositeField
-
-    seen_names: set[str] = set()
-    enum_defs: list[EnumDef] = []
-
-    def collect_from_fields(fields: list) -> None:
-        """Recursively collect EnumDefs from a list of fields."""
-        for field in fields:
-            if isinstance(field, EnumField):
-                if field.enum_def.name not in seen_names:
-                    seen_names.add(field.enum_def.name)
-                    enum_defs.append(field.enum_def)
-            elif isinstance(field, CompositeField):
-                # Recurse into composite fields
-                collect_from_fields(list(field.fields))
-
-    for message in messages:
-        collect_from_fields(list(message.fields))
-
-    return enum_defs
 
 
 def generate_sysex_protocol(
@@ -266,7 +232,7 @@ def generate_sysex_protocol(
     log(f"  ✓ Validation passed ({len(messages)} messages)")
 
     # Validate enum values for SysEx 7-bit constraint
-    enum_defs = _collect_enum_defs(messages)
+    enum_defs = collect_enum_defs(messages)
     if enum_defs:
         enum_errors = _validate_enum_values_for_sysex(enum_defs)
         if enum_errors:
@@ -383,7 +349,7 @@ def _generate_cpp(
     stats.record_write(cpp_protocol_template_path, was_written)
 
     # Generate enum files
-    enum_defs = _collect_enum_defs(messages)
+    enum_defs = collect_enum_defs(messages)
     enum_stats = GenerationStats()
     for enum_def in enum_defs:
         cpp_enum_path = cpp_base / f"{enum_def.name}.hpp"
@@ -412,7 +378,9 @@ def _generate_cpp(
         message_id = allocations[message.name]
 
         cpp_code = generate_struct_hpp(
-            message, message_id, registry, cpp_output_path, protocol_config.limits.string_max_length
+            message, message_id, registry, cpp_output_path,
+            protocol_config.limits.string_max_length,
+            protocol_config.limits.include_message_name,
         )
         was_written = write_if_changed(cpp_output_path, cpp_code)
         struct_stats.record_write(cpp_output_path, was_written)
@@ -442,9 +410,9 @@ def _generate_java(
     java_base = output_base / plugin_paths["output_java"]["base_path"]
     java_base.mkdir(parents=True, exist_ok=True)
 
-    # Extract Java package from plugin_paths
     java_package = plugin_paths["output_java"]["package"]
-    java_struct_package = f"{java_package}.struct"
+
+    struct_package = f"{java_package}.struct"
 
     # Convert protocol config to TypedDict for generators
     protocol_config_dict = _convert_sysex_config_to_java_protocol_config(protocol_config)
@@ -498,7 +466,7 @@ def _generate_java(
     stats.record_write(java_protocol_template_path, was_written)
 
     # Generate enum files
-    enum_defs = _collect_enum_defs(messages)
+    enum_defs = collect_enum_defs(messages)
     enum_stats = GenerationStats()
     for enum_def in enum_defs:
         java_enum_path = java_base / f"{enum_def.name}.java"
@@ -534,7 +502,8 @@ def _generate_java(
             registry,
             java_output_path,
             protocol_config.limits.string_max_length,
-            java_struct_package,
+            struct_package,
+            protocol_config.limits.include_message_name,
         )
         was_written = write_if_changed(java_output_path, java_code)
         struct_stats.record_write(java_output_path, was_written)
