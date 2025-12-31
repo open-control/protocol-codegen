@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
 
 # Import logger generator
+from protocol_codegen.generators.common.java.codec_utils import get_encoder_call
 from protocol_codegen.generators.common.java.logger_generator import generate_log_method
 from protocol_codegen.generators.common.naming import (
     capitalize_first,
@@ -455,12 +456,12 @@ def _generate_encode_method(
                 lines.append(
                     f"        for ({_get_java_type(field_type_name, type_registry)} item : {field.name}) {{"
                 )
-                encoder_call = _get_encoder_call("item", field_type_name, type_registry)
+                encoder_call = get_encoder_call("item", field_type_name, type_registry)
                 lines.append(f"            {encoder_call}")
                 lines.append("        }")
                 lines.append("")
             else:
-                encoder_call = _get_encoder_call(field.name, field_type_name, type_registry)
+                encoder_call = get_encoder_call(field.name, field_type_name, type_registry)
                 lines.append(f"        {encoder_call}")
         elif isinstance(field, CompositeField):
             # Composite field
@@ -509,13 +510,13 @@ def _generate_encode_method(
                             lines.append(
                                 f"            for ({java_type} type : item.{getter_name}()) {{"
                             )
-                            encoder_call = _get_encoder_call(
+                            encoder_call = get_encoder_call(
                                 "type", nested_field.type_name.value, type_registry
                             )
                             lines.append(f"                {encoder_call}")
                             lines.append("            }")
                         else:
-                            encoder_call = _get_encoder_call(
+                            encoder_call = get_encoder_call(
                                 f"item.{getter_name}()", nested_field.type_name.value, type_registry
                             )
                             lines.append(f"            {encoder_call}")
@@ -536,7 +537,7 @@ def _generate_encode_method(
                             )
                     elif isinstance(nested_field, PrimitiveField):
                         getter_name = _to_getter_name(nested_field.name)
-                        encoder_call = _get_encoder_call(
+                        encoder_call = get_encoder_call(
                             f"{field.name}.{getter_name}()",
                             nested_field.type_name.value,
                             type_registry,
@@ -912,36 +913,6 @@ def _get_java_type(field_type: str, type_registry: TypeRegistry) -> str:
             return f"{atomic.name}Message"
 
     raise ValueError(f"Unknown type: {field_type}")
-
-
-def _get_encoder_call(field_name: str, field_type: str, type_registry: TypeRegistry) -> str:
-    """
-    Generate Encoder streaming write call for encoding a field.
-
-    Returns:
-        Java code line calling appropriate Encoder.writeXxx() method
-    """
-    # Extract base type (handle arrays)
-    base_type = field_type.split("[")[0]
-
-    if not type_registry.is_atomic(base_type):
-        raise ValueError(f"Unknown type: {base_type}")
-
-    atomic = type_registry.get(base_type)
-
-    if atomic.is_builtin:
-        # Call Encoder.writeXxx() - streaming, zero allocation
-        writer_name = f"write{capitalize_first(base_type)}"
-
-        if base_type == "string":
-            # String needs max length parameter
-            return f"offset += Encoder.{writer_name}(buffer, offset, {field_name}, ProtocolConstants.STRING_MAX_LENGTH);"
-        else:
-            # Other types - direct write
-            return f"offset += Encoder.{writer_name}(buffer, offset, {field_name});"
-    else:
-        # Nested struct - call its encodeTo()
-        return f"offset += {field_name}.encodeTo(buffer, offset);"
 
 
 def _get_decoder_call(

@@ -25,6 +25,11 @@ from typing import TYPE_CHECKING
 # Import field classes for runtime isinstance checks
 from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
 from protocol_codegen.generators.common.cpp.logger_generator import generate_log_method
+from protocol_codegen.generators.common.cpp.codec_utils import (
+    get_cpp_type,
+    get_decoder_call,
+    get_encoder_call,
+)
 from protocol_codegen.generators.common.naming import (
     capitalize_first,
     field_to_pascal_case,
@@ -341,12 +346,12 @@ def _generate_encode_function(
                 # ALWAYS encode count prefix (same as composite arrays for consistency)
                 lines.append(f"        encodeUint8(ptr, {field.name}.size());")
                 lines.append(f"        for (const auto& item : {field.name}) {{")
-                encoder_call = _get_encoder_call("item", field_type_name, type_registry)
+                encoder_call = get_encoder_call("item", field_type_name, type_registry)
                 lines.append(f"            {encoder_call}")
                 lines.append("        }")
             else:
                 # Scalar primitive
-                encoder_call = _get_encoder_call(field.name, field_type_name, type_registry)
+                encoder_call = get_encoder_call(field.name, field_type_name, type_registry)
                 lines.append(f"        {encoder_call}")
         elif isinstance(field, CompositeField):
             # Composite - encode array of structs
@@ -380,14 +385,14 @@ def _generate_encode_function(
                             lines.append(
                                 f"            for (const auto& type : item.{nested_field.name}) {{"
                             )
-                            encoder_call = _get_encoder_call(
+                            encoder_call = get_encoder_call(
                                 "type", nested_field.type_name.value, type_registry
                             )
                             lines.append(f"                {encoder_call}")
                             lines.append("            }")
                         else:
                             # Nested scalar primitive
-                            encoder_call = _get_encoder_call(
+                            encoder_call = get_encoder_call(
                                 f"item.{nested_field.name}",
                                 nested_field.type_name.value,
                                 type_registry,
@@ -402,7 +407,7 @@ def _generate_encode_function(
                             f"        encodeUint8(ptr, static_cast<uint8_t>({field.name}.{nested_field.name}));"
                         )
                     elif isinstance(nested_field, PrimitiveField):
-                        encoder_call = _get_encoder_call(
+                        encoder_call = get_encoder_call(
                             f"{field.name}.{nested_field.name}",
                             nested_field.type_name.value,
                             type_registry,
@@ -542,9 +547,9 @@ def _generate_decode_function(
                     lines.append(
                         f"        for (uint8_t i = 0; i < count_{field.name} && i < {field.array}; ++i) {{"
                     )
-                    base_cpp_type = _get_cpp_type(field_type_name, type_registry)
+                    base_cpp_type = get_cpp_type(field_type_name, type_registry)
                     lines.append(f"            {base_cpp_type} temp_item;")
-                    decoder_call = _get_decoder_call(
+                    decoder_call = get_decoder_call(
                         "temp_item", field_type_name, type_registry, direct_target="temp_item"
                     )
                     lines.append(f"            {decoder_call}")
@@ -553,7 +558,7 @@ def _generate_decode_function(
                 else:
                     # Fixed array: decode directly by index, using known array size
                     lines.append(f"        for (uint8_t i = 0; i < {field.array}; ++i) {{")
-                    decoder_call = _get_decoder_call(
+                    decoder_call = get_decoder_call(
                         "temp_item", field_type_name, type_registry, direct_target=f"{var_name}[i]"
                     )
                     lines.append(f"            {decoder_call}")
@@ -562,7 +567,7 @@ def _generate_decode_function(
                 field_vars.append(var_name)
             else:
                 # Scalar primitive
-                decoder_call = _get_decoder_call(field.name, field_type_name, type_registry)
+                decoder_call = get_decoder_call(field.name, field_type_name, type_registry)
                 lines.append(f"        {decoder_call}")
                 field_vars.append(field.name)
         elif isinstance(field, CompositeField):
@@ -626,13 +631,13 @@ def _generate_decode_function(
                                 lines.append(
                                     f"            for (uint8_t j = 0; j < count_{nested_field.name} && j < {nested_field.array}; ++j) {{"
                                 )
-                                cpp_type = _get_cpp_type(
+                                cpp_type = get_cpp_type(
                                     nested_field.type_name.value, type_registry
                                 )
                                 lines.append(
                                     f"                {cpp_type} temp_{nested_field.name};"
                                 )
-                                decoder_call = _get_decoder_call(
+                                decoder_call = get_decoder_call(
                                     f"temp_{nested_field.name}",
                                     nested_field.type_name.value,
                                     type_registry,
@@ -649,7 +654,7 @@ def _generate_decode_function(
                                     f"            for (uint8_t j = 0; j < count_{nested_field.name} && j < {nested_field.array}; ++j) {{"
                                 )
                                 direct_target = f"item.{nested_field.name}[j]"
-                                decoder_call = _get_decoder_call(
+                                decoder_call = get_decoder_call(
                                     f"item_{nested_field.name}_j",
                                     nested_field.type_name.value,
                                     type_registry,
@@ -661,7 +666,7 @@ def _generate_decode_function(
                             # Nested scalar primitive
                             # OPTION B: Write directly to item struct member
                             direct_target = f"item.{nested_field.name}"
-                            decoder_call = _get_decoder_call(
+                            decoder_call = get_decoder_call(
                                 f"item_{nested_field.name}",  # Unused when direct_target set
                                 nested_field.type_name.value,
                                 type_registry,
@@ -691,7 +696,7 @@ def _generate_decode_function(
                     elif isinstance(nested_field, PrimitiveField):
                         # OPTION B: Write directly to struct member (no temporary variable)
                         direct_target = f"{var_name}.{nested_field.name}"
-                        decoder_call = _get_decoder_call(
+                        decoder_call = get_decoder_call(
                             f"{field.name}_{nested_field.name}",  # Unused when direct_target set
                             nested_field.type_name.value,
                             type_registry,
@@ -720,113 +725,6 @@ def _generate_decode_function(
 def _generate_footer() -> str:
     """Generate struct closing brace."""
     return ""  # Closed in main function
-
-
-def _get_cpp_type(field_type: str, type_registry: TypeRegistry) -> str:
-    """
-    Get C++ type for a field type string.
-
-    Handles:
-    - Builtin types (uint8 → uint8_t)
-    - String (uses STRING_MAX_LENGTH constant instead of hardcoded <128>)
-    - Array notation (uint8[8] → uint8_t[8])
-    - Atomic types (ParameterValue → ParameterValue)
-
-    Args:
-        field_type: Type string from types.yaml
-        type_registry: TypeRegistry instance
-
-    Returns:
-        C++ type string
-    """
-    # Check for array notation
-    if "[" in field_type:
-        base_type, array_size = field_type.split("[")
-        array_size = array_size.rstrip("]")
-        cpp_base = _get_cpp_type(base_type, type_registry)
-        return f"{cpp_base}[{array_size}]"
-
-    # Get atomic type
-    if type_registry.is_atomic(field_type):
-        atomic = type_registry.get(field_type)
-        if atomic.is_builtin:
-            # Use std::string for string type
-            if field_type == "string":
-                return "std::string"
-            assert atomic.cpp_type is not None
-            return atomic.cpp_type
-        else:
-            # Custom atomic type - use struct name
-            return atomic.name
-
-    raise ValueError(f"Unknown type: {field_type}")
-
-
-def _get_encoder_call(field_name: str, field_type: str, type_registry: TypeRegistry) -> str:
-    """
-    Generate Encoder function call for encoding a field.
-
-    Returns:
-        C++ code line calling appropriate Encoder function
-    """
-    # Extract base type (handle arrays)
-    base_type = field_type.split("[")[0]
-
-    if not type_registry.is_atomic(base_type):
-        raise ValueError(f"Unknown type: {base_type}")
-
-    atomic = type_registry.get(base_type)
-
-    if atomic.is_builtin:
-        # Call encodeXXX() (already in Protocol namespace)
-        encoder_name = f"encode{capitalize_first(base_type)}"
-        return f"{encoder_name}(ptr, {field_name});"
-    else:
-        # Nested struct - call its encode()
-        return f"ptr += {field_name}.encode(ptr, bufferSize - (ptr - buffer));"
-
-
-def _get_decoder_call(
-    field_name: str, field_type: str, type_registry: TypeRegistry, direct_target: str | None = None
-) -> str:
-    """
-    Generate decoder function call for decoding a field.
-
-    Args:
-        field_name: Variable name for temporary storage (if direct_target is None)
-        field_type: Type string
-        type_registry: Type registry
-        direct_target: Optional direct struct member path (e.g., "pageInfo_data.pageIndex")
-
-    Returns:
-        C++ code line(s) calling appropriate decoder function
-    """
-    base_type = field_type.split("[")[0]
-
-    if not type_registry.is_atomic(base_type):
-        raise ValueError(f"Unknown type: {base_type}")
-
-    atomic = type_registry.get(base_type)
-    cpp_type = _get_cpp_type(base_type, type_registry)
-
-    if atomic.is_builtin:
-        decoder_name = f"decode{capitalize_first(base_type)}"
-        target = direct_target if direct_target else field_name
-
-        # All types use the same call pattern now (no template for string)
-        decoder_call = f"{decoder_name}(ptr, remaining, {target})"
-
-        # OPTION B: Direct pattern if direct_target provided
-        if direct_target:
-            return f"if (!{decoder_call}) return std::nullopt;"
-        else:
-            return f"""{cpp_type} {field_name};
-        if (!{decoder_call}) return std::nullopt;"""
-    else:
-        return f"""auto {field_name} = {base_type}::decode(ptr, remaining);
-        if (!{field_name}) return std::nullopt;
-        ptr += {base_type}::MAX_PAYLOAD_SIZE;
-        remaining -= {base_type}::MAX_PAYLOAD_SIZE;"""
 
 
 def _calculate_max_payload_size(
@@ -1057,7 +955,7 @@ def _generate_single_composite_struct(field: CompositeField, type_registry: Type
                 lines.append(f"    {enum_type} {nested_field.name};")
         elif isinstance(nested_field, PrimitiveField):
             # Get base C++ type without array wrapper
-            base_type = _get_cpp_type(nested_field.type_name.value, type_registry)
+            base_type = get_cpp_type(nested_field.type_name.value, type_registry)
             if nested_field.array:
                 # Use std::vector for dynamic arrays, std::array for fixed
                 if nested_field.dynamic:
@@ -1094,7 +992,7 @@ def _get_cpp_type_for_field(field: FieldBase, type_registry: TypeRegistry) -> st
             return f"std::array<{cpp_type}, {field.array}>"
         return cpp_type
     elif isinstance(field, PrimitiveField):
-        base_type = _get_cpp_type(field.type_name.value, type_registry)
+        base_type = get_cpp_type(field.type_name.value, type_registry)
         if field.array:
             # Use std::vector for dynamic arrays, std::array for fixed
             if field.dynamic:
