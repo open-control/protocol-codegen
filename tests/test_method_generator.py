@@ -19,10 +19,10 @@ from protocol_codegen.generators.common.naming import (
     to_camel_case,
     to_pascal_case,
 )
-from protocol_codegen.generators.serial8.cpp.method_generator import (
+from protocol_codegen.generators.common.cpp.method_generator import (
     generate_protocol_methods_hpp,
 )
-from protocol_codegen.generators.serial8.java.method_generator import (
+from protocol_codegen.generators.common.java.method_generator import (
     generate_protocol_methods_java,
 )
 

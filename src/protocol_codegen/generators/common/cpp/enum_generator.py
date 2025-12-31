@@ -1,5 +1,5 @@
 """
-C++ Enum Generator for SysEx Protocol
+C++ Enum Generator
 
 Generates C++ enum class or constants from EnumDef definitions.
 Enums are generated in the Protocol namespace for consistency with structs.

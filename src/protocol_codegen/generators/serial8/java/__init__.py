@@ -3,15 +3,18 @@ Java Code Generators for Serial8 Protocol
 Generates Java protocol files with 8-bit binary encoding.
 """
 
-from .callbacks_generator import generate_protocol_callbacks_java
+from protocol_codegen.generators.common.java import (
+    generate_decoder_registry_java,
+    generate_messageid_java,
+    generate_protocol_callbacks_java,
+)
+
 from .constants_generator import generate_constants_java
 from .decoder_generator import generate_decoder_java
-from .decoder_registry_generator import generate_decoder_registry_java
 from .encoder_generator import generate_encoder_java
-from .enum_generator import generate_enum_java
-from .logger_generator import generate_log_method
-from .messageid_generator import generate_messageid_java
-from .method_generator import generate_protocol_methods_java
+from protocol_codegen.generators.common.java import generate_enum_java
+from protocol_codegen.generators.common.java import generate_log_method
+from protocol_codegen.generators.common.java import generate_protocol_methods_java
 from .protocol_generator import generate_protocol_template_java
 from .struct_generator import generate_struct_java
 

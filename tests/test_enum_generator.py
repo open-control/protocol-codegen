@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 from protocol_codegen.core.enum_def import EnumDef
-from protocol_codegen.generators.serial8.cpp.enum_generator import generate_enum_hpp
-from protocol_codegen.generators.serial8.java.enum_generator import generate_enum_java
+from protocol_codegen.generators.common.cpp.enum_generator import generate_enum_hpp
+from protocol_codegen.generators.common.java.enum_generator import generate_enum_java
 
 
 class TestCppEnumGenerator:

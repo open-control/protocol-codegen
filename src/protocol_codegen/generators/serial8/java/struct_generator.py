@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
 
 # Import logger generator
-from protocol_codegen.generators.serial8.java.logger_generator import generate_log_method
+from protocol_codegen.generators.common.java.logger_generator import generate_log_method
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

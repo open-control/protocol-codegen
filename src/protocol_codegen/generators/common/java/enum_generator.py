@@ -1,5 +1,5 @@
 """
-Java Enum Generator for Serial8 Protocol
+Java Enum Generator
 
 Generates Java enum or constants from EnumDef definitions.
 Enums are generated in the protocol package for consistency with structs.
