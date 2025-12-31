@@ -1,5 +1,5 @@
 """
-Java Struct Generator
+Java Struct Generator for SysEx Protocol
 Generates Message*.java files from messages with Encoder calls.
 
 This generator creates immutable Java classes that call Encoder methods
@@ -13,6 +13,7 @@ Key Features:
 - MAX_PAYLOAD_SIZE constant for validation
 - Clean getters following Java conventions
 - toString() method for YAML logging (matches C++ format)
+- fromHost field for origin tracking (SysEx-specific)
 
 Generated Output:
 - One .java file per message (e.g., TransportPlayMessage.java)
@@ -25,9 +26,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 # Import field classes for runtime isinstance checks
-from protocol_codegen.core.field import CompositeField, FieldBase, PrimitiveField
+from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
 
-# Import logger generator
+# Import logger generator (SysEx-specific)
 from protocol_codegen.generators.sysex.java.logger_generator import generate_log_method
 
 if TYPE_CHECKING:
@@ -76,6 +77,7 @@ def generate_struct_java(
     needs_list = _needs_list_import(fields)
     needs_arraylist = _needs_list_import(fields)
     needs_constants = _needs_constants_import(fields, type_registry)
+    enum_names = _collect_enum_names(fields)
 
     header = _generate_header(
         class_name,
@@ -85,6 +87,7 @@ def generate_struct_java(
         needs_list,
         needs_arraylist,
         needs_constants,
+        enum_names,
         package,
     )
     message_id_constant = _generate_message_id_constant(message.name)
@@ -101,6 +104,28 @@ def generate_struct_java(
     return full_code
 
 
+def _collect_enum_names(fields: "Sequence[FieldBase]") -> set[str]:
+    """
+    Collect all non-bitflags enum names from fields (recursively).
+
+    Bitflags enums are int types and don't need imports.
+    Regular enums need to be imported.
+    """
+    enum_names: set[str] = set()
+
+    def collect_from_fields(field_list: "Sequence[FieldBase]") -> None:
+        for field in field_list:
+            if isinstance(field, EnumField):
+                # Only add non-bitflags enums (bitflags are int, no import needed)
+                if not field.enum_def.is_bitflags:
+                    enum_names.add(field.enum_def.name)
+            elif isinstance(field, CompositeField):
+                collect_from_fields(field.fields)
+
+    collect_from_fields(fields)
+    return enum_names
+
+
 def _generate_header(
     class_name: str,
     description: str,
@@ -109,6 +134,7 @@ def _generate_header(
     needs_list: bool,
     needs_arraylist: bool,
     needs_constants: bool,
+    enum_names: set[str],
     package: str,
 ) -> str:
     """Generate file header with package and class declaration, importing only what's needed."""
@@ -125,6 +151,11 @@ def _generate_header(
         imports.append(f"import {base_package}.Decoder;")
     if needs_constants:
         imports.append(f"import {base_package}.ProtocolConstants;")
+
+    # Add enum imports (non-bitflags only)
+    for enum_name in sorted(enum_names):
+        imports.append(f"import {base_package}.{enum_name};")
+
     if needs_list:
         imports.append("import java.util.List;")
     if needs_arraylist:
@@ -163,7 +194,7 @@ def _generate_message_id_constant(message_name: str) -> str:
 
 
 def _generate_field_declarations(fields: Sequence[FieldBase], type_registry: TypeRegistry) -> str:
-    """Generate private final field declarations (supports composites)."""
+    """Generate private final field declarations (supports composites and enums)."""
     lines: list[str] = [
         "    // ============================================================================"
     ]
@@ -179,8 +210,14 @@ def _generate_field_declarations(fields: Sequence[FieldBase], type_registry: Typ
     lines.append("")
 
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, EnumField):
+            # Enum field - use enum's Java type
+            java_type = field.enum_def.java_type
+            if field.is_array():
+                lines.append(f"    private final {java_type}[] {field.name};")
+            else:
+                lines.append(f"    private final {java_type} {field.name};")
+        elif isinstance(field, PrimitiveField):
             field_type_name = field.type_name.value
             java_type = _get_java_type(field_type_name, type_registry)
             if field.is_array():
@@ -188,7 +225,8 @@ def _generate_field_declarations(fields: Sequence[FieldBase], type_registry: Typ
                 lines.append(f"    private final List<{boxed_type}> {field.name};")
             else:
                 lines.append(f"    private final {java_type} {field.name};")
-        else:  # Composite
+        elif isinstance(field, CompositeField):
+            # Composite field
             class_name = _field_to_pascal_case(field.name)
             if field.array:
                 lines.append(f"    private final List<{class_name}> {field.name};")
@@ -224,8 +262,13 @@ def _generate_constructor(
     # Constructor signature
     params: list[str] = []
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, EnumField):
+            java_type = field.enum_def.java_type
+            if field.is_array():
+                params.append(f"{java_type}[] {field.name}")
+            else:
+                params.append(f"{java_type} {field.name}")
+        elif isinstance(field, PrimitiveField):
             field_type_name = field.type_name.value
             java_type = _get_java_type(field_type_name, type_registry)
             if field.is_array():
@@ -233,7 +276,8 @@ def _generate_constructor(
                 params.append(f"List<{boxed_type}> {field.name}")
             else:
                 params.append(f"{java_type} {field.name}")
-        else:  # Composite
+        elif isinstance(field, CompositeField):
+            # Composite field
             class_name_inner = _field_to_pascal_case(field.name)
             if field.array:
                 params.append(f"List<{class_name_inner}> {field.name}")
@@ -265,16 +309,21 @@ def _generate_getters(fields: Sequence[FieldBase], type_registry: TypeRegistry) 
     lines.append("")
 
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, EnumField):
+            java_type = field.enum_def.java_type
+            if field.is_array():
+                java_type = f"{java_type}[]"
+        elif isinstance(field, PrimitiveField):
             field_type_name = field.type_name.value
             java_type = _get_java_type(field_type_name, type_registry)
             if field.is_array():
                 boxed_type = _get_boxed_java_type(java_type)
                 java_type = f"List<{boxed_type}>"
-        else:  # Composite
+        elif isinstance(field, CompositeField):
             class_name = _field_to_pascal_case(field.name)
             java_type = f"List<{class_name}>" if field.array else class_name
+        else:
+            continue  # Unknown field type
 
         getter_name = _to_getter_name(field.name)
 
@@ -297,7 +346,8 @@ def _generate_encode_method(
     type_registry: TypeRegistry,
     string_max_length: int,
 ) -> str:
-    """Generate encode() method calling Encoder."""
+    """Generate encode() method calling Encoder (streaming, zero-allocation)."""
+    # Calculate max payload size (no MESSAGE_NAME prefix in SysEx)
     max_size = _calculate_max_payload_size(fields, type_registry, string_max_length)
 
     lines: list[str] = [
@@ -314,107 +364,143 @@ def _generate_encode_method(
     lines.append(f"    public static final int MAX_PAYLOAD_SIZE = {max_size};")
     lines.append("")
 
-    # Simplified encode for empty messages
+    # Generate encode(buffer, offset) method - streaming, zero-allocation
+    lines.append("    /**")
+    lines.append("     * Encode message directly into provided buffer (zero allocation)")
+    lines.append("     *")
+    lines.append("     * @param buffer Output buffer (must have enough space)")
+    lines.append("     * @param startOffset Starting position in buffer")
+    lines.append("     * @return Number of bytes written")
+    lines.append("     */")
+    lines.append("    public int encode(byte[] buffer, int startOffset) {")
+    lines.append("        int offset = startOffset;")
+    lines.append("")
+
+    # Empty messages
     if not fields:
-        lines.append("    /**")
-        lines.append("     * Encode message to MIDI-safe bytes (empty message)")
-        lines.append("     * @return Empty byte array")
-        lines.append("     */")
-        lines.append("    public byte[] encode() { return new byte[0]; }")
+        lines.append("        return offset - startOffset;")
+        lines.append("    }")
         lines.append("")
         return "\n".join(lines)
 
-    # Standard encode for messages with fields
-    lines.append("    /**")
-    lines.append("     * Encode message to MIDI-safe bytes")
-    lines.append("     *")
-    lines.append("     * @return Encoded byte array")
-    lines.append("     */")
-    lines.append("    public byte[] encode() {")
-    lines.append("        byte[] buffer = new byte[MAX_PAYLOAD_SIZE];")
-    lines.append("        int offset = 0;")
-    lines.append("")
-
     # Add encode calls for each field
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, EnumField):
+            # Enum field - encode as uint8
+            # Bitflags are int (no getValue needed), regular enums use getValue()
+            is_bitflags = field.enum_def.is_bitflags
+            if field.is_array():
+                lines.append(
+                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.length);"
+                )
+                lines.append("")
+                java_type = field.enum_def.java_type
+                lines.append(f"        for ({java_type} item : {field.name}) {{")
+                if is_bitflags:
+                    lines.append("            offset += Encoder.writeUint8(buffer, offset, item);")
+                else:
+                    lines.append("            offset += Encoder.writeUint8(buffer, offset, item.getValue());")
+                lines.append("        }")
+                lines.append("")
+            else:
+                if is_bitflags:
+                    lines.append(
+                        f"        offset += Encoder.writeUint8(buffer, offset, {field.name});"
+                    )
+                else:
+                    lines.append(
+                        f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.getValue());"
+                    )
+        elif isinstance(field, PrimitiveField):
             field_type_name = field.type_name.value
             if field.is_array():
-                # Primitive array (e.g., List<String>)
-                # Only encode count prefix for dynamic arrays
-                if field.dynamic:
-                    lines.append(
-                        f"        byte[] {field.name}_count = Encoder.encodeUint8({field.name}.size());"
-                    )
-                    lines.append(
-                        f"        System.arraycopy({field.name}_count, 0, buffer, offset, 1);"
-                    )
-                    lines.append("        offset += 1;")
-                    lines.append("")
+                lines.append(
+                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.size());"
+                )
+                lines.append("")
                 lines.append(
                     f"        for ({_get_java_type(field_type_name, type_registry)} item : {field.name}) {{"
                 )
                 encoder_call = _get_encoder_call("item", field_type_name, type_registry)
-                for line in encoder_call.split("\n"):
-                    lines.append(f"    {line}")
+                lines.append(f"            {encoder_call}")
                 lines.append("        }")
                 lines.append("")
             else:
-                # Scalar primitive
                 encoder_call = _get_encoder_call(field.name, field_type_name, type_registry)
                 lines.append(f"        {encoder_call}")
-        else:  # Composite
-            assert isinstance(field, CompositeField)
+        elif isinstance(field, CompositeField):
+            # Composite field
             if field.array:
-                # Encode array count
                 lines.append(
-                    f"        byte[] {field.name}_count = Encoder.encodeUint8({field.name}.size());"
+                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.size());"
                 )
-                lines.append(f"        System.arraycopy({field.name}_count, 0, buffer, offset, 1);")
-                lines.append("        offset += 1;")
                 lines.append("")
-                # Encode each item
-                class_name = _field_to_pascal_case(field.name)
-                lines.append(f"        for ({class_name} item : {field.name}) {{")
+                class_name_inner = _field_to_pascal_case(field.name)
+                lines.append(f"        for ({class_name_inner} item : {field.name}) {{")
                 for nested_field in field.fields:
-                    if nested_field.is_primitive():
-                        assert isinstance(nested_field, PrimitiveField)
+                    if isinstance(nested_field, EnumField):
+                        getter_name = _to_getter_name(nested_field.name)
+                        is_bitflags = nested_field.enum_def.is_bitflags
+                        if nested_field.is_array():
+                            java_type = nested_field.enum_def.java_type
+                            lines.append(
+                                f"            offset += Encoder.writeUint8(buffer, offset, item.{getter_name}().length);"
+                            )
+                            lines.append(f"            for ({java_type} e : item.{getter_name}()) {{")
+                            if is_bitflags:
+                                lines.append(
+                                    "                offset += Encoder.writeUint8(buffer, offset, e);"
+                                )
+                            else:
+                                lines.append(
+                                    "                offset += Encoder.writeUint8(buffer, offset, e.getValue());"
+                                )
+                            lines.append("            }")
+                        else:
+                            if is_bitflags:
+                                lines.append(
+                                    f"            offset += Encoder.writeUint8(buffer, offset, item.{getter_name}());"
+                                )
+                            else:
+                                lines.append(
+                                    f"            offset += Encoder.writeUint8(buffer, offset, item.{getter_name}().getValue());"
+                                )
+                    elif isinstance(nested_field, PrimitiveField):
                         getter_name = _to_getter_name(nested_field.name)
                         if nested_field.is_array():
-                            # Nested array of primitives - encode count for dynamic arrays
                             java_type = _get_java_type(nested_field.type_name.value, type_registry)
                             lines.append(
-                                f"            byte[] count_{nested_field.name} = Encoder.encodeUint8((byte) item.{getter_name}().length);"
+                                f"            offset += Encoder.writeUint8(buffer, offset, item.{getter_name}().size());"
                             )
-                            lines.append(
-                                f"            System.arraycopy(count_{nested_field.name}, 0, buffer, offset, 1);"
-                            )
-                            lines.append("            offset += 1;")
                             lines.append(
                                 f"            for ({java_type} type : item.{getter_name}()) {{"
                             )
                             encoder_call = _get_encoder_call(
                                 "type", nested_field.type_name.value, type_registry
                             )
-                            # Indent by 16 spaces (4 levels)
-                            for line in encoder_call.split("\n"):
-                                lines.append(f"        {line}")
+                            lines.append(f"                {encoder_call}")
                             lines.append("            }")
                         else:
                             encoder_call = _get_encoder_call(
                                 f"item.{getter_name}()", nested_field.type_name.value, type_registry
                             )
-                            # Indent by 12 spaces (3 levels)
-                            for line in encoder_call.split("\n"):
-                                lines.append(f"    {line}")
+                            lines.append(f"            {encoder_call}")
                 lines.append("        }")
                 lines.append("")
             else:
-                # Single composite - encode nested fields directly
                 for nested_field in field.fields:
-                    if nested_field.is_primitive():
-                        assert isinstance(nested_field, PrimitiveField)
+                    if isinstance(nested_field, EnumField):
+                        getter_name = _to_getter_name(nested_field.name)
+                        is_bitflags = nested_field.enum_def.is_bitflags
+                        if is_bitflags:
+                            lines.append(
+                                f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.{getter_name}());"
+                            )
+                        else:
+                            lines.append(
+                                f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.{getter_name}().getValue());"
+                            )
+                    elif isinstance(nested_field, PrimitiveField):
                         getter_name = _to_getter_name(nested_field.name)
                         encoder_call = _get_encoder_call(
                             f"{field.name}.{getter_name}()",
@@ -424,11 +510,7 @@ def _generate_encode_method(
                         lines.append(f"        {encoder_call}")
 
     lines.append("")
-    # Return statement depends on whether we have fields
-    if fields:
-        lines.append("        return java.util.Arrays.copyOf(buffer, offset);")
-    else:
-        lines.append("        return new byte[0];")
+    lines.append("        return offset - startOffset;")
     lines.append("    }")
     lines.append("")
 
@@ -442,6 +524,7 @@ def _generate_decode_method(
     string_max_length: int,
 ) -> str:
     """Generate static decode() factory method."""
+    # Calculate min payload size (no MESSAGE_NAME prefix in SysEx)
     min_size = _calculate_min_payload_size(fields, type_registry, string_max_length)
 
     lines: list[str] = [
@@ -453,16 +536,22 @@ def _generate_decode_method(
     )
     lines.append("")
 
-    # Simplified decode for empty messages (no MIN_PAYLOAD_SIZE needed)
+    # Simplified decode for empty messages
     if not fields:
         lines.append("    /**")
-        lines.append("     * Decode message from MIDI-safe bytes (empty message)")
-        lines.append("     * @param data Input buffer (unused)")
-        lines.append(f"     * @return New {class_name} instance")
+        lines.append("     * Minimum payload size in bytes (empty message)")
         lines.append("     */")
-        lines.append(
-            f"    public static {class_name} decode(byte[] data) {{ return new {class_name}(); }}"
-        )
+        lines.append(f"    private static final int MIN_PAYLOAD_SIZE = {min_size};")
+        lines.append("")
+        lines.append("    /**")
+        lines.append("     * Decode message from MIDI-safe bytes (no fields)")
+        lines.append("     * @param data Input buffer")
+        lines.append(f"     * @return New {class_name} instance")
+        lines.append("     * @throws IllegalArgumentException if data is invalid or insufficient")
+        lines.append("     */")
+        lines.append(f"    public static {class_name} decode(byte[] data) {{")
+        lines.append(f"        return new {class_name}();")
+        lines.append("    }")
         lines.append("")
         return "\n".join(lines)
 
@@ -494,34 +583,63 @@ def _generate_decode_method(
     # Add decode calls for each field
     field_vars: list[str] = []
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, EnumField):
+            # Enum field - decode uint8 and convert to enum
+            # Bitflags are int (no fromValue needed), regular enums use fromValue()
+            java_type = field.enum_def.java_type
+            is_bitflags = field.enum_def.is_bitflags
+            if field.is_array():
+                lines.append(f"        int count_{field.name} = Decoder.decodeUint8(data, offset);")
+                lines.append("        offset += 1;")
+                lines.append("")
+                lines.append(
+                    f"        {java_type}[] {field.name} = new {java_type}[count_{field.name}];"
+                )
+                lines.append(f"        for (int i = 0; i < count_{field.name}; i++) {{")
+                if is_bitflags:
+                    lines.append(
+                        f"            {field.name}[i] = Decoder.decodeUint8(data, offset);"
+                    )
+                else:
+                    lines.append(
+                        f"            {field.name}[i] = {java_type}.fromValue(Decoder.decodeUint8(data, offset));"
+                    )
+                lines.append("            offset += 1;")
+                lines.append("        }")
+                lines.append("")
+            else:
+                if is_bitflags:
+                    lines.append(
+                        f"        {java_type} {field.name} = Decoder.decodeUint8(data, offset);"
+                    )
+                else:
+                    lines.append(
+                        f"        {java_type} {field.name} = {java_type}.fromValue(Decoder.decodeUint8(data, offset));"
+                    )
+                lines.append("        offset += 1;")
+                lines.append("")
+            field_vars.append(field.name)
+        elif isinstance(field, PrimitiveField):
             field_type_name = field.type_name.value
             java_type = _get_java_type(field_type_name, type_registry)
             if field.is_array():
-                # Primitive array (e.g., List<String>)
+                # Decode array count
+                lines.append(f"        int count_{field.name} = Decoder.decodeUint8(data, offset);")
+                lines.append("        offset += 1;")
+                lines.append("")
                 boxed_type = _get_boxed_java_type(java_type)
-                # For dynamic arrays, read count from message; for fixed arrays, use known size
-                if field.dynamic:
-                    lines.append(
-                        f"        int count_{field.name} = Decoder.decodeUint8(data, offset);"
-                    )
-                    lines.append("        offset += 1;")
-                    lines.append("")
-                    count_var = f"count_{field.name}"
-                else:
-                    count_var = str(field.array)
-                lines.append(f"        List<{boxed_type}> {field.name}_list = new ArrayList<>();")
-                lines.append(f"        for (int i = 0; i < {count_var}; i++) {{")
-                decoder_call = _get_decoder_call(
-                    f"item_{field.name}", field_type_name, java_type, type_registry
+                lines.append(
+                    f"        List<{boxed_type}> {field.name} = new ArrayList<>(count_{field.name});"
                 )
-                for line in decoder_call.split("\n"):
-                    lines.append(f"    {line}")
-                lines.append(f"            {field.name}_list.add(item_{field.name});")
+                lines.append(f"        for (int i = 0; i < count_{field.name}; i++) {{")
+                decoder_call = _get_decoder_call(
+                    f"{field.name}_item", field_type_name, java_type, type_registry
+                )
+                lines.append(f"            {decoder_call}")
+                lines.append(f"            {field.name}.add({field.name}_item);")
                 lines.append("        }")
                 lines.append("")
-                field_vars.append(f"{field.name}_list")
+                field_vars.append(field.name)
             else:
                 # Scalar primitive
                 decoder_call = _get_decoder_call(
@@ -529,22 +647,56 @@ def _generate_decode_method(
                 )
                 lines.append(f"        {decoder_call}")
                 field_vars.append(field.name)
-        else:  # Composite
-            assert isinstance(field, CompositeField)
+        elif isinstance(field, CompositeField):
             if field.array:
                 # Decode array count
                 lines.append(f"        int count_{field.name} = Decoder.decodeUint8(data, offset);")
                 lines.append("        offset += 1;")
                 lines.append("")
-                # Decode items
+                # Decode items into list
+                composite_class = _field_to_pascal_case(field.name)
                 lines.append(
-                    f"        List<{_field_to_pascal_case(field.name)}> {field.name}_list = new ArrayList<>();"
+                    f"        List<{composite_class}> {field.name} = new ArrayList<>(count_{field.name});"
                 )
                 lines.append(f"        for (int i = 0; i < count_{field.name}; i++) {{")
                 # Decode each nested field
                 for nested_field in field.fields:
-                    if nested_field.is_primitive():
-                        assert isinstance(nested_field, PrimitiveField)
+                    if isinstance(nested_field, EnumField):
+                        # Nested enum field
+                        nested_java_type = nested_field.enum_def.java_type
+                        is_bitflags = nested_field.enum_def.is_bitflags
+                        if nested_field.is_array():
+                            lines.append(
+                                f"            byte count_{nested_field.name} = (byte) Decoder.decodeUint8(data, offset);"
+                            )
+                            lines.append("            offset += 1;")
+                            lines.append(
+                                f"            {nested_java_type}[] item_{nested_field.name} = new {nested_java_type}[count_{nested_field.name}];"
+                            )
+                            lines.append(
+                                f"            for (int j = 0; j < count_{nested_field.name} && j < {nested_field.array}; j++) {{"
+                            )
+                            if is_bitflags:
+                                lines.append(
+                                    f"                item_{nested_field.name}[j] = Decoder.decodeUint8(data, offset);"
+                                )
+                            else:
+                                lines.append(
+                                    f"                item_{nested_field.name}[j] = {nested_java_type}.fromValue(Decoder.decodeUint8(data, offset));"
+                                )
+                            lines.append("                offset += 1;")
+                            lines.append("            }")
+                        else:
+                            if is_bitflags:
+                                lines.append(
+                                    f"            {nested_java_type} item_{nested_field.name} = Decoder.decodeUint8(data, offset);"
+                                )
+                            else:
+                                lines.append(
+                                    f"            {nested_java_type} item_{nested_field.name} = {nested_java_type}.fromValue(Decoder.decodeUint8(data, offset));"
+                                )
+                            lines.append("            offset += 1;")
+                    elif isinstance(nested_field, PrimitiveField):
                         java_type = _get_java_type(nested_field.type_name.value, type_registry)
                         if nested_field.is_array():
                             # Nested array of primitives - decode count for dynamic arrays
@@ -552,8 +704,9 @@ def _generate_decode_method(
                                 f"            byte count_{nested_field.name} = (byte) Decoder.decodeUint8(data, offset);"
                             )
                             lines.append("            offset += 1;")
+                            boxed_type = _get_boxed_java_type(java_type)
                             lines.append(
-                                f"            {java_type}[] item_{nested_field.name} = new {java_type}[count_{nested_field.name}];"
+                                f"            List<{boxed_type}> item_{nested_field.name} = new ArrayList<>(count_{nested_field.name});"
                             )
                             lines.append(
                                 f"            for (int j = 0; j < count_{nested_field.name} && j < {nested_field.array}; j++) {{"
@@ -568,7 +721,7 @@ def _generate_decode_method(
                             for line in decoder_call.split("\n"):
                                 lines.append(f"        {line}")
                             lines.append(
-                                f"                item_{nested_field.name}[j] = item_{nested_field.name}_j;"
+                                f"                item_{nested_field.name}.add(item_{nested_field.name}_j);"
                             )
                             lines.append("            }")
                         else:
@@ -580,23 +733,34 @@ def _generate_decode_method(
                             )
                             for line in decoder_call.split("\n"):
                                 lines.append(f"    {line}")
-                # Construct item
+                # Construct item and add to list
                 item_params: list[str] = []
                 for nested_field in field.fields:
-                    if nested_field.is_primitive():
+                    if isinstance(nested_field, EnumField) or isinstance(nested_field, PrimitiveField):
                         item_params.append(f"item_{nested_field.name}")
                 item_params_str = ", ".join(item_params)
                 lines.append(
-                    f"            {field.name}_list.add(new {_field_to_pascal_case(field.name)}({item_params_str}));"
+                    f"            {field.name}.add(new {_field_to_pascal_case(field.name)}({item_params_str}));"
                 )
                 lines.append("        }")
                 lines.append("")
-                field_vars.append(f"{field.name}_list")
+                field_vars.append(field.name)
             else:
                 # Single composite - decode nested fields
                 for nested_field in field.fields:
-                    if nested_field.is_primitive():
-                        assert isinstance(nested_field, PrimitiveField)
+                    if isinstance(nested_field, EnumField):
+                        nested_java_type = nested_field.enum_def.java_type
+                        is_bitflags = nested_field.enum_def.is_bitflags
+                        if is_bitflags:
+                            lines.append(
+                                f"        {nested_java_type} {field.name}_{nested_field.name} = Decoder.decodeUint8(data, offset);"
+                            )
+                        else:
+                            lines.append(
+                                f"        {nested_java_type} {field.name}_{nested_field.name} = {nested_java_type}.fromValue(Decoder.decodeUint8(data, offset));"
+                            )
+                        lines.append("        offset += 1;")
+                    elif isinstance(nested_field, PrimitiveField):
                         java_type = _get_java_type(nested_field.type_name.value, type_registry)
                         decoder_call = _get_decoder_call(
                             f"{field.name}_{nested_field.name}",
@@ -608,7 +772,7 @@ def _generate_decode_method(
                 # Construct composite
                 composite_params: list[str] = []
                 for nested_field in field.fields:
-                    if nested_field.is_primitive():
+                    if isinstance(nested_field, EnumField) or isinstance(nested_field, PrimitiveField):
                         composite_params.append(f"{field.name}_{nested_field.name}")
                 composite_params_str = ", ".join(composite_params)
                 lines.append(
@@ -633,22 +797,11 @@ def _generate_footer() -> str:
 
 
 def _get_boxed_java_type(java_type: str) -> str:
-    """
-    Convert primitive Java type to its boxed equivalent for use in generics.
-
-    Java generics don't support primitive types, so List<int> is invalid.
-    Must use List<Integer> instead.
-
-    Args:
-        java_type: Primitive or reference Java type
-
-    Returns:
-        Boxed type for primitives, unchanged for reference types
-    """
+    """Convert primitive Java type to its boxed equivalent for generics."""
     boxed_types = {
-        "int": "Integer",
         "byte": "Byte",
         "short": "Short",
+        "int": "Integer",
         "long": "Long",
         "float": "Float",
         "double": "Double",
@@ -696,39 +849,12 @@ def _get_java_type(field_type: str, type_registry: TypeRegistry) -> str:
     raise ValueError(f"Unknown type: {field_type}")
 
 
-def _sanitize_var_name(field_expr: str) -> str:
-    """
-    Sanitize field expression to create valid Java variable name.
-
-    Examples:
-        pageInfo.getPageIndex() → pageInfo_pageIndex
-        item.getParameterValue() → item_parameterValue
-        deviceName → deviceName
-    """
-    # Remove parentheses
-    name: str = field_expr.replace("()", "")
-    # Replace dot with underscore
-    name = name.replace(".", "_")
-    # Remove 'get' prefix after dot if present
-    if "_get" in name:
-        parts: list[str] = name.split("_")
-        result: list[str] = []
-        for part in parts:
-            if part.startswith("get") and len(part) > 3:
-                # Remove 'get' and lowercase first letter
-                result.append(part[3].lower() + part[4:])
-            else:
-                result.append(part)
-        name = "_".join(result)
-    return name
-
-
 def _get_encoder_call(field_name: str, field_type: str, type_registry: TypeRegistry) -> str:
     """
-    Generate Encoder method call for encoding a field.
+    Generate Encoder streaming write call for encoding a field.
 
     Returns:
-        Java code lines calling appropriate Encoder method
+        Java code line calling appropriate Encoder.writeXxx() method
     """
     # Extract base type (handle arrays)
     base_type = field_type.split("[")[0]
@@ -738,22 +864,19 @@ def _get_encoder_call(field_name: str, field_type: str, type_registry: TypeRegis
 
     atomic = type_registry.get(base_type)
 
-    # Create valid variable name from field expression
-    var_name = _sanitize_var_name(field_name)
-
     if atomic.is_builtin:
-        # Call Encoder.encodeXXX()
-        encoder_name = f"encode{_capitalize_first(base_type)}"
+        # Call Encoder.writeXxx() - streaming, zero allocation
+        writer_name = f"write{_capitalize_first(base_type)}"
 
         if base_type == "string":
-            # String needs max length parameter (using ProtocolConstants.STRING_MAX_LENGTH from config)
-            return f"byte[] {var_name}_encoded = Encoder.{encoder_name}({field_name}, ProtocolConstants.STRING_MAX_LENGTH);\n        System.arraycopy({var_name}_encoded, 0, buffer, offset, {var_name}_encoded.length);\n        offset += {var_name}_encoded.length;"
+            # String needs max length parameter
+            return f"offset += Encoder.{writer_name}(buffer, offset, {field_name}, ProtocolConstants.STRING_MAX_LENGTH);"
         else:
-            # Other types
-            return f"byte[] {var_name}_encoded = Encoder.{encoder_name}({field_name});\n        System.arraycopy({var_name}_encoded, 0, buffer, offset, {var_name}_encoded.length);\n        offset += {var_name}_encoded.length;"
+            # Other types - direct write
+            return f"offset += Encoder.{writer_name}(buffer, offset, {field_name});"
     else:
-        # Nested struct - call its encode()
-        return f"byte[] {var_name}_encoded = {field_name}.encode();\n        System.arraycopy({var_name}_encoded, 0, buffer, offset, {var_name}_encoded.length);\n        offset += {var_name}_encoded.length;"
+        # Nested struct - call its encodeTo()
+        return f"offset += {field_name}.encodeTo(buffer, offset);"
 
 
 def _get_decoder_call(
@@ -804,8 +927,7 @@ def _calculate_max_payload_size(
     total_size = 0
 
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, PrimitiveField):
             field_type_name = field.type_name.value
             base_type = field_type_name
             array_size = field.array if field.array else 1
@@ -833,8 +955,15 @@ def _calculate_max_payload_size(
                 if field.array and field.dynamic:
                     total_size += 1  # Array count byte for dynamic arrays only
                 total_size += base_size * array_size
-        else:  # Composite
-            assert isinstance(field, CompositeField)
+
+        elif isinstance(field, EnumField):
+            # Enum field - always 1 byte (uint8)
+            array_size = field.array if field.array else 1
+            if field.array:
+                total_size += 1  # Array count byte
+            total_size += 1 * array_size  # 1 byte per enum value
+
+        elif isinstance(field, CompositeField):  # Composite
             # Recursively calculate size of nested fields
             nested_size = _calculate_max_payload_size(
                 field.fields, type_registry, string_max_length
@@ -869,11 +998,9 @@ def _calculate_min_payload_size(
     total_size = 0
 
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, PrimitiveField):
             field_type_name = field.type_name.value
             base_type = field_type_name
-            array_size = field.array if field.array else 1
 
             # Get size for base type
             if type_registry.is_atomic(base_type):
@@ -900,20 +1027,27 @@ def _calculate_min_payload_size(
                         total_size += 1  # Array count byte
                     else:
                         # Fixed array: all elements must be present
-                        total_size += base_size * array_size
+                        total_size += base_size * field.array
                 else:
                     total_size += base_size
-        else:  # Composite
-            assert isinstance(field, CompositeField)
+
+        elif isinstance(field, EnumField):
+            # Enum field - always 1 byte (uint8)
+            if field.array:
+                total_size += 1  # Array count byte only (minimum = 0 elements)
+            else:
+                total_size += 1  # 1 byte for enum value
+
+        elif isinstance(field, CompositeField):  # Composite
             # Recursively calculate size of nested fields
             nested_size = _calculate_min_payload_size(
                 field.fields, type_registry, string_max_length
             )
 
             if field.array:
-                # Array of composites: count byte + (nested_size × array_size)
+                # Array of composites: count byte only (minimum = 0 elements)
                 total_size += 1  # Array count byte
-                total_size += nested_size * field.array
+                # Don't add nested_size * array - minimum assumes empty array
             else:
                 # Single composite
                 total_size += nested_size
@@ -925,6 +1059,8 @@ def _get_encoded_size(type_name: str, raw_size: int) -> int:
     """
     Get 7-bit encoded size for a builtin type.
 
+    For SysEx protocol, each byte expands during 7-bit encoding.
+
     Args:
         type_name: Builtin type name (e.g., 'bool', 'uint8', 'float32')
         raw_size: Raw size in bytes
@@ -932,24 +1068,25 @@ def _get_encoded_size(type_name: str, raw_size: int) -> int:
     Returns:
         Encoded size in bytes
     """
-    # bool: 1 byte (0x00 or 0x01)
+    # 7-bit protocol: expansion varies by type
+    # bool: 1 byte (no expansion)
     if type_name == "bool":
         return 1
 
-    # uint8, int8, norm8: 1 byte (no encoding)
+    # uint8, int8, norm8: 2 bytes (7-bit expansion)
     if type_name in ("uint8", "int8", "norm8"):
-        return 1
+        return 2
 
-    # uint16, int16, norm16: 2 → 3 bytes
+    # uint16, int16, norm16: 3 bytes (7-bit expansion)
     if type_name in ("uint16", "int16", "norm16"):
         return 3
 
-    # uint32, int32, float32: 4 → 5 bytes
+    # uint32, int32, float32: 5 bytes (7-bit expansion)
     if type_name in ("uint32", "int32", "float32"):
         return 5
 
-    # Default: assume 7-bit encoding (size * 8 / 7, rounded up)
-    return ((raw_size * 8) + 6) // 7
+    # Default: return raw size (no expansion assumed)
+    return raw_size
 
 
 def _capitalize_first(s: str) -> str:
@@ -1035,8 +1172,7 @@ def _generate_inner_classes(
 
     classes: list[str] = []
     for field in fields:
-        if field.is_composite():
-            assert isinstance(field, CompositeField)
+        if isinstance(field, CompositeField):
             # Generate nested composites first (depth-first like C++)
             nested = _generate_inner_classes(field.fields, type_registry, depth + 1)
             if nested:
@@ -1045,6 +1181,7 @@ def _generate_inner_classes(
             # Generate this composite class
             class_code = _generate_single_inner_class(field, type_registry)
             classes.append(class_code)
+        # EnumField and PrimitiveField don't need inner classes
 
     return "\n".join(classes)
 
@@ -1063,15 +1200,22 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
 
     # Fields
     for nested_field in field.fields:
-        if nested_field.is_primitive():
-            assert isinstance(nested_field, PrimitiveField)
+        if isinstance(nested_field, PrimitiveField):
             java_type = _get_java_type(nested_field.type_name.value, type_registry)
             if nested_field.is_array():
                 # Primitive array in inner class (e.g., childrenTypes which is uint8[4])
+                boxed_type = _get_boxed_java_type(java_type)
+                lines.append(f"        private final List<{boxed_type}> {nested_field.name};")
+            else:
+                lines.append(f"        private final {java_type} {nested_field.name};")
+        elif isinstance(nested_field, EnumField):
+            # Enum field - use the enum's Java type (handles bitflags → int)
+            java_type = nested_field.enum_def.java_type
+            if nested_field.is_array():
                 lines.append(f"        private final {java_type}[] {nested_field.name};")
             else:
                 lines.append(f"        private final {java_type} {nested_field.name};")
-        else:  # Nested composite
+        elif isinstance(nested_field, CompositeField):  # Nested composite
             nested_class_name = _field_to_pascal_case(nested_field.name)
             if nested_field.array:
                 lines.append(
@@ -1085,14 +1229,20 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
     # Constructor
     params: list[str] = []
     for nested_field in field.fields:
-        if nested_field.is_primitive():
-            assert isinstance(nested_field, PrimitiveField)
+        if isinstance(nested_field, PrimitiveField):
             java_type = _get_java_type(nested_field.type_name.value, type_registry)
+            if nested_field.is_array():
+                boxed_type = _get_boxed_java_type(java_type)
+                params.append(f"List<{boxed_type}> {nested_field.name}")
+            else:
+                params.append(f"{java_type} {nested_field.name}")
+        elif isinstance(nested_field, EnumField):
+            java_type = nested_field.enum_def.java_type
             if nested_field.is_array():
                 params.append(f"{java_type}[] {nested_field.name}")
             else:
                 params.append(f"{java_type} {nested_field.name}")
-        else:
+        elif isinstance(nested_field, CompositeField):
             nested_class_name = _field_to_pascal_case(nested_field.name)
             if nested_field.array:
                 params.append(f"List<{nested_class_name}> {nested_field.name}")
@@ -1109,14 +1259,19 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
     # Getters
     for nested_field in field.fields:
         getter_name = _to_getter_name(nested_field.name)
-        if nested_field.is_primitive():
-            assert isinstance(nested_field, PrimitiveField)
+        if isinstance(nested_field, PrimitiveField):
             java_type = _get_java_type(nested_field.type_name.value, type_registry)
             if nested_field.is_array():
-                java_type = f"{java_type}[]"
-        else:
+                boxed_type = _get_boxed_java_type(java_type)
+                java_type = f"List<{boxed_type}>"
+        elif isinstance(nested_field, EnumField):
+            enum_java_type = nested_field.enum_def.java_type
+            java_type = f"{enum_java_type}[]" if nested_field.is_array() else enum_java_type
+        elif isinstance(nested_field, CompositeField):
             nested_class_name = _field_to_pascal_case(nested_field.name)
             java_type = f"List<{nested_class_name}>" if nested_field.array else nested_class_name
+        else:
+            raise TypeError(f"Unknown field type: {type(nested_field)}")
 
         lines.append(f"        public {java_type} {getter_name}() {{")
         lines.append(f"            return {nested_field.name};")
@@ -1135,28 +1290,30 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
 
 
 def _needs_list_import(fields: Sequence[FieldBase]) -> bool:
-    """Check if List import is needed (any array field)."""
+    """Check if List import is needed (any array field or composite array)."""
     for field in fields:
-        if field.is_array():
-            return True
-        if field.is_composite():
-            assert isinstance(field, CompositeField)
+        if isinstance(field, PrimitiveField):
+            if field.is_array():
+                return True
+        elif isinstance(field, CompositeField):
+            if field.array:
+                return True
             # Check nested fields recursively
             if _needs_list_import(field.fields):
                 return True
+        # EnumField arrays use T[] directly, no List needed
     return False
 
 
 def _needs_constants_import(fields: Sequence[FieldBase], type_registry: TypeRegistry) -> bool:
     """Check if ProtocolConstants import is needed (any string field)."""
     for field in fields:
-        if field.is_primitive():
-            assert isinstance(field, PrimitiveField)
+        if isinstance(field, PrimitiveField):
             if field.type_name.value == "string":
                 return True
-        if field.is_composite():
-            assert isinstance(field, CompositeField)
+        elif isinstance(field, CompositeField):
             # Check nested fields recursively
             if _needs_constants_import(field.fields, type_registry):
                 return True
+        # EnumField doesn't need constants import
     return False
