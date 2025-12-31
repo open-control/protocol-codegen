@@ -30,11 +30,13 @@ from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, Pr
 # Import logger generator (SysEx-specific)
 from protocol_codegen.generators.common.java.codec_utils import get_encoder_call
 from protocol_codegen.generators.common.java.logger_generator import generate_log_method
+from protocol_codegen.generators.common.encoding import SysExEncodingStrategy
 from protocol_codegen.generators.common.naming import (
     capitalize_first,
     field_to_pascal_case,
     to_pascal_case,
 )
+from protocol_codegen.generators.common.payload_calculator import PayloadCalculator
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -371,9 +373,12 @@ def _generate_encode_method(
     include_message_name: bool = False,
 ) -> str:
     """Generate encode() method calling Encoder (streaming, zero-allocation)."""
-    # Calculate max payload size (conditionally including MESSAGE_NAME prefix)
+    # Calculate max payload size using PayloadCalculator
     name_prefix_size = (1 + len(pascal_name)) if include_message_name else 0
-    max_size = _calculate_max_payload_size(fields, type_registry, string_max_length) + name_prefix_size
+    calculator = PayloadCalculator(SysExEncodingStrategy(), type_registry)
+    max_size = calculator.calculate_max_payload_size(
+        fields, string_max_length, name_prefix_size
+    )
 
     lines: list[str] = [
         "    // ============================================================================"
@@ -561,9 +566,12 @@ def _generate_decode_method(
     include_message_name: bool = False,
 ) -> str:
     """Generate static decode() factory method."""
-    # Calculate min payload size (conditionally including MESSAGE_NAME prefix)
+    # Calculate min payload size using PayloadCalculator
     name_prefix_size = (1 + len(pascal_name)) if include_message_name else 0
-    min_size = _calculate_min_payload_size(fields, type_registry, string_max_length) + name_prefix_size
+    calculator = PayloadCalculator(SysExEncodingStrategy(), type_registry)
+    min_size = calculator.calculate_min_payload_size(
+        fields, string_max_length, name_prefix_size
+    )
 
     lines: list[str] = [
         "    // ============================================================================"
@@ -936,150 +944,6 @@ def _get_decoder_call(
     else:
         # Nested struct - call its decode()
         return f"{java_type} {field_name} = {java_type}.decode(data);\n        offset += {java_type}.MAX_PAYLOAD_SIZE;"
-
-
-def _calculate_max_payload_size(
-    fields: Sequence[FieldBase], type_registry: TypeRegistry, string_max_length: int
-) -> int:
-    """
-    Calculate maximum payload size in bytes (7-bit encoded).
-
-    Args:
-        fields: List of Field objects
-        type_registry: TypeRegistry instance
-
-    Returns:
-        Maximum size in bytes
-    """
-    total_size = 0
-
-    for field in fields:
-        if isinstance(field, PrimitiveField):
-            field_type_name = field.type_name.value
-            base_type = field_type_name
-            array_size = field.array if field.array else 1
-
-            # Get size for base type
-            if type_registry.is_atomic(base_type):
-                atomic = type_registry.get(base_type)
-
-                if atomic.is_builtin:
-                    # Builtin type - use size_bytes from YAML
-                    if atomic.size_bytes == "variable":
-                        # String: 1 byte length prefix + STRING_MAX_LENGTH chars
-                        base_size = 1 + string_max_length  # From sysex_protocol_config.yaml
-                    else:
-                        if atomic.size_bytes is None or isinstance(atomic.size_bytes, str):
-                            raise ValueError(
-                                f"Invalid size_bytes for {base_type}: {atomic.size_bytes}"
-                            )
-                        base_size = _get_encoded_size(base_type, atomic.size_bytes)
-                else:
-                    # Nested struct - not supported in Python-unified architecture
-                    raise ValueError(f"Nested structs not supported: {base_type}")
-
-                # For dynamic arrays, add 1 byte for the count prefix
-                if field.array and field.dynamic:
-                    total_size += 1  # Array count byte for dynamic arrays only
-                total_size += base_size * array_size
-
-        elif isinstance(field, EnumField):
-            # Enum field - always 1 byte (uint8)
-            array_size = field.array if field.array else 1
-            if field.array:
-                total_size += 1  # Array count byte
-            total_size += 1 * array_size  # 1 byte per enum value
-
-        elif isinstance(field, CompositeField):  # Composite
-            # Recursively calculate size of nested fields
-            nested_size = _calculate_max_payload_size(
-                field.fields, type_registry, string_max_length
-            )
-
-            if field.array:
-                # Array of composites: count byte + (nested_size × array_size)
-                total_size += 1  # Array count byte
-                total_size += nested_size * field.array
-            else:
-                # Single composite
-                total_size += nested_size
-
-    return total_size
-
-
-def _calculate_min_payload_size(
-    fields: Sequence[FieldBase], type_registry: TypeRegistry, string_max_length: int
-) -> int:
-    """
-    Calculate minimum payload size in bytes (7-bit encoded) with empty strings.
-    Used for decode validation to allow variable-length messages.
-
-    Args:
-        fields: List of Field objects
-        type_registry: TypeRegistry instance
-        string_max_length: Maximum string length (unused, kept for signature compatibility)
-
-    Returns:
-        Minimum size in bytes
-    """
-    total_size = 0
-
-    for field in fields:
-        if isinstance(field, PrimitiveField):
-            field_type_name = field.type_name.value
-            base_type = field_type_name
-
-            # Get size for base type
-            if type_registry.is_atomic(base_type):
-                atomic = type_registry.get(base_type)
-
-                if atomic.is_builtin:
-                    # Builtin type - use size_bytes from YAML
-                    if atomic.size_bytes == "variable":
-                        # String: 1 byte length prefix only (empty string)
-                        base_size = 1
-                    else:
-                        if atomic.size_bytes is None or isinstance(atomic.size_bytes, str):
-                            raise ValueError(
-                                f"Invalid size_bytes for {base_type}: {atomic.size_bytes}"
-                            )
-                        base_size = _get_encoded_size(base_type, atomic.size_bytes)
-                else:
-                    # Nested struct - not supported in Python-unified architecture
-                    raise ValueError(f"Nested structs not supported: {base_type}")
-
-                if field.array:
-                    if field.dynamic:
-                        # Dynamic array: count byte only (minimum = 0 elements)
-                        total_size += 1  # Array count byte
-                    else:
-                        # Fixed array: all elements must be present
-                        total_size += base_size * field.array
-                else:
-                    total_size += base_size
-
-        elif isinstance(field, EnumField):
-            # Enum field - always 1 byte (uint8)
-            if field.array:
-                total_size += 1  # Array count byte only (minimum = 0 elements)
-            else:
-                total_size += 1  # 1 byte for enum value
-
-        elif isinstance(field, CompositeField):  # Composite
-            # Recursively calculate size of nested fields
-            nested_size = _calculate_min_payload_size(
-                field.fields, type_registry, string_max_length
-            )
-
-            if field.array:
-                # Array of composites: count byte only (minimum = 0 elements)
-                total_size += 1  # Array count byte
-                # Don't add nested_size * array - minimum assumes empty array
-            else:
-                # Single composite
-                total_size += nested_size
-
-    return total_size
 
 
 def _get_encoded_size(type_name: str, raw_size: int) -> int:
