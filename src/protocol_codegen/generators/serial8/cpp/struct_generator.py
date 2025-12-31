@@ -25,6 +25,11 @@ from typing import TYPE_CHECKING
 # Import field classes for runtime isinstance checks
 from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
 from protocol_codegen.generators.common.cpp.logger_generator import generate_log_method
+from protocol_codegen.generators.common.naming import (
+    capitalize_first,
+    field_to_pascal_case,
+    to_pascal_case,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -61,7 +66,7 @@ def generate_struct_hpp(
         >>> code = generate_struct_hpp(transport_play, 0x40, registry, Path('TransportPlayMessage.hpp'), 16)
     """
     # Convert SCREAMING_SNAKE_CASE to PascalCase
-    pascal_name = _to_pascal_case(message.name)
+    pascal_name = to_pascal_case(message.name)
     struct_name = f"{pascal_name}Message"
     fields = message.fields
     description = f"{message.name} message"
@@ -598,7 +603,7 @@ def _generate_decode_function(
                 cpp_type = _get_cpp_type_for_field(field, type_registry)
                 lines.append(f"        {cpp_type} {var_name};")
                 # Use PascalCase struct name for item type (BUG FIX #4)
-                item_struct_name = _field_to_pascal_case(field.name)
+                item_struct_name = field_to_pascal_case(field.name)
                 lines.append(
                     f"        for (uint8_t i = 0; i < count_{field.name} && i < {field.array}; ++i) {{"
                 )
@@ -799,7 +804,7 @@ def _get_encoder_call(field_name: str, field_type: str, type_registry: TypeRegis
 
     if atomic.is_builtin:
         # Call encodeXXX() (already in Protocol namespace)
-        encoder_name = f"encode{_capitalize_first(base_type)}"
+        encoder_name = f"encode{capitalize_first(base_type)}"
         return f"{encoder_name}(ptr, {field_name});"
     else:
         # Nested struct - call its encode()
@@ -830,7 +835,7 @@ def _get_decoder_call(
     cpp_type = _get_cpp_type(base_type, type_registry)
 
     if atomic.is_builtin:
-        decoder_name = f"decode{_capitalize_first(base_type)}"
+        decoder_name = f"decode{capitalize_first(base_type)}"
         target = direct_target if direct_target else field_name
 
         # All types use the same call pattern now (no template for string)
@@ -1018,50 +1023,6 @@ def _get_encoded_size(type_name: str, raw_size: int) -> int:
     return raw_size
 
 
-def _capitalize_first(s: str) -> str:
-    """
-    Capitalize first letter only.
-
-    Examples:
-        uint8 → Uint8
-        float32 → Float32
-    """
-    if not s:
-        return s
-    return s[0].upper() + s[1:]
-
-
-def _to_pascal_case(s: str) -> str:
-    """
-    Convert SCREAMING_SNAKE_CASE to PascalCase.
-
-    Examples:
-        TRANSPORT_PLAY → TransportPlay
-        DEVICE_PARAMS → DeviceParams
-        transport_play → TransportPlay
-    """
-    if not s:
-        return s
-    # Split by underscore and capitalize each word
-    words = s.split("_")
-    return "".join(word.capitalize() for word in words)
-
-
-def _field_to_pascal_case(field_name: str) -> str:
-    """
-    Convert camelCase field name to PascalCase struct name.
-
-    Examples:
-        pageInfo → PageInfo
-        parameters → Parameters
-        deviceName → DeviceName
-    """
-    if not field_name:
-        return field_name
-    # Simply capitalize first letter (preserves rest of camelCase)
-    return field_name[0].upper() + field_name[1:]
-
-
 # ============================================================================
 # COMPOSITE FIELD SUPPORT (Phase 2)
 # ============================================================================
@@ -1101,7 +1062,7 @@ def _generate_single_composite_struct(field: CompositeField, type_registry: Type
     when multiple messages use the same composite type.
     """
     # BUG FIX #4: Convert camelCase to PascalCase (pageInfo → PageInfo, not Pageinfo)
-    struct_name = _field_to_pascal_case(field.name)
+    struct_name = field_to_pascal_case(field.name)
 
     # Generate include guard macro (PROTOCOL_<STRUCT_NAME>_HPP)
     guard_macro = f"PROTOCOL_{struct_name.upper()}_STRUCT"
@@ -1131,7 +1092,7 @@ def _generate_single_composite_struct(field: CompositeField, type_registry: Type
             else:
                 lines.append(f"    {enum_type} {nested_field.name};")
         elif isinstance(nested_field, CompositeField):  # Nested composite
-            nested_struct_name = _field_to_pascal_case(nested_field.name)
+            nested_struct_name = field_to_pascal_case(nested_field.name)
             if nested_field.array:
                 lines.append(
                     f"    std::array<{nested_struct_name}, {nested_field.array}> {nested_field.name};"
@@ -1166,7 +1127,7 @@ def _get_cpp_type_for_field(field: FieldBase, type_registry: TypeRegistry) -> st
     else:  # Composite
         assert isinstance(field, CompositeField)
         # BUG FIX #4: Convert camelCase to PascalCase
-        struct_name = _field_to_pascal_case(field.name)
+        struct_name = field_to_pascal_case(field.name)
         if field.array:
             return f"std::array<{struct_name}, {field.array}>"
         return struct_name

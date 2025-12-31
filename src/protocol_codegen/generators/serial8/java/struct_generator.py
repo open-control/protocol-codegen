@@ -29,6 +29,11 @@ from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, Pr
 
 # Import logger generator
 from protocol_codegen.generators.common.java.logger_generator import generate_log_method
+from protocol_codegen.generators.common.naming import (
+    capitalize_first,
+    field_to_pascal_case,
+    to_pascal_case,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -67,7 +72,7 @@ def generate_struct_java(
         >>> code = generate_struct_java(transport_play, 0x01, registry, Path('TransportPlayMessage.java'), 16, 'protocol.struct')
     """
     # Convert SCREAMING_SNAKE_CASE to PascalCase
-    pascal_name = _to_pascal_case(message.name)
+    pascal_name = to_pascal_case(message.name)
     class_name = f"{pascal_name}Message"
     fields = message.fields
     description = f"{message.name} message"
@@ -238,7 +243,7 @@ def _generate_field_declarations(fields: Sequence[FieldBase], type_registry: Typ
                 lines.append(f"    private final {java_type} {field.name};")
         elif isinstance(field, CompositeField):
             # Composite field
-            class_name = _field_to_pascal_case(field.name)
+            class_name = field_to_pascal_case(field.name)
             if field.array:
                 # Composite arrays use T[] (aligned with C++ std::array)
                 lines.append(f"    private final {class_name}[] {field.name};")
@@ -290,7 +295,7 @@ def _generate_constructor(
                 params.append(f"{java_type} {field.name}")
         elif isinstance(field, CompositeField):
             # Composite field
-            class_name_inner = _field_to_pascal_case(field.name)
+            class_name_inner = field_to_pascal_case(field.name)
             if field.array:
                 # Composite arrays use T[] (aligned with C++ std::array)
                 params.append(f"{class_name_inner}[] {field.name}")
@@ -333,7 +338,7 @@ def _generate_getters(fields: Sequence[FieldBase], type_registry: TypeRegistry) 
                 # Primitive arrays use T[] (no boxing)
                 java_type = f"{java_type}[]"
         elif isinstance(field, CompositeField):
-            class_name = _field_to_pascal_case(field.name)
+            class_name = field_to_pascal_case(field.name)
             # Composite arrays use T[] (aligned with C++ std::array)
             java_type = f"{class_name}[]" if field.array else class_name
         else:
@@ -464,7 +469,7 @@ def _generate_encode_method(
                     f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.length);"
                 )
                 lines.append("")
-                class_name_inner = _field_to_pascal_case(field.name)
+                class_name_inner = field_to_pascal_case(field.name)
                 lines.append(f"        for ({class_name_inner} item : {field.name}) {{")
                 for nested_field in field.fields:
                     if isinstance(nested_field, EnumField):
@@ -698,7 +703,7 @@ def _generate_decode_method(
                 )
                 lines.append(f"        for (int i = 0; i < count_{field.name}; i++) {{")
                 # Generate array assignment directly (avoid variable declaration)
-                decoder_name = f"decode{_capitalize_first(field_type_name)}"
+                decoder_name = f"decode{capitalize_first(field_type_name)}"
                 if field_type_name == "string":
                     lines.append(
                         f"            {field.name}[i] = Decoder.{decoder_name}(data, offset, ProtocolConstants.STRING_MAX_LENGTH);"
@@ -727,7 +732,7 @@ def _generate_decode_method(
                 lines.append("        offset += 1;")
                 lines.append("")
                 # Decode items into array (aligned with C++ std::array)
-                composite_class = _field_to_pascal_case(field.name)
+                composite_class = field_to_pascal_case(field.name)
                 lines.append(
                     f"        {composite_class}[] {field.name} = new {composite_class}[count_{field.name}];"
                 )
@@ -812,7 +817,7 @@ def _generate_decode_method(
                         item_params.append(f"item_{nested_field.name}")
                 item_params_str = ", ".join(item_params)
                 lines.append(
-                    f"            {field.name}[i] = new {_field_to_pascal_case(field.name)}({item_params_str});"
+                    f"            {field.name}[i] = new {field_to_pascal_case(field.name)}({item_params_str});"
                 )
                 lines.append("        }")
                 lines.append("")
@@ -848,7 +853,7 @@ def _generate_decode_method(
                         composite_params.append(f"{field.name}_{nested_field.name}")
                 composite_params_str = ", ".join(composite_params)
                 lines.append(
-                    f"        {_field_to_pascal_case(field.name)} {field.name} = new {_field_to_pascal_case(field.name)}({composite_params_str});"
+                    f"        {field_to_pascal_case(field.name)} {field.name} = new {field_to_pascal_case(field.name)}({composite_params_str});"
                 )
                 lines.append("")
                 field_vars.append(field.name)
@@ -926,7 +931,7 @@ def _get_encoder_call(field_name: str, field_type: str, type_registry: TypeRegis
 
     if atomic.is_builtin:
         # Call Encoder.writeXxx() - streaming, zero allocation
-        writer_name = f"write{_capitalize_first(base_type)}"
+        writer_name = f"write{capitalize_first(base_type)}"
 
         if base_type == "string":
             # String needs max length parameter
@@ -957,7 +962,7 @@ def _get_decoder_call(
 
     if atomic.is_builtin:
         # Call Encoder.decodeXXX()
-        decoder_name = f"decode{_capitalize_first(base_type)}"
+        decoder_name = f"decode{capitalize_first(base_type)}"
 
         if base_type == "string":
             # String needs max length parameter (using ProtocolConstants.STRING_MAX_LENGTH from config)
@@ -1145,33 +1150,6 @@ def _get_encoded_size(type_name: str, raw_size: int) -> int:
     return raw_size
 
 
-def _capitalize_first(s: str) -> str:
-    """
-    Capitalize first letter only.
-
-    Examples:
-        uint8 → Uint8
-        float32 → Float32
-    """
-    if not s:
-        return s
-    return s[0].upper() + s[1:]
-
-
-def _to_pascal_case(s: str) -> str:
-    """
-    Convert SCREAMING_SNAKE_CASE to PascalCase.
-
-    Examples:
-        TRANSPORT_PLAY → TransportPlay
-        DEVICE_PARAMS → DeviceParams
-    """
-    if not s:
-        return s
-    words = s.split("_")
-    return "".join(word.capitalize() for word in words)
-
-
 def _to_getter_name(field_name: str) -> str:
     """
     Convert field name to getter name.
@@ -1198,20 +1176,6 @@ def _to_getter_name(field_name: str) -> str:
 # ============================================================================
 # COMPOSITE FIELD SUPPORT (Phase 5 - Java)
 # ============================================================================
-
-
-def _field_to_pascal_case(field_name: str) -> str:
-    """
-    Convert camelCase field name to PascalCase class name.
-
-    Examples:
-        pageInfo → PageInfo
-        parameters → Parameters
-        deviceName → DeviceName
-    """
-    if not field_name:
-        return field_name
-    return field_name[0].upper() + field_name[1:]
 
 
 def _generate_inner_classes(
@@ -1244,7 +1208,7 @@ def _generate_inner_classes(
 
 def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegistry) -> str:
     """Generate a single inner static class for a composite field."""
-    class_name = _field_to_pascal_case(field.name)
+    class_name = field_to_pascal_case(field.name)
 
     lines: list[str] = [
         "    // ============================================================================",
@@ -1271,7 +1235,7 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
             else:
                 lines.append(f"        private final {java_type} {nested_field.name};")
         elif isinstance(nested_field, CompositeField):  # Nested composite
-            nested_class_name = _field_to_pascal_case(nested_field.name)
+            nested_class_name = field_to_pascal_case(nested_field.name)
             if nested_field.array:
                 lines.append(
                     f"        private final List<{nested_class_name}> {nested_field.name};"
@@ -1297,7 +1261,7 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
             else:
                 params.append(f"{java_type} {nested_field.name}")
         elif isinstance(nested_field, CompositeField):
-            nested_class_name = _field_to_pascal_case(nested_field.name)
+            nested_class_name = field_to_pascal_case(nested_field.name)
             if nested_field.array:
                 params.append(f"List<{nested_class_name}> {nested_field.name}")
             else:
@@ -1321,7 +1285,7 @@ def _generate_single_inner_class(field: CompositeField, type_registry: TypeRegis
             enum_java_type = nested_field.enum_def.java_type
             java_type = f"{enum_java_type}[]" if nested_field.is_array() else enum_java_type
         elif isinstance(nested_field, CompositeField):
-            nested_class_name = _field_to_pascal_case(nested_field.name)
+            nested_class_name = field_to_pascal_case(nested_field.name)
             java_type = f"List<{nested_class_name}>" if nested_field.array else nested_class_name
         else:
             raise TypeError(f"Unknown field type: {type(nested_field)}")

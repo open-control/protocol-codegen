@@ -75,3 +75,32 @@ def get_excluded_fields() -> frozenset[str]:
 def should_exclude_field(field_name: str) -> bool:
     """Check if a field should be excluded from method parameters."""
     return field_name in _EXCLUDED_FIELDS
+
+
+def capitalize_first(s: str) -> str:
+    """
+    Capitalize first letter only.
+
+    Examples:
+        uint8 → Uint8
+        float32 → Float32
+    """
+    if not s:
+        return s
+    return s[0].upper() + s[1:]
+
+
+def field_to_pascal_case(field_name: str) -> str:
+    """
+    Convert camelCase field name to PascalCase.
+
+    This is used for inner struct/class names derived from field names.
+
+    Examples:
+        pageInfo → PageInfo
+        remoteControls → RemoteControls
+        deviceName → DeviceName
+    """
+    if not field_name:
+        return field_name
+    return field_name[0].upper() + field_name[1:]

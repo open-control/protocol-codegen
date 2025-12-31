@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from protocol_codegen.generators.common.naming import (
+    field_to_pascal_case,
     message_name_to_callback_name,
     message_name_to_method_name,
     should_exclude_field,
@@ -23,22 +24,6 @@ if TYPE_CHECKING:
     from protocol_codegen.core.field import FieldBase, PrimitiveField
     from protocol_codegen.core.loader import TypeRegistry
     from protocol_codegen.core.message import Message
-
-
-def _field_to_pascal_case(field_name: str) -> str:
-    """
-    Convert camelCase field name to PascalCase class name.
-
-    This matches the struct generator's naming for inner classes.
-
-    Examples:
-        pageInfo → PageInfo
-        remoteControls → RemoteControls
-        deviceName → DeviceName
-    """
-    if not field_name:
-        return field_name
-    return field_name[0].upper() + field_name[1:]
 
 
 def _get_java_type(field: FieldBase, message_struct_name: str, type_registry: TypeRegistry) -> str:
@@ -57,7 +42,7 @@ def _get_java_type(field: FieldBase, message_struct_name: str, type_registry: Ty
     if field.is_composite():
         # Composite fields are inner classes of the message struct
         # e.g., DeviceChangeMessage.PageInfo, DeviceChangeMessage.RemoteControls
-        inner_class_name = _field_to_pascal_case(field.name)
+        inner_class_name = field_to_pascal_case(field.name)
         qualified_type = f"{message_struct_name}.{inner_class_name}"
         if field.is_array():
             return f"{qualified_type}[]"
