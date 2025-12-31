@@ -19,7 +19,8 @@ if sys.platform == "win32":
 from typing import TYPE_CHECKING
 
 from protocol_codegen.core.allocator import allocate_message_ids
-from protocol_codegen.core.field import populate_type_names
+from protocol_codegen.core.enum_def import EnumDef
+from protocol_codegen.core.field import EnumField, populate_type_names
 from protocol_codegen.core.file_utils import GenerationStats, write_if_changed
 from protocol_codegen.core.loader import TypeRegistry
 from protocol_codegen.core.message import Message
@@ -37,6 +38,7 @@ from protocol_codegen.generators.sysex.cpp.decoder_registry_generator import (
     generate_decoder_registry_hpp,
 )
 from protocol_codegen.generators.sysex.cpp.encoder_generator import generate_encoder_hpp
+from protocol_codegen.generators.sysex.cpp.enum_generator import generate_enum_hpp
 from protocol_codegen.generators.sysex.cpp.logger_generator import generate_logger_hpp
 from protocol_codegen.generators.sysex.cpp.message_structure_generator import (
     generate_message_structure_hpp,
@@ -56,6 +58,7 @@ from protocol_codegen.generators.sysex.java.decoder_registry_generator import (
     generate_decoder_registry_java,
 )
 from protocol_codegen.generators.sysex.java.encoder_generator import generate_encoder_java
+from protocol_codegen.generators.sysex.java.enum_generator import generate_enum_java
 from protocol_codegen.generators.sysex.java.messageid_generator import generate_messageid_java
 from protocol_codegen.generators.sysex.java.protocol_generator import (
     generate_protocol_template_java,
@@ -109,6 +112,68 @@ def _convert_sysex_config_to_java_protocol_config(config: SysExConfig) -> JavaPr
             "max_message_size": config.limits.max_message_size,
         },
     )
+
+
+def _validate_enum_values_for_sysex(enum_defs: list[EnumDef]) -> list[str]:
+    """
+    Validate that all enum values are ≤127 for 7-bit SysEx protocol.
+
+    SysEx uses 7-bit encoding, so enum values must fit in a single byte
+    with the high bit clear (0-127).
+
+    Args:
+        enum_defs: List of EnumDef instances to validate
+
+    Returns:
+        List of error messages (empty if all valid)
+    """
+    errors: list[str] = []
+    max_value = 127  # 7-bit max
+
+    for enum_def in enum_defs:
+        for value_name, value in enum_def.values.items():
+            if value > max_value:
+                errors.append(
+                    f"Enum '{enum_def.name}.{value_name}' has value {value} "
+                    f"which exceeds SysEx 7-bit limit ({max_value})"
+                )
+
+    return errors
+
+
+def _collect_enum_defs(messages: list[Message]) -> list[EnumDef]:
+    """
+    Collect all unique EnumDef instances from message fields.
+
+    Traverses all messages and their fields (including nested composites)
+    to find EnumField instances and extract their EnumDef references.
+
+    Args:
+        messages: List of Message instances to scan
+
+    Returns:
+        List of unique EnumDef instances (deduplicated by name)
+    """
+    from protocol_codegen.core.field import CompositeField
+
+    seen_names: set[str] = set()
+    enum_defs: list[EnumDef] = []
+
+    def collect_from_fields(fields: list) -> None:
+        """Recursively collect EnumDefs from a list of fields."""
+        for field in fields:
+            if isinstance(field, EnumField):
+                if field.enum_def.name not in seen_names:
+                    seen_names.add(field.enum_def.name)
+                    enum_defs.append(field.enum_def)
+            elif isinstance(field, CompositeField):
+                # Recurse into composite fields
+                collect_from_fields(list(field.fields))
+
+    for message in messages:
+        collect_from_fields(list(message.fields))
+
+    return enum_defs
 
 
 def generate_sysex_protocol(
@@ -178,8 +243,14 @@ def generate_sysex_protocol(
         if not hasattr(message_module, "ALL_MESSAGES"):
             raise ValueError("message module must define ALL_MESSAGES")
 
-        messages: list[Message] = message_module.ALL_MESSAGES  # type: ignore[attr-defined]
-        log(f"  ✓ Imported {len(messages)} messages")
+        all_messages: list[Message] = message_module.ALL_MESSAGES  # type: ignore[attr-defined]
+        log(f"  ✓ Imported {len(all_messages)} messages")
+
+        # Filter out deprecated messages
+        messages = [m for m in all_messages if not m.deprecated]
+        deprecated_count = len(all_messages) - len(messages)
+        if deprecated_count > 0:
+            log(f"  ⚠ Filtered out {deprecated_count} deprecated message(s)")
     finally:
         # Always clean up sys.path to avoid pollution
         if messages_parent in sys.path:
@@ -197,6 +268,17 @@ def generate_sysex_protocol(
         raise ValueError(f"Protocol validation failed with {len(errors)} error(s)")
 
     log(f"  ✓ Validation passed ({len(messages)} messages)")
+
+    # Validate enum values for SysEx 7-bit constraint
+    enum_defs = _collect_enum_defs(messages)
+    if enum_defs:
+        enum_errors = _validate_enum_values_for_sysex(enum_defs)
+        if enum_errors:
+            print("\n❌ SysEx Enum Validation Errors:")
+            for error in enum_errors:
+                print(f"  - {error}")
+            raise ValueError(f"SysEx enum validation failed with {len(enum_errors)} error(s)")
+        log(f"  ✓ Enum validation passed ({len(enum_defs)} enum(s), all values ≤127)")
 
     # Step 5: Allocate message IDs
     log("[5/7] Allocating message IDs...")
@@ -304,6 +386,15 @@ def _generate_cpp(
     )
     stats.record_write(cpp_protocol_template_path, was_written)
 
+    # Generate enum files
+    enum_defs = _collect_enum_defs(messages)
+    enum_stats = GenerationStats()
+    for enum_def in enum_defs:
+        cpp_enum_path = cpp_base / f"{enum_def.name}.hpp"
+        cpp_enum_code = generate_enum_hpp(enum_def, cpp_enum_path)
+        was_written = write_if_changed(cpp_enum_path, cpp_enum_code)
+        enum_stats.record_write(cpp_enum_path, was_written)
+
     # Generate struct files (structs path is relative to base_path)
     cpp_struct_dir = cpp_base / plugin_paths["output_cpp"]["structs"]
     cpp_struct_dir.mkdir(parents=True, exist_ok=True)
@@ -323,6 +414,8 @@ def _generate_cpp(
 
     if verbose:
         print(f"  ✓ C++ base files: {stats.summary()}")
+        if enum_defs:
+            print(f"  ✓ C++ enum files: {enum_stats.summary()}")
         print(f"  ✓ C++ struct files: {struct_stats.summary()}")
         print(f"  → Output: {cpp_base.relative_to(output_base)}")
 
@@ -397,6 +490,15 @@ def _generate_java(
     )
     stats.record_write(java_protocol_template_path, was_written)
 
+    # Generate enum files
+    enum_defs = _collect_enum_defs(messages)
+    enum_stats = GenerationStats()
+    for enum_def in enum_defs:
+        java_enum_path = java_base / f"{enum_def.name}.java"
+        java_enum_code = generate_enum_java(enum_def, java_enum_path)
+        was_written = write_if_changed(java_enum_path, java_enum_code)
+        enum_stats.record_write(java_enum_path, was_written)
+
     # Generate struct files (structs path is relative to base_path)
     java_struct_dir = java_base / plugin_paths["output_java"]["structs"]
     java_struct_dir.mkdir(parents=True, exist_ok=True)
@@ -421,5 +523,7 @@ def _generate_java(
 
     if verbose:
         print(f"  ✓ Java base files: {stats.summary()}")
+        if enum_defs:
+            print(f"  ✓ Java enum files: {enum_stats.summary()}")
         print(f"  ✓ Java struct files: {struct_stats.summary()}")
         print(f"  → Output: {java_base.relative_to(output_base)}")

@@ -1,5 +1,5 @@
 """
-C++ Logger Generator
+C++ Logger Generator for SysEx Protocol
 Generates Logger.hpp utility file and toString() methods for protocol messages.
 
 This generator creates:
@@ -10,7 +10,7 @@ Key Features:
 - floatToString(): Hybrid snprintf approach with 4 decimal precision
 - YAML multiline format with 2-space indentation
 - 32KB EXTMEM static buffer (shared across all messages)
-- Handles composites, arrays, and all primitive types
+- Handles composites, arrays, enums, and all primitive types
 - No truncation - displays all fields and array elements
 
 Architecture:
@@ -24,7 +24,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 # Import field classes for runtime isinstance checks
-from protocol_codegen.core.field import CompositeField, FieldBase, PrimitiveField
+from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -184,7 +184,7 @@ def generate_log_method(
 
     Args:
         struct_name: Name of the struct (e.g., "DevicePageChangeMessage")
-        fields: List of Field objects (primitive or composite)
+        fields: List of Field objects (primitive, composite, or enum)
         type_registry: TypeRegistry for type resolution
 
     Returns:
@@ -245,18 +245,24 @@ def _format_field_for_log(
     Returns:
         List of C++ code lines
     """
-    if field.is_primitive():
-        assert isinstance(field, PrimitiveField)
+    if isinstance(field, PrimitiveField):
         if field.is_array():
             return _format_primitive_array(field, type_registry, indent, is_last)
         else:
             return _format_primitive_scalar(field, type_registry, indent, is_last)
-    else:
-        assert isinstance(field, CompositeField)
+    elif isinstance(field, EnumField):
+        # Format enum as its integer value (cast to int for display)
+        if field.is_array():
+            return _format_enum_array(field, indent, is_last)
+        else:
+            return _format_enum_scalar(field, indent, is_last)
+    elif isinstance(field, CompositeField):
         if field.array:
             return _format_composite_array(field, type_registry, indent, is_last)
         else:
             return _format_composite_scalar(field, type_registry, indent, is_last)
+    else:
+        raise TypeError(f"Unknown field type: {type(field)}")
 
 
 def _format_primitive_scalar(
@@ -410,6 +416,56 @@ def _format_primitive_array(
     return lines
 
 
+def _format_enum_scalar(field: EnumField, indent: int, is_last: bool) -> list[str]:
+    """
+    Format a single enum field.
+
+    Enums are displayed as their integer value (cast to int).
+    Example: trackType: 1
+    """
+    indent_str = _get_indent_string(indent)
+    field_access = field.name  # e.g., "pageInfo.trackType" or "macros[i].paramType"
+    field_display = _get_display_name(field.name)  # e.g., "trackType" or "paramType"
+
+    lines: list[str] = []
+    # Cast enum to int for display
+    lines.append(
+        f'        ptr += snprintf(ptr, end - ptr, "{indent_str}{field_display}: %d\\n", static_cast<int>({field_access}));'
+    )
+    return lines
+
+
+def _format_enum_array(field: EnumField, indent: int, is_last: bool) -> list[str]:
+    """
+    Format an array of enum values.
+
+    Example:
+      childrenTypes:
+        - 1
+        - 2
+    """
+    indent_str = _get_indent_string(indent)
+    next_indent_str = _get_indent_string(indent + 1)
+    field_access = field.name
+    field_display = _get_display_name(field.name)
+    loop_var = _make_safe_var_name(field.name) + "_i"
+
+    lines: list[str] = []
+    lines.append(
+        f'        ptr += snprintf(ptr, end - ptr, "{indent_str}{field_display}: # [%zu items]\\n", {field_access}.size());'
+    )
+    lines.append(f"        if ({field_access}.size() > 0) {{")
+    lines.append(
+        f"            for (size_t {loop_var} = 0; {loop_var} < {field_access}.size(); ++{loop_var}) {{"
+    )
+    lines.append(
+        f'                ptr += snprintf(ptr, end - ptr, "{next_indent_str}- %d\\n", static_cast<int>({field_access}[{loop_var}]));'
+    )
+    lines.append("            }")
+    lines.append("        }")
+    return lines
+
+
 def _format_composite_scalar(
     field: CompositeField, type_registry: TypeRegistry, indent: int, is_last: bool
 ) -> list[str]:
@@ -495,11 +551,20 @@ def _format_field_for_log_inline(field: FieldBase, indent: int) -> list[str]:
     Example:
         - parameterIndex: 0
     """
-    # Only handle primitive scalars for inline (arrays and composites don't make sense inline)
-    if not field.is_primitive():
-        raise ValueError("Inline format only supports primitive scalar fields")
+    # Handle EnumField separately
+    if isinstance(field, EnumField):
+        if field.is_array():
+            raise ValueError("Inline format doesn't support array fields")
+        indent_str = _get_indent_string(indent)
+        access_path = field.name
+        display_name = _get_display_name(field.name)
+        return [
+            f'            ptr += snprintf(ptr, end - ptr, "{indent_str}- {display_name}: %d\\n", static_cast<int>({access_path}));'
+        ]
 
-    assert isinstance(field, PrimitiveField)
+    # Only handle primitive scalars for inline (arrays and composites don't make sense inline)
+    if not isinstance(field, PrimitiveField):
+        raise ValueError("Inline format only supports primitive scalar or enum fields")
 
     if field.is_array():
         raise ValueError("Inline format doesn't support array fields")
@@ -640,14 +705,18 @@ def _create_prefixed_field(field: FieldBase, prefix: str) -> FieldBase:
         prefix = "pageInfo"
         result.name = "pageInfo.devicePageIndex"
     """
-    if field.is_primitive():
-        assert isinstance(field, PrimitiveField)
+    if isinstance(field, PrimitiveField):
         return PrimitiveField(
             name=f"{prefix}.{field.name}", type_name=field.type_name, array=field.array
         )
-    else:
-        assert isinstance(field, CompositeField)
+    elif isinstance(field, EnumField):
+        return EnumField(
+            name=f"{prefix}.{field.name}", enum_def=field.enum_def, array=field.array
+        )
+    elif isinstance(field, CompositeField):
         return CompositeField(name=f"{prefix}.{field.name}", fields=field.fields, array=field.array)
+    else:
+        raise TypeError(f"Unknown field type: {type(field)}")
 
 
 def _create_array_indexed_field(field: FieldBase, array_name: str) -> FieldBase:
@@ -659,13 +728,17 @@ def _create_array_indexed_field(field: FieldBase, array_name: str) -> FieldBase:
         array_name = "macros"
         result.name = "macros[i].parameterIndex"
     """
-    if field.is_primitive():
-        assert isinstance(field, PrimitiveField)
+    if isinstance(field, PrimitiveField):
         return PrimitiveField(
             name=f"{array_name}[i].{field.name}", type_name=field.type_name, array=field.array
         )
-    else:
-        assert isinstance(field, CompositeField)
+    elif isinstance(field, EnumField):
+        return EnumField(
+            name=f"{array_name}[i].{field.name}", enum_def=field.enum_def, array=field.array
+        )
+    elif isinstance(field, CompositeField):
         return CompositeField(
             name=f"{array_name}[i].{field.name}", fields=field.fields, array=field.array
         )
+    else:
+        raise TypeError(f"Unknown field type: {type(field)}")
