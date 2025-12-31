@@ -44,6 +44,7 @@ from protocol_codegen.generators.sysex.cpp.message_structure_generator import (
     generate_message_structure_hpp,
 )
 from protocol_codegen.generators.sysex.cpp.messageid_generator import generate_messageid_hpp
+from protocol_codegen.generators.sysex.cpp.method_generator import generate_protocol_methods_hpp
 from protocol_codegen.generators.sysex.cpp.protocol_generator import generate_protocol_template_hpp
 from protocol_codegen.generators.sysex.cpp.struct_generator import generate_struct_hpp
 from protocol_codegen.generators.sysex.java.callbacks_generator import (
@@ -60,6 +61,7 @@ from protocol_codegen.generators.sysex.java.decoder_registry_generator import (
 from protocol_codegen.generators.sysex.java.encoder_generator import generate_encoder_java
 from protocol_codegen.generators.sysex.java.enum_generator import generate_enum_java
 from protocol_codegen.generators.sysex.java.messageid_generator import generate_messageid_java
+from protocol_codegen.generators.sysex.java.method_generator import generate_protocol_methods_java
 from protocol_codegen.generators.sysex.java.protocol_generator import (
     generate_protocol_template_java,
 )
@@ -395,6 +397,15 @@ def _generate_cpp(
         was_written = write_if_changed(cpp_enum_path, cpp_enum_code)
         enum_stats.record_write(cpp_enum_path, was_written)
 
+    # Generate ProtocolMethods.inl for new-style messages with direction
+    new_style_messages = [m for m in messages if not m.is_legacy()]
+    methods_stats = GenerationStats()
+    if new_style_messages:
+        cpp_methods_path = cpp_base / "ProtocolMethods.inl"
+        cpp_methods_code = generate_protocol_methods_hpp(new_style_messages, cpp_methods_path)
+        was_written = write_if_changed(cpp_methods_path, cpp_methods_code)
+        methods_stats.record_write(cpp_methods_path, was_written)
+
     # Generate struct files (structs path is relative to base_path)
     cpp_struct_dir = cpp_base / plugin_paths["output_cpp"]["structs"]
     cpp_struct_dir.mkdir(parents=True, exist_ok=True)
@@ -416,6 +427,8 @@ def _generate_cpp(
         print(f"  ✓ C++ base files: {stats.summary()}")
         if enum_defs:
             print(f"  ✓ C++ enum files: {enum_stats.summary()}")
+        if new_style_messages:
+            print(f"  ✓ C++ ProtocolMethods.inl: {methods_stats.summary()}")
         print(f"  ✓ C++ struct files: {struct_stats.summary()}")
         print(f"  → Output: {cpp_base.relative_to(output_base)}")
 
@@ -499,6 +512,17 @@ def _generate_java(
         was_written = write_if_changed(java_enum_path, java_enum_code)
         enum_stats.record_write(java_enum_path, was_written)
 
+    # Generate ProtocolMethods.java for new-style messages with direction
+    new_style_messages = [m for m in messages if not m.is_legacy()]
+    methods_stats = GenerationStats()
+    if new_style_messages:
+        java_methods_path = java_base / "ProtocolMethods.java"
+        java_methods_code = generate_protocol_methods_java(
+            new_style_messages, java_methods_path, java_package, registry
+        )
+        was_written = write_if_changed(java_methods_path, java_methods_code)
+        methods_stats.record_write(java_methods_path, was_written)
+
     # Generate struct files (structs path is relative to base_path)
     java_struct_dir = java_base / plugin_paths["output_java"]["structs"]
     java_struct_dir.mkdir(parents=True, exist_ok=True)
@@ -525,5 +549,7 @@ def _generate_java(
         print(f"  ✓ Java base files: {stats.summary()}")
         if enum_defs:
             print(f"  ✓ Java enum files: {enum_stats.summary()}")
+        if new_style_messages:
+            print(f"  ✓ Java ProtocolMethods.java: {methods_stats.summary()}")
         print(f"  ✓ Java struct files: {struct_stats.summary()}")
         print(f"  → Output: {java_base.relative_to(output_base)}")

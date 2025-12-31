@@ -11,6 +11,7 @@ from .encoder_generator import generate_encoder_java
 from .enum_generator import generate_enum_java
 from .message_structure_generator import generate_message_structure_java
 from .messageid_generator import generate_messageid_java
+from .method_generator import generate_protocol_methods_java
 from .struct_generator import generate_struct_java
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "generate_message_structure_java",
     "generate_decoder_registry_java",
     "generate_protocol_callbacks_java",
+    "generate_protocol_methods_java",
 ]
