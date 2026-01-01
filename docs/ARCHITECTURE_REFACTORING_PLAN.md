@@ -1,11 +1,11 @@
 # Plan de Refactorisation Architecturale - Protocol Codegen
 
-> **Version** : 2.2
+> **Version** : 2.3
 > **Date** : 2026-01-01
 > **Branche** : `feature/extensible-architecture`
 > **Tag de référence** : `v2.0-pre-extensibility`
 > **Objectif** : Architecture extensible multi-langages / multi-protocoles
-> **Progression** : Phase 3.7/3.10 (EncoderTemplate refactoré, -1,893 lignes)
+> **Progression** : Phase 3.8/3.10 (TypeEncoder + TypeDecoder patterns complets)
 
 ---
 
@@ -36,16 +36,18 @@
 | `97ae652` | feat(architecture): TypeEncoder pattern (3.3-3.5) | +16 fichiers, ~1042 lignes |
 | `723b685` | docs: update architecture plan v2.1 | - |
 | `717bf23` | refactor(encoder): use TypeEncoder pattern (3.6-3.7) | -1,893 lignes, +100 lignes |
+| `19e285a` | docs: update architecture plan v2.2 | - |
+| `40f4742` | feat(decoder): implement TypeDecoder pattern (3.8) | +905 lignes, -1,369 lignes |
 
 ### 1.2 Fichiers Existants - Backends (COMPLET ✅)
 
 | Fichier | Lignes | État |
 |---------|--------|------|
 | `generators/backends/__init__.py` | 62 | ✅ Complet |
-| `generators/backends/base.py` | 277 | ✅ Complet (+render_encoder_method) |
-| `generators/backends/cpp.py` | 324 | ✅ Complet (+render_encoder_method) |
-| `generators/backends/java.py` | 380 | ✅ Complet (+render_encoder_method) |
-| **Total backends** | **1,043** | |
+| `generators/backends/base.py` | 303 | ✅ Complet (+render_encoder/decoder_method) |
+| `generators/backends/cpp.py` | 468 | ✅ Complet (+render_encoder/decoder_method) |
+| `generators/backends/java.py` | 494 | ✅ Complet (+render_encoder/decoder_method) |
+| **Total backends** | **1,327** | |
 
 ### 1.3 Fichiers Existants - Encoding (COMPLET ✅)
 
@@ -81,18 +83,31 @@
 
 **Note** : Renommé de `types/` à `type_encoders/` pour éviter conflit avec module Python builtin `types`.
 
+### 1.3c Fichiers Existants - TypeDecoders (COMPLET ✅)
+
+| Fichier | Lignes | État |
+|---------|--------|------|
+| `generators/common/type_decoders/__init__.py` | 26 | ✅ Complet |
+| `generators/common/type_decoders/base.py` | 56 | ✅ Complet |
+| `generators/common/type_decoders/bool_decoder.py` | 36 | ✅ Complet |
+| `generators/common/type_decoders/integer_decoder.py` | 58 | ✅ Complet |
+| `generators/common/type_decoders/float_decoder.py` | 50 | ✅ Complet |
+| `generators/common/type_decoders/norm_decoder.py` | 65 | ✅ Complet |
+| `generators/common/type_decoders/string_decoder.py` | 44 | ✅ Complet |
+| **Total type_decoders** | **335** | |
+
 ### 1.4 Fichiers Existants - Templates (COMPLET ✅)
 
 | Fichier | Lignes | État |
 |---------|--------|------|
-| `generators/templates/__init__.py` | 24 | ✅ Complet |
+| `generators/templates/__init__.py` | 26 | ✅ Complet |
 | `generators/templates/encoder.py` | 173 | ✅ Complet (refactoré de 601L) |
-| **Total templates** | **197** | |
+| `generators/templates/decoder.py` | 170 | ✅ Complet (Phase 3.8) |
+| **Total templates** | **369** | |
 
-**Refactoring effectué (Phase 3.6)** :
-- EncoderTemplate utilise maintenant TypeEncoders + MethodSpec + render_encoder_method()
-- Réduction : 602 → 173 lignes (-71%)
-- 10 méthodes au lieu de 23
+**Refactoring effectué** :
+- Phase 3.6: EncoderTemplate (602 → 173 lignes, -71%)
+- Phase 3.8: DecoderTemplate (nouveau, utilise TypeDecoders)
 
 ### 1.5 Fichiers À Supprimer (encoder_generator.py)
 
@@ -1070,24 +1085,26 @@ ruff check src/
 
 ---
 
-### Phase 3.8 : DecoderTemplate (même pattern)
+### Phase 3.8 : DecoderTemplate (même pattern) ✅ COMPLÈTE
 
 **Objectif** : Appliquer le même pattern aux décodeurs.
 
-**Fichiers à créer** :
-- `generators/common/encoding/operations.py` : ajouter `DecoderMethodSpec`
-- `generators/common/types/` : ajouter `*_decoder.py` pour chaque type
-- `generators/backends/*.py` : ajouter `render_decoder_method()`
-- `generators/templates/decoder.py` : refactorer
+**Fichiers créés** :
+- `generators/common/encoding/operations.py` : +ByteReadOp, +DecoderMethodSpec
+- `generators/common/type_decoders/` : 7 fichiers (~300 lignes)
+  - base.py, bool_decoder.py, integer_decoder.py, float_decoder.py
+  - norm_decoder.py, string_decoder.py, __init__.py
+- `generators/backends/*.py` : +render_decoder_method() dans base, cpp, java
+- `generators/templates/decoder.py` : 170 lignes
 
-**Fichiers à supprimer** :
-```
-serial8/cpp/decoder_generator.py   # 335 L
-serial8/java/decoder_generator.py  # 365 L
-sysex/cpp/decoder_generator.py     # 357 L
-sysex/java/decoder_generator.py    # 386 L
-Total: 1,443 L
-```
+**Fichiers refactorés en wrappers** (~35 lignes chacun):
+| Fichier | Avant | Après | Réduction |
+|---------|-------|-------|-----------|
+| `serial8/cpp/decoder_generator.py` | 335L | 33L | -90% |
+| `serial8/java/decoder_generator.py` | 365L | 36L | -90% |
+| `sysex/cpp/decoder_generator.py` | 357L | 33L | -91% |
+| `sysex/java/decoder_generator.py` | 386L | 36L | -91% |
+| **Total** | 1,443L | 138L | **-90%** |
 
 ---
 
