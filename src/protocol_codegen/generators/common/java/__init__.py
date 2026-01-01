@@ -19,6 +19,9 @@ from protocol_codegen.generators.common.java.messageid_generator import (
 from protocol_codegen.generators.common.java.method_generator import (
     generate_protocol_methods_java,
 )
+from protocol_codegen.generators.common.java.struct_generator import (
+    generate_struct_java,
+)
 from protocol_codegen.generators.common.java.struct_utils import (
     collect_enum_names,
     generate_constructor,
@@ -49,6 +52,8 @@ __all__ = [
     "generate_messageid_java",
     # Methods
     "generate_protocol_methods_java",
+    # Struct Generator
+    "generate_struct_java",
     # Struct Utils
     "collect_enum_names",
     "generate_constructor",

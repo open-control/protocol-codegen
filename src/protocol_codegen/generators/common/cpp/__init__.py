@@ -7,6 +7,9 @@ Shared generators for C++ code generation across protocols (SysEx, Serial8).
 from protocol_codegen.generators.common.cpp.callbacks_generator import (
     generate_protocol_callbacks_hpp,
 )
+from protocol_codegen.generators.common.cpp.decoder_registry_generator import (
+    generate_decoder_registry_hpp,
+)
 from protocol_codegen.generators.common.cpp.enum_generator import (
     generate_enum_hpp,
 )
@@ -18,6 +21,9 @@ from protocol_codegen.generators.common.cpp.messageid_generator import (
 )
 from protocol_codegen.generators.common.cpp.method_generator import (
     generate_protocol_methods_hpp,
+)
+from protocol_codegen.generators.common.cpp.struct_generator import (
+    generate_struct_hpp,
 )
 from protocol_codegen.generators.common.cpp.struct_utils import (
     analyze_includes_needed,
@@ -34,6 +40,8 @@ from protocol_codegen.generators.common.cpp.struct_utils import (
 __all__ = [
     # Callbacks
     "generate_protocol_callbacks_hpp",
+    # Decoder Registry
+    "generate_decoder_registry_hpp",
     # Enum
     "generate_enum_hpp",
     # Message Structure
@@ -42,6 +50,8 @@ __all__ = [
     "generate_messageid_hpp",
     # Methods
     "generate_protocol_methods_hpp",
+    # Struct Generator
+    "generate_struct_hpp",
     # Struct Utils
     "analyze_includes_needed",
     "generate_composite_structs",

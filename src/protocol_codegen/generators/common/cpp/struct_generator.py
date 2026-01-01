@@ -1,8 +1,8 @@
 """
-C++ Struct Generator for Serial8 Protocol.
+C++ Struct Generator - Unified for all protocols.
 
-Generates Message*.hpp files from messages with 8-bit binary encoding.
-Uses common struct_utils with Serial8EncodingStrategy for protocol-specific behavior.
+Generates Message*.hpp files from messages using the provided EncodingStrategy.
+Uses common struct_utils for the actual generation logic.
 
 Key Features:
 - Calls Encoder::encodeXXX() instead of inline logic (DRY)
@@ -28,7 +28,6 @@ from protocol_codegen.generators.common.cpp.struct_utils import (
     generate_header,
     generate_struct_definition,
 )
-from protocol_codegen.generators.common.encoding import Serial8EncodingStrategy
 from protocol_codegen.generators.common.naming import to_pascal_case
 
 if TYPE_CHECKING:
@@ -36,12 +35,7 @@ if TYPE_CHECKING:
 
     from protocol_codegen.core.loader import TypeRegistry
     from protocol_codegen.core.message import Message
-
-
-# Protocol-specific constants
-ENCODING_DESCRIPTION = "8-bit binary (Serial8)"
-ENCODING_DESCRIPTION_SHORT = "8-bit"
-DEFAULT_INCLUDE_MESSAGE_NAME = True
+    from protocol_codegen.generators.common.encoding import EncodingStrategy
 
 
 def generate_struct_hpp(
@@ -50,10 +44,11 @@ def generate_struct_hpp(
     type_registry: TypeRegistry,
     output_path: Path,
     string_max_length: int,
-    include_message_name: bool = DEFAULT_INCLUDE_MESSAGE_NAME,
+    strategy: EncodingStrategy,
+    include_message_name: bool | None = None,
 ) -> str:
     """
-    Generate C++ struct header for a message using Serial8 protocol.
+    Generate C++ struct header for a message using the provided encoding strategy.
 
     Args:
         message: Message instance to generate struct for
@@ -61,23 +56,25 @@ def generate_struct_hpp(
         type_registry: TypeRegistry for resolving field types
         output_path: Path where struct .hpp will be written
         string_max_length: Maximum string length from config (e.g., 16)
-        include_message_name: Include MESSAGE_NAME prefix in payload (default True)
+        strategy: Encoding strategy (Serial8EncodingStrategy or SysExEncodingStrategy)
+        include_message_name: Include MESSAGE_NAME prefix in payload (None = use strategy default)
 
     Returns:
         Generated C++ code as string
-
-    Example:
-        >>> transport_play = messages['TRANSPORT_PLAY']
-        >>> code = generate_struct_hpp(transport_play, 0x40, registry, Path('TransportPlayMessage.hpp'), 16)
     """
+    # Use strategy default if not specified
+    if include_message_name is None:
+        include_message_name = strategy.include_message_name_default
+
     # Convert SCREAMING_SNAKE_CASE to PascalCase
     pascal_name = to_pascal_case(message.name)
     struct_name = f"{pascal_name}Message"
     fields = message.fields
     description = f"{message.name} message"
 
-    # Get encoding strategy for Serial8
-    strategy = Serial8EncodingStrategy()
+    # Get encoding descriptions from strategy
+    encoding_description = f"{strategy.description} ({strategy.name})"
+    encoding_description_short = strategy.description.split()[0]  # "8-bit" or "7-bit"
 
     # Generate all parts using common utilities
     header = generate_header(
@@ -85,7 +82,7 @@ def generate_struct_hpp(
         description=description,
         fields=fields,
         type_registry=type_registry,
-        encoding_description=ENCODING_DESCRIPTION,
+        encoding_description=encoding_description,
     )
 
     # Generate composite structs FIRST (if any)
@@ -108,7 +105,7 @@ def generate_struct_hpp(
         type_registry=type_registry,
         string_max_length=string_max_length,
         strategy=strategy,
-        encoding_description=ENCODING_DESCRIPTION_SHORT,
+        encoding_description=encoding_description_short,
         include_message_name=include_message_name,
     )
 

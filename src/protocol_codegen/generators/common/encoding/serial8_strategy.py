@@ -140,3 +140,8 @@ class Serial8EncodingStrategy(EncodingStrategy):
     def bool_false_value(self) -> int:
         """False = 0x00."""
         return 0x00
+
+    @property
+    def include_message_name_default(self) -> bool:
+        """Serial8 includes message name by default."""
+        return True

@@ -162,3 +162,9 @@ class EncodingStrategy(ABC):
     def bool_false_value(self) -> int:
         """Value to encode for False (typically 0x00)."""
         ...
+
+    @property
+    @abstractmethod
+    def include_message_name_default(self) -> bool:
+        """Default value for include_message_name in struct generation."""
+        ...

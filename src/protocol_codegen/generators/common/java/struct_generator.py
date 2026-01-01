@@ -1,8 +1,8 @@
 """
-Java Struct Generator for SysEx Protocol.
+Java Struct Generator - Unified for all protocols.
 
-Generates Message*.java files from messages with 7-bit MIDI-safe encoding.
-Uses common struct_utils with SysExEncodingStrategy for protocol-specific behavior.
+Generates Message*.java files from messages using the provided EncodingStrategy.
+Uses common struct_utils for the actual generation logic.
 
 Key Features:
 - Immutable classes (final fields)
@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from protocol_codegen.generators.common.encoding import SysExEncodingStrategy
 from protocol_codegen.generators.common.java.struct_utils import (
     collect_enum_names,
     generate_constructor,
@@ -43,11 +42,7 @@ if TYPE_CHECKING:
 
     from protocol_codegen.core.loader import TypeRegistry
     from protocol_codegen.core.message import Message
-
-
-# Protocol-specific constants
-ENCODING_DESCRIPTION = "7-bit MIDI-safe"
-DEFAULT_INCLUDE_MESSAGE_NAME = False
+    from protocol_codegen.generators.common.encoding import EncodingStrategy
 
 
 def generate_struct_java(
@@ -57,10 +52,11 @@ def generate_struct_java(
     output_path: Path,
     string_max_length: int,
     package: str,
-    include_message_name: bool = DEFAULT_INCLUDE_MESSAGE_NAME,
+    strategy: EncodingStrategy,
+    include_message_name: bool | None = None,
 ) -> str:
     """
-    Generate Java message class for a message using SysEx protocol.
+    Generate Java message class for a message using the provided encoding strategy.
 
     Args:
         message: Message instance to generate class for
@@ -69,23 +65,24 @@ def generate_struct_java(
         output_path: Path where message .java will be written
         string_max_length: Max string length from protocol config
         package: Java package name (e.g., 'protocol.struct')
-        include_message_name: Include MESSAGE_NAME prefix in payload (default False)
+        strategy: Encoding strategy (Serial8EncodingStrategy or SysExEncodingStrategy)
+        include_message_name: Include MESSAGE_NAME prefix in payload (None = use strategy default)
 
     Returns:
         Generated Java code as string
-
-    Example:
-        >>> transport_play = messages['TRANSPORT_PLAY']
-        >>> code = generate_struct_java(transport_play, 0x01, registry, Path('TransportPlayMessage.java'), 16, 'protocol.struct')
     """
+    # Use strategy default if not specified
+    if include_message_name is None:
+        include_message_name = strategy.include_message_name_default
+
     # Convert SCREAMING_SNAKE_CASE to PascalCase
     pascal_name = to_pascal_case(message.name)
     class_name = f"{pascal_name}Message"
     fields = message.fields
     description = f"{message.name} message"
 
-    # Get encoding strategy for SysEx
-    strategy = SysExEncodingStrategy()
+    # Get encoding description from strategy
+    encoding_description = f"{strategy.description} ({strategy.name})"
 
     # Analyze what imports are needed based on fields
     has_fields = len(fields) > 0
@@ -102,7 +99,7 @@ def generate_struct_java(
         needs_constants=needs_constants_import(fields, type_registry),
         enum_names=enum_names,
         package=package,
-        encoding_description=ENCODING_DESCRIPTION,
+        encoding_description=encoding_description,
     )
     message_id_constant = generate_message_id_constant(
         message.name, pascal_name, include_message_name

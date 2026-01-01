@@ -143,3 +143,8 @@ class SysExEncodingStrategy(EncodingStrategy):
     def bool_false_value(self) -> int:
         """False = 0x00."""
         return 0x00
+
+    @property
+    def include_message_name_default(self) -> bool:
+        """SysEx does not include message name by default."""
+        return False

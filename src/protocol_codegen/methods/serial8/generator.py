@@ -194,6 +194,7 @@ class Serial8Generator(BaseProtocolGenerator[Serial8Config]):
                 self.registry,
                 cpp_output_path,
                 self.protocol_config.limits.string_max_length,
+                strategy,
                 self.protocol_config.limits.include_message_name,
             )
             was_written = write_if_changed(cpp_output_path, cpp_code)
@@ -325,6 +326,7 @@ class Serial8Generator(BaseProtocolGenerator[Serial8Config]):
                 java_output_path,
                 self.protocol_config.limits.string_max_length,
                 struct_package,
+                strategy,
                 self.protocol_config.limits.include_message_name,
             )
             was_written = write_if_changed(java_output_path, java_code)
