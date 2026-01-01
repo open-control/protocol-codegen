@@ -16,15 +16,11 @@ from protocol_codegen.generators.common.cpp.message_structure_generator import (
 from protocol_codegen.generators.common.cpp.messageid_generator import (
     generate_messageid_hpp,
 )
-from protocol_codegen.generators.common.cpp.logger_generator import (
-    generate_logger_hpp,
-)
 from protocol_codegen.generators.common.cpp.method_generator import (
     generate_protocol_methods_hpp,
 )
 
 __all__ = [
-    "generate_logger_hpp",
     "generate_enum_hpp",
     "generate_message_structure_hpp",
     "generate_messageid_hpp",

@@ -5,17 +5,16 @@ Generates Java protocol files (Encoder.java, Decoder.java, structs, MessageID, e
 
 from protocol_codegen.generators.common.java import (
     generate_decoder_registry_java,
+    generate_enum_java,
     generate_messageid_java,
     generate_protocol_callbacks_java,
+    generate_protocol_methods_java,
 )
 
 from .constants_generator import generate_constants_java
 from .decoder_generator import generate_decoder_java
 from .encoder_generator import generate_encoder_java
-from protocol_codegen.generators.common.java import generate_enum_java
-from protocol_codegen.generators.common.java import generate_log_method
 from .message_structure_generator import generate_message_structure_java
-from protocol_codegen.generators.common.java import generate_protocol_methods_java
 from .protocol_generator import generate_protocol_template_java
 from .struct_generator import generate_struct_java
 
@@ -25,7 +24,6 @@ __all__ = [
     "generate_decoder_registry_java",
     "generate_encoder_java",
     "generate_enum_java",
-    "generate_log_method",
     "generate_message_structure_java",
     "generate_messageid_java",
     "generate_protocol_callbacks_java",

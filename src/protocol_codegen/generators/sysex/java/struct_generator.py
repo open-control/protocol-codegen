@@ -26,11 +26,8 @@ from typing import TYPE_CHECKING
 
 # Import field classes for runtime isinstance checks
 from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
-
-# Import logger generator (SysEx-specific)
-from protocol_codegen.generators.common.java.codec_utils import get_encoder_call
-from protocol_codegen.generators.common.java.logger_generator import generate_log_method
 from protocol_codegen.generators.common.encoding import SysExEncodingStrategy
+from protocol_codegen.generators.common.java.codec_utils import get_encoder_call
 from protocol_codegen.generators.common.naming import (
     capitalize_first,
     field_to_pascal_case,
@@ -110,10 +107,9 @@ def generate_struct_java(
     decode_method = _generate_decode_method(
         class_name, pascal_name, fields, type_registry, string_max_length, include_message_name
     )
-    log_method = generate_log_method(class_name, fields, type_registry)
     footer = _generate_footer()
 
-    full_code = f"{header}\n{message_id_constant}\n{inner_classes}\n{field_declarations}\n{constructor}\n{getters}\n{encode_method}\n{decode_method}\n{log_method}\n{footer}"
+    full_code = f"{header}\n{message_id_constant}\n{inner_classes}\n{field_declarations}\n{constructor}\n{getters}\n{encode_method}\n{decode_method}\n{footer}"
     return full_code
 
 
@@ -816,7 +812,7 @@ def _generate_decode_method(
                 # Construct item and assign to array
                 item_params: list[str] = []
                 for nested_field in field.fields:
-                    if isinstance(nested_field, EnumField) or isinstance(nested_field, PrimitiveField):
+                    if isinstance(nested_field, (EnumField, PrimitiveField)):
                         item_params.append(f"item_{nested_field.name}")
                 item_params_str = ", ".join(item_params)
                 lines.append(
@@ -852,7 +848,7 @@ def _generate_decode_method(
                 # Construct composite
                 composite_params: list[str] = []
                 for nested_field in field.fields:
-                    if isinstance(nested_field, EnumField) or isinstance(nested_field, PrimitiveField):
+                    if isinstance(nested_field, (EnumField, PrimitiveField)):
                         composite_params.append(f"{field.name}_{nested_field.name}")
                 composite_params_str = ", ".join(composite_params)
                 lines.append(
@@ -1152,9 +1148,8 @@ def _needs_constants_import(fields: Sequence[FieldBase], type_registry: TypeRegi
         if isinstance(field, PrimitiveField):
             if field.type_name.value == "string":
                 return True
-        elif isinstance(field, CompositeField):
+        elif isinstance(field, CompositeField) and _needs_constants_import(field.fields, type_registry):
             # Check nested fields recursively
-            if _needs_constants_import(field.fields, type_registry):
-                return True
+            return True
         # EnumField doesn't need constants import
     return False

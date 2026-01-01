@@ -34,7 +34,6 @@ class SysExConfig(TypedDict, total=False):
     device_id: int
     min_message_length: int
     message_type_offset: int
-    from_host_offset: int
     payload_offset: int
 
 
@@ -144,19 +143,15 @@ def _generate_sysex_constants(sysex_config: SysExConfig) -> str:
     lines.append("")
 
     # Message structure
-    min_length: int = sysex_config.get("min_message_length", 6)
+    min_length: int = sysex_config.get("min_message_length", 5)
     type_offset: int = sysex_config.get("message_type_offset", 3)
-    from_host_offset: int = sysex_config.get("from_host_offset", 4)
-    payload_offset: int = sysex_config.get("payload_offset", 5)
+    payload_offset: int = sysex_config.get("payload_offset", 4)
 
     lines.append("    /** Minimum valid SysEx message length */")
     lines.append(f"    public static final int MIN_MESSAGE_LENGTH = {min_length};")
     lines.append("")
     lines.append("    /** Position of MessageID byte in SysEx message */")
     lines.append(f"    public static final int MESSAGE_TYPE_OFFSET = {type_offset};")
-    lines.append("")
-    lines.append("    /** Position of fromHost flag in SysEx message */")
-    lines.append(f"    public static final int FROM_HOST_OFFSET = {from_host_offset};")
     lines.append("")
     lines.append("    /** Start of payload data in SysEx message */")
     lines.append(f"    public static final int PAYLOAD_OFFSET = {payload_offset};")

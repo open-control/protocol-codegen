@@ -7,7 +7,7 @@ adapt it to their specific transport layer.
 
 SysEx-specific framing:
 - Uses MIDI SysEx (F0 ... F7)
-- Header: [F0][MANUFACTURER_ID][DEVICE_ID][MessageID][fromHost][payload...][F7]
+- Header: [F0][MANUFACTURER_ID][DEVICE_ID][MessageID][payload...][F7]
 - 7-bit encoding (all bytes < 0x80)
 """
 
@@ -64,7 +64,7 @@ def generate_protocol_template_hpp(messages: list[Message], output_path: Path) -
  * ============================================================================
  *
  * Frame format:
- *   [F0][MANUFACTURER_ID][DEVICE_ID][MessageID][fromHost][payload...][F7]
+ *   [F0][MANUFACTURER_ID][DEVICE_ID][MessageID][payload...][F7]
  *
  * - F0 = SysEx Start (0xF0)
  * - F7 = SysEx End (0xF7)
@@ -175,7 +175,6 @@ public:
         sysex[offset++] = MANUFACTURER_ID;
         sysex[offset++] = DEVICE_ID;
         sysex[offset++] = static_cast<uint8_t>(T::MESSAGE_ID);
-        sysex[offset++] = 0;  // fromHost = false (we are the controller)
 
         std::memcpy(sysex + offset, payload, payloadLen);
         offset += payloadLen;
@@ -215,14 +214,13 @@ public:
 
         // Parse header
         MessageID messageId = static_cast<MessageID>(sysex[MESSAGE_TYPE_OFFSET]);
-        bool fromHost = (sysex[FROM_HOST_OFFSET] != 0);
 
         // Extract payload
         uint16_t payloadLen = length - MIN_MESSAGE_LENGTH;
         const uint8_t* payload = sysex + PAYLOAD_OFFSET;
 
         // Dispatch to typed callback
-        DecoderRegistry::dispatch(*this, messageId, payload, payloadLen, fromHost);
+        DecoderRegistry::dispatch(*this, messageId, payload, payloadLen);
     }}
 
     // ========================================================================

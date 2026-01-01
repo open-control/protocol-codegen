@@ -26,7 +26,6 @@ class StructureConfig(TypedDict, total=False):
     """Message structure configuration."""
 
     message_type_offset: int
-    from_host_offset: int
     payload_offset: int
 
 

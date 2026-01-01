@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING
 
 # Import field classes for runtime isinstance checks
 from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
-from protocol_codegen.generators.common.cpp.logger_generator import generate_log_method
 from protocol_codegen.generators.common.cpp.codec_utils import (
     get_cpp_type,
     get_decoder_call,
@@ -32,7 +31,6 @@ from protocol_codegen.generators.common.cpp.codec_utils import (
 )
 from protocol_codegen.generators.common.encoding import Serial8EncodingStrategy
 from protocol_codegen.generators.common.naming import (
-    capitalize_first,
     field_to_pascal_case,
     to_pascal_case,
 )
@@ -91,13 +89,10 @@ def generate_struct_hpp(
     )
     decode_fn = _generate_decode_function(struct_name, fields, type_registry, string_max_length, include_message_name)
 
-    # Generate toString() method for logging
-    log_method = generate_log_method(struct_name, fields, type_registry)
-
     footer = _generate_footer()
 
     # Insert composite structs BEFORE main message struct
-    full_code = f"{header}\n{composite_structs}\n{struct_def}\n{encode_fn}\n{decode_fn}\n\n{log_method}\n{footer}}};\n\n}}  // namespace Protocol\n"
+    full_code = f"{header}\n{composite_structs}\n{struct_def}\n{encode_fn}\n{decode_fn}\n{footer}}};\n\n}}  // namespace Protocol\n"
     return full_code
 
 
@@ -193,8 +188,7 @@ def _generate_header(
 #include "../Encoder.hpp"
 #include "../Decoder.hpp"
 #include "../MessageID.hpp"
-#include "../ProtocolConstants.hpp"
-#include "../Logger.hpp"{enum_includes}
+#include "../ProtocolConstants.hpp"{enum_includes}
 {std_includes_str}
 
 namespace Protocol {{

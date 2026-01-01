@@ -60,11 +60,11 @@ class TestNamingConversions:
 class TestExcludedFields:
     """Tests for field exclusion logic."""
 
-    def test_from_host_excluded(self) -> None:
-        assert should_exclude_field("fromHost") is True
-
-    def test_is_echo_excluded(self) -> None:
-        assert should_exclude_field("isEcho") is True
+    def test_no_excluded_fields(self) -> None:
+        """No fields are excluded after fromHost/isEcho removal."""
+        # These deprecated fields were removed from the protocol
+        assert should_exclude_field("fromHost") is False
+        assert should_exclude_field("isEcho") is False
 
     def test_normal_field_not_excluded(self) -> None:
         assert should_exclude_field("value") is False

@@ -13,8 +13,9 @@ if TYPE_CHECKING:
     pass
 
 
-# Fields to exclude from method parameters (implicit or deprecated)
-_EXCLUDED_FIELDS = frozenset({"fromHost", "isEcho"})
+# Fields to exclude from method parameters (if any)
+# Note: fromHost and isEcho were removed as part of protocol simplification
+_EXCLUDED_FIELDS: frozenset[str] = frozenset()
 
 
 def message_name_to_method_name(message_name: str) -> str:

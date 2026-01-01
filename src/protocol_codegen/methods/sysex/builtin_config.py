@@ -18,10 +18,9 @@ BUILTIN_SYSEX_CONFIG = SysExConfig(
         device_id=0x00,  # All devices
     ),
     structure=SysExStructure(
-        min_message_length=6,  # start + mfr + dev + type + end = minimum 5, +1 for safety
+        min_message_length=5,  # [F0 MID DID TYPE F7] = 5 bytes minimum
         message_type_offset=3,  # After start, mfr_id, dev_id
-        from_host_offset=4,  # After message_type
-        payload_offset=5,  # After from_host flag
+        payload_offset=4,  # After message_type
     ),
     limits=SysExLimits(
         # string_max_length and array_max_items use protocol defaults (127)

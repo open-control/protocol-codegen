@@ -7,7 +7,7 @@ adapt it to their specific transport layer.
 
 SysEx-specific:
 - Uses MIDI SysEx (F0 ... F7)
-- Header: [F0][MANUFACTURER_ID][DEVICE_ID][MessageID][fromHost][payload...][F7]
+- Header: [F0][MANUFACTURER_ID][DEVICE_ID][MessageID][payload...][F7]
 - 7-bit encoding (all bytes < 0x80)
 """
 
@@ -66,7 +66,7 @@ def generate_protocol_template_java(
  * ============================================================================
  *
  * Frame format:
- *   [F0][MANUFACTURER_ID][DEVICE_ID][MessageID][fromHost][payload...][F7]
+ *   [F0][MANUFACTURER_ID][DEVICE_ID][MessageID][payload...][F7]
  *
  * - F0 = SysEx Start (0xF0)
  * - F7 = SysEx End (0xF7)
@@ -176,7 +176,6 @@ public class Protocol extends ProtocolCallbacks {{
         sysex[offset++] = ProtocolConstants.MANUFACTURER_ID;
         sysex[offset++] = ProtocolConstants.DEVICE_ID;
         sysex[offset++] = messageId;
-        sysex[offset++] = 1;  // fromHost = true (we are the host)
 
         System.arraycopy(payload, 0, sysex, offset, payload.length);
         offset += payload.length;
@@ -220,15 +219,13 @@ public class Protocol extends ProtocolCallbacks {{
             return;
         }}
 
-        boolean fromHost = (sysex[ProtocolConstants.FROM_HOST_OFFSET] != 0);
-
         // Extract payload
         int payloadLength = sysex.length - ProtocolConstants.MIN_MESSAGE_LENGTH;
         byte[] payload = new byte[payloadLength];
         System.arraycopy(sysex, ProtocolConstants.PAYLOAD_OFFSET, payload, 0, payloadLength);
 
         // Dispatch to callbacks
-        DecoderRegistry.dispatch(this, messageId, payload, fromHost);
+        DecoderRegistry.dispatch(this, messageId, payload);
     }}
 
     // ========================================================================

@@ -1,38 +1,22 @@
 """
 SysEx Protocol Generator
 
-Main orchestrator for SysEx protocol code generation.
-Handles the complete generation pipeline from message definitions to generated code.
+Generator for SysEx (7-bit MIDI) protocol code generation.
+Extends BaseProtocolGenerator with SysEx-specific behavior.
 """
 
-import importlib
-import importlib.util
-import io
-import sys
+from __future__ import annotations
+
 from pathlib import Path
-
-# Force UTF-8 encoding for stdout/stderr on Windows
-if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
-
 from typing import TYPE_CHECKING
 
-from protocol_codegen.core.allocator import allocate_message_ids
-from protocol_codegen.core.enum_def import EnumDef
-from protocol_codegen.core.field import EnumField, populate_type_names
 from protocol_codegen.core.file_utils import GenerationStats, write_if_changed
-from protocol_codegen.core.loader import TypeRegistry
-from protocol_codegen.core.message import Message
-from protocol_codegen.core.plugin_types import PluginPathsConfig
-from protocol_codegen.core.validator import ProtocolValidator
 from protocol_codegen.generators.sysex.cpp import (
     generate_constants_hpp,
     generate_decoder_hpp,
     generate_decoder_registry_hpp,
     generate_encoder_hpp,
     generate_enum_hpp,
-    generate_logger_hpp,
     generate_message_structure_hpp,
     generate_messageid_hpp,
     generate_protocol_callbacks_hpp,
@@ -49,8 +33,6 @@ from protocol_codegen.generators.sysex.java import (
     generate_decoder_registry_java,
     generate_encoder_java,
     generate_enum_java,
-    generate_log_method,
-    generate_message_structure_java,
     generate_messageid_java,
     generate_protocol_callbacks_java,
     generate_protocol_methods_java,
@@ -60,82 +42,336 @@ from protocol_codegen.generators.sysex.java import (
 from protocol_codegen.generators.sysex.java.constants_generator import (
     ProtocolConfig as JavaProtocolConfig,
 )
-from protocol_codegen.methods.common import collect_enum_defs
+from protocol_codegen.methods.base_generator import BaseProtocolGenerator
 from protocol_codegen.methods.sysex.config import SysExConfig
 
 if TYPE_CHECKING:
-    from types import ModuleType
+    pass
 
 
-def _convert_sysex_config_to_cpp_protocol_config(config: SysExConfig) -> CppProtocolConfig:
-    """Convert Pydantic SysExConfig to TypedDict ProtocolConfig for C++ generators."""
-    return CppProtocolConfig(
-        sysex={
-            "start": config.framing.start,
-            "end": config.framing.end,
-            "manufacturer_id": config.framing.manufacturer_id,
-            "device_id": config.framing.device_id,
-            "min_message_length": config.structure.min_message_length,
-            "message_type_offset": config.structure.message_type_offset,
-            "from_host_offset": config.structure.from_host_offset,
-            "payload_offset": config.structure.payload_offset,
-        },
-        limits={
-            "string_max_length": config.limits.string_max_length,
-            "array_max_items": config.limits.array_max_items,
-            "max_payload_size": config.limits.max_payload_size,
-            "max_message_size": config.limits.max_message_size,
-        },
-    )
-
-
-def _convert_sysex_config_to_java_protocol_config(config: SysExConfig) -> JavaProtocolConfig:
-    """Convert Pydantic SysExConfig to TypedDict ProtocolConfig for Java generators."""
-    return JavaProtocolConfig(
-        sysex={
-            "start": config.framing.start,
-            "end": config.framing.end,
-            "manufacturer_id": config.framing.manufacturer_id,
-            "device_id": config.framing.device_id,
-            "min_message_length": config.structure.min_message_length,
-            "message_type_offset": config.structure.message_type_offset,
-            "from_host_offset": config.structure.from_host_offset,
-            "payload_offset": config.structure.payload_offset,
-        },
-        limits={
-            "string_max_length": config.limits.string_max_length,
-            "array_max_items": config.limits.array_max_items,
-            "max_payload_size": config.limits.max_payload_size,
-            "max_message_size": config.limits.max_message_size,
-        },
-    )
-
-
-def _validate_enum_values_for_sysex(enum_defs: list[EnumDef]) -> list[str]:
+class SysExGenerator(BaseProtocolGenerator[SysExConfig]):
     """
-    Validate that all enum values are ≤127 for 7-bit SysEx protocol.
+    SysEx protocol generator.
 
-    SysEx uses 7-bit encoding, so enum values must fit in a single byte
-    with the high bit clear (0-127).
-
-    Args:
-        enum_defs: List of EnumDef instances to validate
-
-    Returns:
-        List of error messages (empty if all valid)
+    Generates C++ and Java code for 7-bit MIDI SysEx protocol.
+    Includes MIDI framing (F0...F7) and 7-bit encoding.
     """
-    errors: list[str] = []
-    max_value = 127  # 7-bit max
 
-    for enum_def in enum_defs:
-        for value_name, value in enum_def.values.items():
-            if value > max_value:
-                errors.append(
-                    f"Enum '{enum_def.name}.{value_name}' has value {value} "
-                    f"which exceeds SysEx 7-bit limit ({max_value})"
-                )
+    @property
+    def protocol_name(self) -> str:
+        return "SysEx"
 
-    return errors
+    def _log_config_info(self) -> None:
+        """Log SysEx-specific configuration info."""
+        if self.protocol_config:
+            self._log(
+                f"  ✓ Manufacturer ID: 0x{self.protocol_config.framing.manufacturer_id:02X}"
+            )
+            self._log(f"  ✓ Device ID: 0x{self.protocol_config.framing.device_id:02X}")
+
+    def _validate_protocol_specific(self) -> list[str]:
+        """Validate that all enum values are ≤127 for 7-bit SysEx protocol."""
+        errors: list[str] = []
+        max_value = 127  # 7-bit max
+
+        for enum_def in self.enum_defs:
+            for value_name, value in enum_def.values.items():
+                if value > max_value:
+                    errors.append(
+                        f"Enum '{enum_def.name}.{value_name}' has value {value} "
+                        f"which exceeds SysEx 7-bit limit ({max_value})"
+                    )
+
+        if not errors and self.enum_defs:
+            self._log(f"  ✓ Enum validation passed ({len(self.enum_defs)} enum(s), all values ≤127)")
+
+        return errors
+
+    def _convert_config_to_cpp(self) -> CppProtocolConfig:
+        """Convert Pydantic SysExConfig to TypedDict for C++ generators."""
+        if self.protocol_config is None:
+            raise RuntimeError("Protocol config not loaded")
+        return CppProtocolConfig(
+            sysex={
+                "start": self.protocol_config.framing.start,
+                "end": self.protocol_config.framing.end,
+                "manufacturer_id": self.protocol_config.framing.manufacturer_id,
+                "device_id": self.protocol_config.framing.device_id,
+                "min_message_length": self.protocol_config.structure.min_message_length,
+                "message_type_offset": self.protocol_config.structure.message_type_offset,
+                "payload_offset": self.protocol_config.structure.payload_offset,
+            },
+            limits={
+                "string_max_length": self.protocol_config.limits.string_max_length,
+                "array_max_items": self.protocol_config.limits.array_max_items,
+                "max_payload_size": self.protocol_config.limits.max_payload_size,
+                "max_message_size": self.protocol_config.limits.max_message_size,
+            },
+        )
+
+    def _convert_config_to_java(self) -> JavaProtocolConfig:
+        """Convert Pydantic SysExConfig to TypedDict for Java generators."""
+        if self.protocol_config is None:
+            raise RuntimeError("Protocol config not loaded")
+        return JavaProtocolConfig(
+            sysex={
+                "start": self.protocol_config.framing.start,
+                "end": self.protocol_config.framing.end,
+                "manufacturer_id": self.protocol_config.framing.manufacturer_id,
+                "device_id": self.protocol_config.framing.device_id,
+                "min_message_length": self.protocol_config.structure.min_message_length,
+                "message_type_offset": self.protocol_config.structure.message_type_offset,
+                "payload_offset": self.protocol_config.structure.payload_offset,
+            },
+            limits={
+                "string_max_length": self.protocol_config.limits.string_max_length,
+                "array_max_items": self.protocol_config.limits.array_max_items,
+                "max_payload_size": self.protocol_config.limits.max_payload_size,
+                "max_message_size": self.protocol_config.limits.max_message_size,
+            },
+        )
+
+    def _generate_cpp(self, output_base: Path) -> None:
+        """Generate all C++ files for SysEx protocol."""
+        if self.registry is None or self.plugin_paths is None or self.protocol_config is None:
+            raise RuntimeError("Generator not properly initialized")
+
+        stats = GenerationStats()
+
+        cpp_base = output_base / self.plugin_paths["output_cpp"]["base_path"]
+        cpp_base.mkdir(parents=True, exist_ok=True)
+
+        protocol_config_dict = self._convert_config_to_cpp()
+
+        # Generate base files
+        cpp_encoder_path = cpp_base / "Encoder.hpp"
+        was_written = write_if_changed(
+            cpp_encoder_path, generate_encoder_hpp(self.registry, cpp_encoder_path)
+        )
+        stats.record_write(cpp_encoder_path, was_written)
+
+        cpp_decoder_path = cpp_base / "Decoder.hpp"
+        was_written = write_if_changed(
+            cpp_decoder_path, generate_decoder_hpp(self.registry, cpp_decoder_path)
+        )
+        stats.record_write(cpp_decoder_path, was_written)
+
+        cpp_constants_path = cpp_base / "ProtocolConstants.hpp"
+        was_written = write_if_changed(
+            cpp_constants_path,
+            generate_constants_hpp(protocol_config_dict, self.registry, cpp_constants_path),
+        )
+        stats.record_write(cpp_constants_path, was_written)
+
+        cpp_messageid_path = cpp_base / "MessageID.hpp"
+        was_written = write_if_changed(
+            cpp_messageid_path,
+            generate_messageid_hpp(
+                self.messages, self.allocations, self.registry, cpp_messageid_path
+            ),
+        )
+        stats.record_write(cpp_messageid_path, was_written)
+
+        cpp_message_structure_path = cpp_base / "MessageStructure.hpp"
+        was_written = write_if_changed(
+            cpp_message_structure_path,
+            generate_message_structure_hpp(self.messages, cpp_message_structure_path),
+        )
+        stats.record_write(cpp_message_structure_path, was_written)
+
+        cpp_callbacks_path = cpp_base / "ProtocolCallbacks.hpp"
+        was_written = write_if_changed(
+            cpp_callbacks_path,
+            generate_protocol_callbacks_hpp(self.messages, cpp_callbacks_path),
+        )
+        stats.record_write(cpp_callbacks_path, was_written)
+
+        cpp_decoder_registry_path = cpp_base / "DecoderRegistry.hpp"
+        was_written = write_if_changed(
+            cpp_decoder_registry_path,
+            generate_decoder_registry_hpp(self.messages, cpp_decoder_registry_path),
+        )
+        stats.record_write(cpp_decoder_registry_path, was_written)
+
+        cpp_protocol_template_path = cpp_base / "Protocol.hpp.template"
+        was_written = write_if_changed(
+            cpp_protocol_template_path,
+            generate_protocol_template_hpp(self.messages, cpp_protocol_template_path),
+        )
+        stats.record_write(cpp_protocol_template_path, was_written)
+
+        # Generate enum files
+        enum_stats = GenerationStats()
+        for enum_def in self.enum_defs:
+            cpp_enum_path = cpp_base / f"{enum_def.name}.hpp"
+            cpp_enum_code = generate_enum_hpp(enum_def, cpp_enum_path)
+            was_written = write_if_changed(cpp_enum_path, cpp_enum_code)
+            enum_stats.record_write(cpp_enum_path, was_written)
+
+        # Generate ProtocolMethods.inl for new-style messages
+        new_style_messages = [m for m in self.messages if not m.is_legacy()]
+        methods_stats = GenerationStats()
+        if new_style_messages:
+            cpp_methods_path = cpp_base / "ProtocolMethods.inl"
+            cpp_methods_code = generate_protocol_methods_hpp(new_style_messages, cpp_methods_path)
+            was_written = write_if_changed(cpp_methods_path, cpp_methods_code)
+            methods_stats.record_write(cpp_methods_path, was_written)
+
+        # Generate struct files
+        cpp_struct_dir = cpp_base / self.plugin_paths["output_cpp"]["structs"]
+        cpp_struct_dir.mkdir(parents=True, exist_ok=True)
+
+        struct_stats = GenerationStats()
+        for message in self.messages:
+            pascal_name = "".join(word.capitalize() for word in message.name.split("_"))
+            struct_name = f"{pascal_name}Message"
+            cpp_output_path = cpp_struct_dir / f"{struct_name}.hpp"
+            message_id = self.allocations[message.name]
+
+            cpp_code = generate_struct_hpp(
+                message,
+                message_id,
+                self.registry,
+                cpp_output_path,
+                self.protocol_config.limits.string_max_length,
+                self.protocol_config.limits.include_message_name,
+            )
+            was_written = write_if_changed(cpp_output_path, cpp_code)
+            struct_stats.record_write(cpp_output_path, was_written)
+
+        if self.verbose:
+            print(f"  ✓ C++ base files: {stats.summary()}")
+            if self.enum_defs:
+                print(f"  ✓ C++ enum files: {enum_stats.summary()}")
+            if new_style_messages:
+                print(f"  ✓ C++ ProtocolMethods.inl: {methods_stats.summary()}")
+            print(f"  ✓ C++ struct files: {struct_stats.summary()}")
+            print(f"  → Output: {cpp_base.relative_to(output_base)}")
+
+    def _generate_java(self, output_base: Path) -> None:
+        """Generate all Java files for SysEx protocol."""
+        if self.registry is None or self.plugin_paths is None or self.protocol_config is None:
+            raise RuntimeError("Generator not properly initialized")
+
+        stats = GenerationStats()
+
+        java_base = output_base / self.plugin_paths["output_java"]["base_path"]
+        java_base.mkdir(parents=True, exist_ok=True)
+
+        java_package = self.plugin_paths["output_java"]["package"]
+        struct_package = f"{java_package}.struct"
+        protocol_config_dict = self._convert_config_to_java()
+
+        # Generate base files
+        java_encoder_path = java_base / "Encoder.java"
+        was_written = write_if_changed(
+            java_encoder_path,
+            generate_encoder_java(self.registry, java_encoder_path, java_package),
+        )
+        stats.record_write(java_encoder_path, was_written)
+
+        java_decoder_path = java_base / "Decoder.java"
+        was_written = write_if_changed(
+            java_decoder_path,
+            generate_decoder_java(self.registry, java_decoder_path, java_package),
+        )
+        stats.record_write(java_decoder_path, was_written)
+
+        java_constants_path = java_base / "ProtocolConstants.java"
+        was_written = write_if_changed(
+            java_constants_path,
+            generate_constants_java(protocol_config_dict, java_constants_path, java_package),
+        )
+        stats.record_write(java_constants_path, was_written)
+
+        java_messageid_path = java_base / "MessageID.java"
+        was_written = write_if_changed(
+            java_messageid_path,
+            generate_messageid_java(
+                self.messages,
+                self.allocations,
+                self.registry,
+                java_messageid_path,
+                java_package,
+            ),
+        )
+        stats.record_write(java_messageid_path, was_written)
+
+        java_callbacks_path = java_base / "ProtocolCallbacks.java"
+        was_written = write_if_changed(
+            java_callbacks_path,
+            generate_protocol_callbacks_java(self.messages, java_package, java_callbacks_path),
+        )
+        stats.record_write(java_callbacks_path, was_written)
+
+        java_decoder_registry_path = java_base / "DecoderRegistry.java"
+        was_written = write_if_changed(
+            java_decoder_registry_path,
+            generate_decoder_registry_java(
+                self.messages, java_package, java_decoder_registry_path
+            ),
+        )
+        stats.record_write(java_decoder_registry_path, was_written)
+
+        java_protocol_template_path = java_base / "Protocol.java.template"
+        was_written = write_if_changed(
+            java_protocol_template_path,
+            generate_protocol_template_java(
+                self.messages, java_protocol_template_path, java_package
+            ),
+        )
+        stats.record_write(java_protocol_template_path, was_written)
+
+        # Generate enum files
+        enum_stats = GenerationStats()
+        for enum_def in self.enum_defs:
+            java_enum_path = java_base / f"{enum_def.name}.java"
+            java_enum_code = generate_enum_java(enum_def, java_enum_path)
+            was_written = write_if_changed(java_enum_path, java_enum_code)
+            enum_stats.record_write(java_enum_path, was_written)
+
+        # Generate ProtocolMethods.java for new-style messages
+        new_style_messages = [m for m in self.messages if not m.is_legacy()]
+        methods_stats = GenerationStats()
+        if new_style_messages:
+            java_methods_path = java_base / "ProtocolMethods.java"
+            java_methods_code = generate_protocol_methods_java(
+                new_style_messages, java_methods_path, java_package, self.registry
+            )
+            was_written = write_if_changed(java_methods_path, java_methods_code)
+            methods_stats.record_write(java_methods_path, was_written)
+
+        # Generate struct files
+        java_struct_dir = java_base / self.plugin_paths["output_java"]["structs"]
+        java_struct_dir.mkdir(parents=True, exist_ok=True)
+
+        struct_stats = GenerationStats()
+        for message in self.messages:
+            pascal_name = "".join(word.capitalize() for word in message.name.split("_"))
+            class_name = f"{pascal_name}Message"
+            java_output_path = java_struct_dir / f"{class_name}.java"
+            message_id = self.allocations[message.name]
+
+            java_code = generate_struct_java(
+                message,
+                message_id,
+                self.registry,
+                java_output_path,
+                self.protocol_config.limits.string_max_length,
+                struct_package,
+                self.protocol_config.limits.include_message_name,
+            )
+            was_written = write_if_changed(java_output_path, java_code)
+            struct_stats.record_write(java_output_path, was_written)
+
+        if self.verbose:
+            print(f"  ✓ Java base files: {stats.summary()}")
+            if self.enum_defs:
+                print(f"  ✓ Java enum files: {enum_stats.summary()}")
+            if new_style_messages:
+                print(f"  ✓ Java ProtocolMethods.java: {methods_stats.summary()}")
+            print(f"  ✓ Java struct files: {struct_stats.summary()}")
+            print(f"  → Output: {java_base.relative_to(output_base)}")
 
 
 def generate_sysex_protocol(
@@ -148,6 +384,8 @@ def generate_sysex_protocol(
     """
     Generate SysEx protocol code from message definitions.
 
+    This is the public API for SysEx generation.
+
     Args:
         messages_dir: Directory containing message definitions
         config_path: Path to protocol_config.py
@@ -155,364 +393,5 @@ def generate_sysex_protocol(
         output_base: Base output directory
         verbose: Enable verbose output
     """
-
-    def log(msg: str) -> None:
-        """Print message if verbose."""
-        if verbose:
-            print(msg)
-
-    # Step 1: Load type registry
-    log("[1/7] Loading type registry...")
-    registry = TypeRegistry()
-    registry.load_builtins()
-    type_names = list(registry.types.keys())
-    populate_type_names(type_names)
-    log(f"  ✓ Loaded {len(registry.types)} builtin types")
-
-    # Step 2: Load configuration
-    log("[2/7] Loading configuration...")
-
-    # Load protocol_config.py
-    spec = importlib.util.spec_from_file_location("protocol_config", config_path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load {config_path}")
-    config_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(config_module)
-    protocol_config = config_module.PROTOCOL_CONFIG
-
-    # Load plugin_paths.py
-    spec = importlib.util.spec_from_file_location("plugin_paths", plugin_paths_path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load {plugin_paths_path}")
-    paths_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(paths_module)
-    plugin_paths: PluginPathsConfig = paths_module.PLUGIN_PATHS
-
-    log("  ✓ Loaded protocol configuration")
-    log(f"  ✓ Manufacturer ID: 0x{protocol_config.framing.manufacturer_id:02X}")
-    log(f"  ✓ Device ID: 0x{protocol_config.framing.device_id:02X}")
-
-    # Step 3: Import messages
-    log("[3/7] Importing messages...")
-
-    # Add messages directory parent to sys.path temporarily for import
-    messages_parent = str(messages_dir.parent)
-    sys.path.insert(0, messages_parent)
-
-    try:
-        # Import message module dynamically
-        message_module: ModuleType = importlib.import_module("message")
-        if not hasattr(message_module, "ALL_MESSAGES"):
-            raise ValueError("message module must define ALL_MESSAGES")
-
-        all_messages: list[Message] = message_module.ALL_MESSAGES  # type: ignore[attr-defined]
-        log(f"  ✓ Imported {len(all_messages)} messages")
-
-        # Filter out deprecated messages
-        messages = [m for m in all_messages if not m.deprecated]
-        deprecated_count = len(all_messages) - len(messages)
-        if deprecated_count > 0:
-            log(f"  ⚠ Filtered out {deprecated_count} deprecated message(s)")
-    finally:
-        # Always clean up sys.path to avoid pollution
-        if messages_parent in sys.path:
-            sys.path.remove(messages_parent)
-
-    # Step 4: Validate messages
-    log("[4/7] Validating messages...")
-    validator = ProtocolValidator(registry)
-    errors = validator.validate_messages(messages)
-
-    if errors:
-        print("\n❌ Validation Errors:")
-        for error in errors:
-            print(f"  - {error}")
-        raise ValueError(f"Protocol validation failed with {len(errors)} error(s)")
-
-    log(f"  ✓ Validation passed ({len(messages)} messages)")
-
-    # Validate enum values for SysEx 7-bit constraint
-    enum_defs = collect_enum_defs(messages)
-    if enum_defs:
-        enum_errors = _validate_enum_values_for_sysex(enum_defs)
-        if enum_errors:
-            print("\n❌ SysEx Enum Validation Errors:")
-            for error in enum_errors:
-                print(f"  - {error}")
-            raise ValueError(f"SysEx enum validation failed with {len(enum_errors)} error(s)")
-        log(f"  ✓ Enum validation passed ({len(enum_defs)} enum(s), all values ≤127)")
-
-    # Step 5: Allocate message IDs
-    log("[5/7] Allocating message IDs...")
-    allocations = allocate_message_ids(messages)
-    log(f"  ✓ Allocated {len(allocations)} message IDs (0x00-0x{len(allocations) - 1:02X})")
-
-    # Step 6: Generate C++ code
-    log("[6/7] Generating C++ code...")
-    _generate_cpp(
-        messages=messages,
-        allocations=allocations,
-        registry=registry,
-        protocol_config=protocol_config,
-        plugin_paths=plugin_paths,
-        output_base=output_base,
-        verbose=verbose,
-    )
-
-    # Step 7: Generate Java code
-    log("[7/7] Generating Java code...")
-    _generate_java(
-        messages=messages,
-        allocations=allocations,
-        registry=registry,
-        protocol_config=protocol_config,
-        plugin_paths=plugin_paths,
-        output_base=output_base,
-        verbose=verbose,
-    )
-
-
-def _generate_cpp(
-    messages: list[Message],
-    allocations: dict[str, int],
-    registry: TypeRegistry,
-    protocol_config: SysExConfig,
-    plugin_paths: PluginPathsConfig,
-    output_base: Path,
-    verbose: bool,
-) -> None:
-    """Generate all C++ files with incremental generation (skip unchanged files)."""
-    stats = GenerationStats()
-
-    cpp_base = output_base / plugin_paths["output_cpp"]["base_path"]
-    cpp_base.mkdir(parents=True, exist_ok=True)
-
-    # Convert protocol config to TypedDict for generators
-    protocol_config_dict = _convert_sysex_config_to_cpp_protocol_config(protocol_config)
-
-    # Generate base files with incremental updates
-    cpp_encoder_path = cpp_base / "Encoder.hpp"
-    was_written = write_if_changed(
-        cpp_encoder_path, generate_encoder_hpp(registry, cpp_encoder_path)
-    )
-    stats.record_write(cpp_encoder_path, was_written)
-
-    cpp_decoder_path = cpp_base / "Decoder.hpp"
-    was_written = write_if_changed(
-        cpp_decoder_path, generate_decoder_hpp(registry, cpp_decoder_path)
-    )
-    stats.record_write(cpp_decoder_path, was_written)
-
-    cpp_logger_path = cpp_base / "Logger.hpp"
-    was_written = write_if_changed(cpp_logger_path, generate_logger_hpp(cpp_logger_path))
-    stats.record_write(cpp_logger_path, was_written)
-
-    cpp_constants_path = cpp_base / "ProtocolConstants.hpp"
-    was_written = write_if_changed(
-        cpp_constants_path,
-        generate_constants_hpp(protocol_config_dict, registry, cpp_constants_path),
-    )
-    stats.record_write(cpp_constants_path, was_written)
-
-    cpp_messageid_path = cpp_base / "MessageID.hpp"
-    was_written = write_if_changed(
-        cpp_messageid_path,
-        generate_messageid_hpp(messages, allocations, registry, cpp_messageid_path),
-    )
-    stats.record_write(cpp_messageid_path, was_written)
-
-    cpp_message_structure_path = cpp_base / "MessageStructure.hpp"
-    was_written = write_if_changed(
-        cpp_message_structure_path,
-        generate_message_structure_hpp(messages, cpp_message_structure_path),
-    )
-    stats.record_write(cpp_message_structure_path, was_written)
-
-    cpp_callbacks_path = cpp_base / "ProtocolCallbacks.hpp"
-    was_written = write_if_changed(
-        cpp_callbacks_path, generate_protocol_callbacks_hpp(messages, cpp_callbacks_path)
-    )
-    stats.record_write(cpp_callbacks_path, was_written)
-
-    cpp_decoder_registry_path = cpp_base / "DecoderRegistry.hpp"
-    was_written = write_if_changed(
-        cpp_decoder_registry_path,
-        generate_decoder_registry_hpp(messages, cpp_decoder_registry_path),
-    )
-    stats.record_write(cpp_decoder_registry_path, was_written)
-
-    cpp_protocol_template_path = cpp_base / "Protocol.hpp.template"
-    was_written = write_if_changed(
-        cpp_protocol_template_path,
-        generate_protocol_template_hpp(messages, cpp_protocol_template_path),
-    )
-    stats.record_write(cpp_protocol_template_path, was_written)
-
-    # Generate enum files
-    enum_defs = collect_enum_defs(messages)
-    enum_stats = GenerationStats()
-    for enum_def in enum_defs:
-        cpp_enum_path = cpp_base / f"{enum_def.name}.hpp"
-        cpp_enum_code = generate_enum_hpp(enum_def, cpp_enum_path)
-        was_written = write_if_changed(cpp_enum_path, cpp_enum_code)
-        enum_stats.record_write(cpp_enum_path, was_written)
-
-    # Generate ProtocolMethods.inl for new-style messages with direction
-    new_style_messages = [m for m in messages if not m.is_legacy()]
-    methods_stats = GenerationStats()
-    if new_style_messages:
-        cpp_methods_path = cpp_base / "ProtocolMethods.inl"
-        cpp_methods_code = generate_protocol_methods_hpp(new_style_messages, cpp_methods_path)
-        was_written = write_if_changed(cpp_methods_path, cpp_methods_code)
-        methods_stats.record_write(cpp_methods_path, was_written)
-
-    # Generate struct files (structs path is relative to base_path)
-    cpp_struct_dir = cpp_base / plugin_paths["output_cpp"]["structs"]
-    cpp_struct_dir.mkdir(parents=True, exist_ok=True)
-
-    struct_stats = GenerationStats()
-    for message in messages:
-        pascal_name = "".join(word.capitalize() for word in message.name.split("_"))
-        struct_name = f"{pascal_name}Message"
-        cpp_output_path = cpp_struct_dir / f"{struct_name}.hpp"
-        message_id = allocations[message.name]
-
-        cpp_code = generate_struct_hpp(
-            message, message_id, registry, cpp_output_path,
-            protocol_config.limits.string_max_length,
-            protocol_config.limits.include_message_name,
-        )
-        was_written = write_if_changed(cpp_output_path, cpp_code)
-        struct_stats.record_write(cpp_output_path, was_written)
-
-    if verbose:
-        print(f"  ✓ C++ base files: {stats.summary()}")
-        if enum_defs:
-            print(f"  ✓ C++ enum files: {enum_stats.summary()}")
-        if new_style_messages:
-            print(f"  ✓ C++ ProtocolMethods.inl: {methods_stats.summary()}")
-        print(f"  ✓ C++ struct files: {struct_stats.summary()}")
-        print(f"  → Output: {cpp_base.relative_to(output_base)}")
-
-
-def _generate_java(
-    messages: list[Message],
-    allocations: dict[str, int],
-    registry: TypeRegistry,
-    protocol_config: SysExConfig,
-    plugin_paths: PluginPathsConfig,
-    output_base: Path,
-    verbose: bool,
-) -> None:
-    """Generate all Java files with incremental generation (skip unchanged files)."""
-    stats = GenerationStats()
-
-    java_base = output_base / plugin_paths["output_java"]["base_path"]
-    java_base.mkdir(parents=True, exist_ok=True)
-
-    java_package = plugin_paths["output_java"]["package"]
-
-    struct_package = f"{java_package}.struct"
-
-    # Convert protocol config to TypedDict for generators
-    protocol_config_dict = _convert_sysex_config_to_java_protocol_config(protocol_config)
-
-    # Generate base files with incremental updates
-    java_encoder_path = java_base / "Encoder.java"
-    was_written = write_if_changed(
-        java_encoder_path, generate_encoder_java(registry, java_encoder_path, java_package)
-    )
-    stats.record_write(java_encoder_path, was_written)
-
-    java_decoder_path = java_base / "Decoder.java"
-    was_written = write_if_changed(
-        java_decoder_path, generate_decoder_java(registry, java_decoder_path, java_package)
-    )
-    stats.record_write(java_decoder_path, was_written)
-
-    java_constants_path = java_base / "ProtocolConstants.java"
-    was_written = write_if_changed(
-        java_constants_path,
-        generate_constants_java(protocol_config_dict, java_constants_path, java_package),
-    )
-    stats.record_write(java_constants_path, was_written)
-
-    java_messageid_path = java_base / "MessageID.java"
-    was_written = write_if_changed(
-        java_messageid_path,
-        generate_messageid_java(messages, allocations, registry, java_messageid_path, java_package),
-    )
-    stats.record_write(java_messageid_path, was_written)
-
-    java_callbacks_path = java_base / "ProtocolCallbacks.java"
-    was_written = write_if_changed(
-        java_callbacks_path,
-        generate_protocol_callbacks_java(messages, java_package, java_callbacks_path),
-    )
-    stats.record_write(java_callbacks_path, was_written)
-
-    java_decoder_registry_path = java_base / "DecoderRegistry.java"
-    was_written = write_if_changed(
-        java_decoder_registry_path,
-        generate_decoder_registry_java(messages, java_package, java_decoder_registry_path),
-    )
-    stats.record_write(java_decoder_registry_path, was_written)
-
-    java_protocol_template_path = java_base / "Protocol.java.template"
-    was_written = write_if_changed(
-        java_protocol_template_path,
-        generate_protocol_template_java(messages, java_protocol_template_path, java_package),
-    )
-    stats.record_write(java_protocol_template_path, was_written)
-
-    # Generate enum files
-    enum_defs = collect_enum_defs(messages)
-    enum_stats = GenerationStats()
-    for enum_def in enum_defs:
-        java_enum_path = java_base / f"{enum_def.name}.java"
-        java_enum_code = generate_enum_java(enum_def, java_enum_path)
-        was_written = write_if_changed(java_enum_path, java_enum_code)
-        enum_stats.record_write(java_enum_path, was_written)
-
-    # Generate ProtocolMethods.java for new-style messages with direction
-    new_style_messages = [m for m in messages if not m.is_legacy()]
-    methods_stats = GenerationStats()
-    if new_style_messages:
-        java_methods_path = java_base / "ProtocolMethods.java"
-        java_methods_code = generate_protocol_methods_java(
-            new_style_messages, java_methods_path, java_package, registry
-        )
-        was_written = write_if_changed(java_methods_path, java_methods_code)
-        methods_stats.record_write(java_methods_path, was_written)
-
-    # Generate struct files (structs path is relative to base_path)
-    java_struct_dir = java_base / plugin_paths["output_java"]["structs"]
-    java_struct_dir.mkdir(parents=True, exist_ok=True)
-
-    struct_stats = GenerationStats()
-    for message in messages:
-        pascal_name = "".join(word.capitalize() for word in message.name.split("_"))
-        class_name = f"{pascal_name}Message"
-        java_output_path = java_struct_dir / f"{class_name}.java"
-        message_id = allocations[message.name]
-
-        java_code = generate_struct_java(
-            message,
-            message_id,
-            registry,
-            java_output_path,
-            protocol_config.limits.string_max_length,
-            struct_package,
-            protocol_config.limits.include_message_name,
-        )
-        was_written = write_if_changed(java_output_path, java_code)
-        struct_stats.record_write(java_output_path, was_written)
-
-    if verbose:
-        print(f"  ✓ Java base files: {stats.summary()}")
-        if enum_defs:
-            print(f"  ✓ Java enum files: {enum_stats.summary()}")
-        if new_style_messages:
-            print(f"  ✓ Java ProtocolMethods.java: {methods_stats.summary()}")
-        print(f"  ✓ Java struct files: {struct_stats.summary()}")
-        print(f"  → Output: {java_base.relative_to(output_base)}")
+    generator = SysExGenerator(verbose=verbose)
+    generator.generate(messages_dir, config_path, plugin_paths_path, output_base)

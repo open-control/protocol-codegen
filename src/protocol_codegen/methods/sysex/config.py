@@ -66,48 +66,33 @@ class SysExStructure(BaseModel):
     SysEx message structure offsets.
 
     Defines the byte positions within a SysEx message:
-    [F0] [MID] [DID] [TYPE] [FROM] [PAYLOAD...] [F7]
-     0     1     2     3      4      5+           N
+    [F0] [MID] [DID] [TYPE] [PAYLOAD...] [F7]
+     0     1     2     3      4+           N
     """
 
     min_message_length: int = Field(
-        default=6,
+        default=5,
         gt=0,
         le=256,
-        description="Minimum valid SysEx message length (6: [F0 MID DID TYPE FROM F7])",
+        description="Minimum valid SysEx message length (5: [F0 MID DID TYPE F7])",
     )
 
     message_type_offset: int = Field(
         default=3, ge=0, le=255, description="Byte position of MessageID within SysEx message"
     )
 
-    from_host_offset: int = Field(
-        default=4, ge=0, le=255, description="Byte position of fromHost flag within SysEx message"
-    )
-
     payload_offset: int = Field(
-        default=5, ge=0, le=255, description="Byte position where payload data starts"
+        default=4, ge=0, le=255, description="Byte position where payload data starts"
     )
-
-    @field_validator("from_host_offset")
-    @classmethod
-    def from_host_after_type(cls, v: int, info: Any) -> int:
-        """Ensure fromHost flag comes after message type."""
-        message_type_offset: int | None = info.data.get("message_type_offset")
-        if message_type_offset is not None and v <= message_type_offset:
-            raise ValueError(
-                f"from_host_offset ({v}) must be > message_type_offset ({message_type_offset})"
-            )
-        return v
 
     @field_validator("payload_offset")
     @classmethod
-    def payload_after_from_host(cls, v: int, info: Any) -> int:
-        """Ensure payload starts after fromHost flag."""
-        from_host_offset: int | None = info.data.get("from_host_offset")
-        if from_host_offset is not None and v <= from_host_offset:
+    def payload_after_type(cls, v: int, info: Any) -> int:
+        """Ensure payload starts after message type."""
+        message_type_offset: int | None = info.data.get("message_type_offset")
+        if message_type_offset is not None and v <= message_type_offset:
             raise ValueError(
-                f"payload_offset ({v}) must be > from_host_offset ({from_host_offset})"
+                f"payload_offset ({v}) must be > message_type_offset ({message_type_offset})"
             )
         return v
 
@@ -216,7 +201,6 @@ class SysExConfig(BaseModel):
                 "device_id": self.framing.device_id,
                 "min_message_length": self.structure.min_message_length,
                 "message_type_offset": self.structure.message_type_offset,
-                "from_host_offset": self.structure.from_host_offset,
                 "payload_offset": self.structure.payload_offset,
             },
             "limits": {

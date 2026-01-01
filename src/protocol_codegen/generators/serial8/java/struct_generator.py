@@ -12,7 +12,6 @@ Key Features:
 - Static factory decode() method
 - MAX_PAYLOAD_SIZE constant for validation
 - Clean getters following Java conventions
-- toString() method for YAML logging (matches C++ format)
 
 Generated Output:
 - One .java file per message (e.g., TransportPlayMessage.java)
@@ -26,11 +25,8 @@ from typing import TYPE_CHECKING
 
 # Import field classes for runtime isinstance checks
 from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
-
-# Import logger generator
-from protocol_codegen.generators.common.java.codec_utils import get_encoder_call
-from protocol_codegen.generators.common.java.logger_generator import generate_log_method
 from protocol_codegen.generators.common.encoding import Serial8EncodingStrategy
+from protocol_codegen.generators.common.java.codec_utils import get_encoder_call
 from protocol_codegen.generators.common.naming import (
     capitalize_first,
     field_to_pascal_case,
@@ -110,14 +106,13 @@ def generate_struct_java(
     decode_method = _generate_decode_method(
         class_name, pascal_name, fields, type_registry, string_max_length, include_message_name
     )
-    log_method = generate_log_method(class_name, fields, type_registry)
     footer = _generate_footer()
 
-    full_code = f"{header}\n{message_id_constant}\n{inner_classes}\n{field_declarations}\n{constructor}\n{getters}\n{encode_method}\n{decode_method}\n{log_method}\n{footer}"
+    full_code = f"{header}\n{message_id_constant}\n{inner_classes}\n{field_declarations}\n{constructor}\n{getters}\n{encode_method}\n{decode_method}\n{footer}"
     return full_code
 
 
-def _collect_enum_names(fields: "Sequence[FieldBase]") -> set[str]:
+def _collect_enum_names(fields: Sequence[FieldBase]) -> set[str]:
     """
     Collect all non-bitflags enum names from fields (recursively).
 
@@ -126,7 +121,7 @@ def _collect_enum_names(fields: "Sequence[FieldBase]") -> set[str]:
     """
     enum_names: set[str] = set()
 
-    def collect_from_fields(field_list: "Sequence[FieldBase]") -> None:
+    def collect_from_fields(field_list: Sequence[FieldBase]) -> None:
         for field in field_list:
             if isinstance(field, EnumField):
                 # Only add non-bitflags enums (bitflags are int, no import needed)
@@ -818,7 +813,7 @@ def _generate_decode_method(
                 # Construct item and assign to array
                 item_params: list[str] = []
                 for nested_field in field.fields:
-                    if isinstance(nested_field, EnumField) or isinstance(nested_field, PrimitiveField):
+                    if isinstance(nested_field, (EnumField, PrimitiveField)):
                         item_params.append(f"item_{nested_field.name}")
                 item_params_str = ", ".join(item_params)
                 lines.append(
@@ -854,7 +849,7 @@ def _generate_decode_method(
                 # Construct composite
                 composite_params: list[str] = []
                 for nested_field in field.fields:
-                    if isinstance(nested_field, EnumField) or isinstance(nested_field, PrimitiveField):
+                    if isinstance(nested_field, (EnumField, PrimitiveField)):
                         composite_params.append(f"{field.name}_{nested_field.name}")
                 composite_params_str = ", ".join(composite_params)
                 lines.append(
@@ -949,6 +944,40 @@ def _get_decoder_call(
     else:
         # Nested struct - call its decode()
         return f"{java_type} {field_name} = {java_type}.decode(data);\n        offset += {java_type}.MAX_PAYLOAD_SIZE;"
+
+
+def _get_encoded_size(type_name: str, raw_size: int) -> int:
+    """
+    Get encoded size for a builtin type in 8-bit protocol.
+
+    For Serial8 protocol, there's no expansion - sizes are raw.
+
+    Args:
+        type_name: Builtin type name (e.g., 'bool', 'uint8', 'float32')
+        raw_size: Raw size in bytes (unused for known types)
+
+    Returns:
+        Encoded size in bytes
+    """
+    # 8-bit protocol: no expansion
+    # bool: 1 byte
+    if type_name == "bool":
+        return 1
+
+    # uint8, int8, norm8: 1 byte
+    if type_name in ("uint8", "int8", "norm8"):
+        return 1
+
+    # uint16, int16, norm16: 2 bytes
+    if type_name in ("uint16", "int16", "norm16"):
+        return 2
+
+    # uint32, int32, float32: 4 bytes
+    if type_name in ("uint32", "int32", "float32"):
+        return 4
+
+    # Default: return raw size
+    return raw_size
 
 
 def _to_getter_name(field_name: str) -> str:
@@ -1123,9 +1152,10 @@ def _needs_constants_import(fields: Sequence[FieldBase], type_registry: TypeRegi
         if isinstance(field, PrimitiveField):
             if field.type_name.value == "string":
                 return True
-        elif isinstance(field, CompositeField):
+        elif isinstance(field, CompositeField) and _needs_constants_import(
+            field.fields, type_registry
+        ):
             # Check nested fields recursively
-            if _needs_constants_import(field.fields, type_registry):
-                return True
+            return True
         # EnumField doesn't need constants import
     return False
