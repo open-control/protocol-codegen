@@ -19,6 +19,10 @@ from protocol_codegen.generators.common.cpp.constants_generator import (
 from protocol_codegen.generators.common.java.constants_generator import (
     ProtocolConfig as JavaProtocolConfig,
 )
+from protocol_codegen.generators.renderers.protocol import (
+    Serial8CppProtocolRenderer,
+    Serial8JavaProtocolRenderer,
+)
 from protocol_codegen.generators.serial8.cpp import (
     generate_constants_hpp,
     generate_decoder_registry_hpp,
@@ -27,7 +31,6 @@ from protocol_codegen.generators.serial8.cpp import (
     generate_messageid_hpp,
     generate_protocol_callbacks_hpp,
     generate_protocol_methods_hpp,
-    generate_protocol_template_hpp,
     generate_struct_hpp,
 )
 from protocol_codegen.generators.serial8.java import (
@@ -37,7 +40,6 @@ from protocol_codegen.generators.serial8.java import (
     generate_messageid_java,
     generate_protocol_callbacks_java,
     generate_protocol_methods_java,
-    generate_protocol_template_java,
     generate_struct_java,
 )
 from protocol_codegen.generators.templates import DecoderTemplate, EncoderTemplate
@@ -171,9 +173,10 @@ class Serial8Generator(BaseProtocolGenerator[Serial8Config]):
         stats.record_write(cpp_decoder_registry_path, was_written)
 
         cpp_protocol_template_path = cpp_base / "Protocol.hpp.template"
+        protocol_renderer = Serial8CppProtocolRenderer()
         was_written = write_if_changed(
             cpp_protocol_template_path,
-            generate_protocol_template_hpp(self.messages, cpp_protocol_template_path),
+            protocol_renderer.render(self.messages, cpp_protocol_template_path),
         )
         stats.record_write(cpp_protocol_template_path, was_written)
 
@@ -298,11 +301,10 @@ class Serial8Generator(BaseProtocolGenerator[Serial8Config]):
         stats.record_write(java_decoder_registry_path, was_written)
 
         java_protocol_template_path = java_base / "Protocol.java.template"
+        protocol_renderer = Serial8JavaProtocolRenderer(package=java_package)
         was_written = write_if_changed(
             java_protocol_template_path,
-            generate_protocol_template_java(
-                self.messages, java_protocol_template_path, java_package
-            ),
+            protocol_renderer.render(self.messages, java_protocol_template_path),
         )
         stats.record_write(java_protocol_template_path, was_written)
 
