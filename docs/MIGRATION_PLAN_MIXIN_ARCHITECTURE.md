@@ -249,10 +249,10 @@ git add -A && git commit -m "chore: checkpoint before mixin architecture migrati
 ```
 
 #### Critères de Succès
-- [ ] Branche créée
-- [ ] 405 tests passent
-- [ ] Génération protocol fonctionne
-- [ ] Commit checkpoint créé
+- [x] Branche créée (feature/extensible-architecture)
+- [x] 405 tests passent
+- [x] Génération protocol fonctionne
+- [x] Commit checkpoint créé (0e9915e)
 
 ---
 
