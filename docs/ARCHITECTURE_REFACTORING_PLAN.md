@@ -1,10 +1,11 @@
 # Plan de Refactorisation Architecturale - Protocol Codegen
 
-> **Version** : 2.0
+> **Version** : 2.1
 > **Date** : 2026-01-01
 > **Branche** : `feature/extensible-architecture`
 > **Tag de référence** : `v2.0-pre-extensibility`
 > **Objectif** : Architecture extensible multi-langages / multi-protocoles
+> **Progression** : Phase 3.5/3.10 (TypeEncoder pattern implémenté)
 
 ---
 
@@ -22,7 +23,7 @@
 
 ## 1. État Actuel de la Codebase
 
-### 1.1 Commits Réalisés (Phase 3.0-3.2)
+### 1.1 Commits Réalisés (Phase 3.0-3.5)
 
 | Commit | Description | Fichiers |
 |--------|-------------|----------|
@@ -31,32 +32,52 @@
 | `7574e01` | feat(templates): EncoderTemplate | +600 lignes |
 | `b094997` | docs: architecture plan v1.1 | - |
 | `6121992` | fix(types): Pylance compliance | refactor |
+| `cf50d56` | docs: architecture plan v2.0 | - |
+| `97ae652` | feat(architecture): TypeEncoder pattern (3.3-3.5) | +16 fichiers, ~1042 lignes |
 
 ### 1.2 Fichiers Existants - Backends (COMPLET ✅)
 
 | Fichier | Lignes | État |
 |---------|--------|------|
 | `generators/backends/__init__.py` | 62 | ✅ Complet |
-| `generators/backends/base.py` | 257 | ✅ Complet |
-| `generators/backends/cpp.py` | 238 | ✅ Complet |
-| `generators/backends/java.py` | 292 | ✅ Complet |
-| **Total backends** | **849** | |
+| `generators/backends/base.py` | 277 | ✅ Complet (+render_encoder_method) |
+| `generators/backends/cpp.py` | 324 | ✅ Complet (+render_encoder_method) |
+| `generators/backends/java.py` | 380 | ✅ Complet (+render_encoder_method) |
+| **Total backends** | **1,043** | |
 
 ### 1.3 Fichiers Existants - Encoding (COMPLET ✅)
 
 | Fichier | Lignes | État |
 |---------|--------|------|
-| `generators/common/encoding/__init__.py` | 56 | ✅ Complet |
+| `generators/common/encoding/__init__.py` | 61 | ✅ Complet |
 | `generators/common/encoding/strategy.py` | 164 | ✅ Complet |
 | `generators/common/encoding/serial8_strategy.py` | 142 | ✅ Complet |
 | `generators/common/encoding/sysex_strategy.py` | 145 | ✅ Complet |
-| **Total encoding** | **507** | |
+| `generators/common/encoding/operations.py` | 52 | ✅ Complet (Phase 3.3) |
+| **Total encoding** | **564** | |
 
-**Classes disponibles dans `strategy.py`** :
+**Classes disponibles** :
 - `IntegerEncodingSpec` (dataclass) - shifts, masks, byte_count
 - `NormEncodingSpec` (dataclass) - max_value, integer_spec
 - `StringEncodingSpec` (dataclass) - length_mask, char_mask
 - `EncodingStrategy` (ABC) - get_integer_spec(), get_norm_spec(), get_string_spec(), bool_true_value, bool_false_value
+- `ByteWriteOp` (dataclass) - index, expression (Phase 3.3)
+- `MethodSpec` (dataclass) - type_name, method_name, byte_writes, preamble, etc. (Phase 3.3)
+
+### 1.3b Fichiers Existants - TypeEncoders (COMPLET ✅)
+
+| Fichier | Lignes | État |
+|---------|--------|------|
+| `generators/common/type_encoders/__init__.py` | 26 | ✅ Complet |
+| `generators/common/type_encoders/base.py` | 56 | ✅ Complet |
+| `generators/common/type_encoders/bool_encoder.py` | 44 | ✅ Complet |
+| `generators/common/type_encoders/integer_encoder.py` | 58 | ✅ Complet |
+| `generators/common/type_encoders/float_encoder.py` | 49 | ✅ Complet |
+| `generators/common/type_encoders/norm_encoder.py` | 76 | ✅ Complet |
+| `generators/common/type_encoders/string_encoder.py` | 40 | ✅ Complet |
+| **Total type_encoders** | **349** | |
+
+**Note** : Renommé de `types/` à `type_encoders/` pour éviter conflit avec module Python builtin `types`.
 
 ### 1.4 Fichiers Existants - Templates (À REFACTORER)
 
@@ -102,8 +123,16 @@
 ### 1.7 Tests Existants
 
 ```
-368 tests passent ✅
+405 tests passent ✅ (+37 nouveaux tests Phase 3.3-3.5)
 ```
+
+**Nouveaux tests ajoutés** :
+- `tests/generators/common/encoding/test_operations.py` (10 tests)
+- `tests/generators/common/type_encoders/test_bool_encoder.py` (4 tests)
+- `tests/generators/common/type_encoders/test_integer_encoder.py` (9 tests)
+- `tests/generators/common/type_encoders/test_float_encoder.py` (4 tests)
+- `tests/generators/common/type_encoders/test_norm_encoder.py` (6 tests)
+- `tests/generators/common/type_encoders/test_string_encoder.py` (4 tests)
 
 ---
 
@@ -178,11 +207,11 @@ TypeRegistry ─────► TypeEncoder ─────► MethodSpec ──
 
 ## 3. Plan d'Exécution Détaillé
 
-### Phase 3.3 : MethodSpec (Représentation Intermédiaire)
+### Phase 3.3 : MethodSpec (Représentation Intermédiaire) ✅ COMPLÈTE
 
 **Objectif** : Créer la structure de données qui découple TypeEncoder du Backend.
 
-**Fichier à créer** : `generators/common/encoding/operations.py` (~80 lignes)
+**Fichier créé** : `generators/common/encoding/operations.py` (52 lignes)
 
 ```python
 """
@@ -312,23 +341,24 @@ ruff check src/protocol_codegen/generators/common/encoding/operations.py
 
 ---
 
-### Phase 3.4 : TypeEncoders
+### Phase 3.4 : TypeEncoders ✅ COMPLÈTE
 
 **Objectif** : Extraire la logique d'encodage de `EncoderTemplate` en classes dédiées.
 
-**Structure à créer** :
+**Structure créée** (renommé `types/` → `type_encoders/` pour éviter conflit Python builtin):
 ```
-generators/common/types/
-├── __init__.py              (~30 lignes)
-├── base.py                  (~50 lignes)
-├── bool_encoder.py          (~45 lignes)
-├── integer_encoder.py       (~70 lignes)
-├── float_encoder.py         (~55 lignes)
-├── norm_encoder.py          (~65 lignes)
-└── string_encoder.py        (~55 lignes)
+generators/common/type_encoders/
+├── __init__.py              (26 lignes)
+├── base.py                  (56 lignes)
+├── bool_encoder.py          (44 lignes)
+├── integer_encoder.py       (58 lignes)
+├── float_encoder.py         (49 lignes)
+├── norm_encoder.py          (76 lignes)
+└── string_encoder.py        (40 lignes)
+Total: 349 lignes
 ```
 
-**Fichier** : `generators/common/types/base.py`
+**Fichier** : `generators/common/type_encoders/base.py`
 
 ```python
 """
@@ -757,11 +787,16 @@ ruff check src/protocol_codegen/generators/common/types/
 
 ---
 
-### Phase 3.5 : Backend Render Methods
+### Phase 3.5 : Backend Render Methods ✅ COMPLÈTE
 
 **Objectif** : Ajouter `render_encoder_method()` aux backends.
 
-**Modification** : `generators/backends/base.py` (+15 lignes)
+**Modifications effectuées** :
+- `generators/backends/base.py` : +20 lignes (méthode abstraite)
+- `generators/backends/cpp.py` : +86 lignes (implémentation C++)
+- `generators/backends/java.py` : +88 lignes (implémentation Java)
+
+**Modification** : `generators/backends/base.py`
 
 Ajouter après `decode_call()` :
 
