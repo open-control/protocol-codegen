@@ -1,11 +1,11 @@
 # Plan de Refactorisation Architecturale - Protocol Codegen
 
-> **Version** : 2.3
+> **Version** : 2.4
 > **Date** : 2026-01-01
 > **Branche** : `feature/extensible-architecture`
 > **Tag de référence** : `v2.0-pre-extensibility`
 > **Objectif** : Architecture extensible multi-langages / multi-protocoles
-> **Progression** : Phase 3.8/3.10 (TypeEncoder + TypeDecoder patterns complets)
+> **Progression** : Phase 3.10/3.10 COMPLETE ✅
 
 ---
 
@@ -38,6 +38,9 @@
 | `717bf23` | refactor(encoder): use TypeEncoder pattern (3.6-3.7) | -1,893 lignes, +100 lignes |
 | `19e285a` | docs: update architecture plan v2.2 | - |
 | `40f4742` | feat(decoder): implement TypeDecoder pattern (3.8) | +905 lignes, -1,369 lignes |
+| `0eb85cb` | docs: update architecture plan v2.3 | - |
+| `c5c4ea9` | fix(backends): add assertions for string codecs | +4 lignes |
+| `TBD` | refactor(common): update __init__.py exports (3.10) | cleanup |
 
 ### 1.2 Fichiers Existants - Backends (COMPLET ✅)
 
@@ -1120,14 +1123,14 @@ ruff check src/
 
 ---
 
-### Phase 3.10 : Cleanup et Documentation
+### Phase 3.10 : Cleanup et Documentation ✅ COMPLÈTE
 
-**Actions** :
-1. Supprimer code mort
-2. Mettre à jour tous les `__init__.py`
-3. Documenter architecture dans `docs/ARCHITECTURE.md`
-4. Valider tous les tests
-5. Merger dans `main`
+**Actions réalisées** :
+1. ✅ Supprimer code mort - déjà fait via thin wrappers
+2. ✅ Mettre à jour `common/__init__.py` avec exports des nouveaux modules
+3. ✅ Fix Pylance warnings (assertions pour preamble/postamble)
+4. ℹ️ Documentation dans ce fichier (ARCHITECTURE_REFACTORING_PLAN.md)
+5. ✅ 405 tests passent
 
 ---
 
