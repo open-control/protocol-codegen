@@ -2,6 +2,9 @@
 Common C++ Generators.
 
 Shared generators for C++ code generation across protocols (SysEx, Serial8).
+
+Note: Low-level struct_utils are intentionally not exposed here.
+They are internal implementation details used by generate_struct_hpp.
 """
 
 from protocol_codegen.generators.common.cpp.callbacks_generator import (
@@ -28,17 +31,6 @@ from protocol_codegen.generators.common.cpp.method_generator import (
 from protocol_codegen.generators.common.cpp.struct_generator import (
     generate_struct_hpp,
 )
-from protocol_codegen.generators.common.cpp.struct_utils import (
-    analyze_includes_needed,
-    generate_composite_structs,
-    generate_decode_function,
-    generate_encode_function,
-    generate_footer,
-    generate_header,
-    generate_single_composite_struct,
-    generate_struct_definition,
-    get_cpp_type_for_field,
-)
 
 __all__ = [
     # Callbacks
@@ -57,14 +49,4 @@ __all__ = [
     "generate_protocol_methods_hpp",
     # Struct Generator
     "generate_struct_hpp",
-    # Struct Utils
-    "analyze_includes_needed",
-    "generate_composite_structs",
-    "generate_decode_function",
-    "generate_encode_function",
-    "generate_footer",
-    "generate_header",
-    "generate_single_composite_struct",
-    "generate_struct_definition",
-    "get_cpp_type_for_field",
 ]
