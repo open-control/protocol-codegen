@@ -388,11 +388,11 @@ git add -A && git commit -m "refactor(config): extract ProtocolConfig TypedDict 
 ```
 
 #### Critères de Succès
-- [ ] `common/config.py` créé avec les 4 TypedDict
-- [ ] cpp/constants_generator.py utilise import
-- [ ] java/constants_generator.py utilise import
-- [ ] Tous les tests passent
-- [ ] Génération fonctionne
+- [x] `common/config.py` créé avec les 4 TypedDict
+- [x] cpp/constants_generator.py utilise import
+- [x] java/constants_generator.py utilise import
+- [x] Tous les tests passent (405)
+- [x] Génération fonctionne (commit 418e7a3)
 
 ---
 
@@ -2276,9 +2276,9 @@ Phase 0: Préparation
   [ ] Checkpoint commit
 
 Phase 1: Extraction Config
-  [ ] common/config.py créé
-  [ ] Duplication supprimée
-  [ ] Tests passent
+  [x] common/config.py créé
+  [x] Duplication supprimée
+  [x] Tests passent
 
 Phase 2: Unification java_package
   [ ] java_package retiré de EnumDef
