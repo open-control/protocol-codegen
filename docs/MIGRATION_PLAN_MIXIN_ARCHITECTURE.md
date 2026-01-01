@@ -1271,11 +1271,11 @@ git add -A && git commit -m "feat(mixins): add language mixins for protocol rend
 ```
 
 #### Critères de Succès
-- [ ] CppProtocolMixin créé avec toutes les méthodes
-- [ ] JavaProtocolMixin créé avec toutes les méthodes
-- [ ] __init__.py avec exports
-- [ ] Imports fonctionnent
-- [ ] Tests passent
+- [x] CppProtocolMixin créé avec toutes les méthodes
+- [x] JavaProtocolMixin créé avec toutes les méthodes
+- [x] __init__.py avec exports
+- [x] Imports fonctionnent
+- [x] Tests passent (commit 795c81d)
 
 ---
 
@@ -2297,9 +2297,9 @@ Phase 4: Infrastructure Renderers
   [x] Registry fonctionnel
 
 Phase 5: Mixins Langage
-  [ ] CppProtocolMixin créé
-  [ ] JavaProtocolMixin créé
-  [ ] Tests passent
+  [x] CppProtocolMixin créé
+  [x] JavaProtocolMixin créé
+  [x] Tests passent
 
 Phase 6: Mixins Protocol
   [ ] Serial8FramingMixin créé
