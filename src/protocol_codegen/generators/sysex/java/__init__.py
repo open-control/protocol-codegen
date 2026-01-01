@@ -19,6 +19,7 @@ from protocol_codegen.generators.common.java import (
     generate_protocol_methods_java,
     generate_struct_java,
 )
+
 from .message_structure_generator import generate_message_structure_java
 
 __all__ = [

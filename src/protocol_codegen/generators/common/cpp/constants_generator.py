@@ -23,7 +23,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from protocol_codegen.generators.common.config import ProtocolConfig
+from protocol_codegen.generators.common.config import (
+    LimitsConfig,
+    ProtocolConfig,
+    StructureConfig,
+    SysExFramingConfig,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path

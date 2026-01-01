@@ -12,18 +12,18 @@ from protocol_codegen.core.enums import Direction, Intent
 from protocol_codegen.core.field import PrimitiveField, Type
 from protocol_codegen.core.loader import TypeRegistry
 from protocol_codegen.core.message import Message
+from protocol_codegen.generators.common.cpp.method_generator import (
+    generate_protocol_methods_hpp,
+)
+from protocol_codegen.generators.common.java.method_generator import (
+    generate_protocol_methods_java,
+)
 from protocol_codegen.generators.common.naming import (
     message_name_to_callback_name,
     message_name_to_method_name,
     should_exclude_field,
     to_camel_case,
     to_pascal_case,
-)
-from protocol_codegen.generators.common.cpp.method_generator import (
-    generate_protocol_methods_hpp,
-)
-from protocol_codegen.generators.common.java.method_generator import (
-    generate_protocol_methods_java,
 )
 
 

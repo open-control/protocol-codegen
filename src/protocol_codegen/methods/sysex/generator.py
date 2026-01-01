@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING
 
 from protocol_codegen.core.file_utils import GenerationStats, write_if_changed
 from protocol_codegen.generators.backends import CppBackend, JavaBackend
-from protocol_codegen.generators.common.encoding import SysExEncodingStrategy
 from protocol_codegen.generators.common.cpp.constants_generator import (
     ProtocolConfig as CppProtocolConfig,
 )
+from protocol_codegen.generators.common.encoding import SysExEncodingStrategy
 from protocol_codegen.generators.common.java.constants_generator import (
     ProtocolConfig as JavaProtocolConfig,
 )

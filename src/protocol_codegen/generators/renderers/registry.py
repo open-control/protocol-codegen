@@ -4,7 +4,8 @@ Renderer Registry.
 Auto-discovery and factory for renderers.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Type
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from protocol_codegen.generators.backends.base import LanguageBackend
@@ -20,18 +21,18 @@ class RendererRegistry:
     - (file_type, backend_name, strategy_name) for by_backend_strategy renderers
     """
 
-    _by_backend: dict[tuple[str, str], Type[Any]] = {}
-    _by_backend_strategy: dict[tuple[str, str, str], Type[Any]] = {}
+    _by_backend: dict[tuple[str, str], type[Any]] = {}
+    _by_backend_strategy: dict[tuple[str, str, str], type[Any]] = {}
 
     @classmethod
     def register_backend(
         cls,
         file_type: str,
         backend_name: str,
-    ) -> Callable[[Type[Any]], Type[Any]]:
+    ) -> Callable[[type[Any]], type[Any]]:
         """Decorator to register a by_backend renderer."""
 
-        def decorator(renderer_cls: Type[Any]) -> Type[Any]:
+        def decorator(renderer_cls: type[Any]) -> type[Any]:
             key = (file_type, backend_name.lower())
             cls._by_backend[key] = renderer_cls
             return renderer_cls
@@ -44,10 +45,10 @@ class RendererRegistry:
         file_type: str,
         backend_name: str,
         strategy_name: str,
-    ) -> Callable[[Type[Any]], Type[Any]]:
+    ) -> Callable[[type[Any]], type[Any]]:
         """Decorator to register a by_backend_strategy renderer."""
 
-        def decorator(renderer_cls: Type[Any]) -> Type[Any]:
+        def decorator(renderer_cls: type[Any]) -> type[Any]:
             key = (file_type, backend_name.lower(), strategy_name.lower())
             cls._by_backend_strategy[key] = renderer_cls
             return renderer_cls
@@ -93,7 +94,7 @@ def register_renderer(
     file_type: str,
     backend_name: str,
     strategy_name: str | None = None,
-) -> Callable[[Type[Any]], Type[Any]]:
+) -> Callable[[type[Any]], type[Any]]:
     """
     Decorator to register a renderer.
 
