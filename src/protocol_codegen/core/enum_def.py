@@ -27,7 +27,10 @@ class EnumDef:
             Example: {"Audio": "AUDIO", "Instrument": "INSTRUMENT"}
         is_bitflags: If True, generates constants instead of enum class (for combinable flags)
         cpp_namespace: C++ namespace for the generated enum (default: none)
-        java_package: Java package for the generated enum (default: "protocol")
+
+    Note:
+        Java package is passed as parameter to generate_enum_java(), not stored here.
+        This keeps EnumDef as pure data without output configuration.
 
     Examples:
         # Simple enum
@@ -58,7 +61,6 @@ class EnumDef:
     string_mapping: dict[str, str] | None = None
     is_bitflags: bool = False
     cpp_namespace: str = ""
-    java_package: str = "protocol"
 
     def __post_init__(self) -> None:
         """Validate enum definition."""

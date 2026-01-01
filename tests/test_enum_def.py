@@ -122,16 +122,14 @@ class TestEnumDef:
         enum = EnumDef(name="Test", values={"FIRST": 0, "SECOND": 1})
         assert enum.get_default_value() == "FIRST"
 
-    def test_custom_namespace_package(self) -> None:
-        """Test custom namespace and package."""
+    def test_custom_namespace(self) -> None:
+        """Test custom C++ namespace."""
         enum = EnumDef(
             name="Custom",
             values={"A": 0},
             cpp_namespace="MyNamespace",
-            java_package="com.example",
         )
         assert enum.cpp_namespace == "MyNamespace"
-        assert enum.java_package == "com.example"
         assert enum.cpp_type == "MyNamespace::Custom"
 
     def test_str_representation(self) -> None:

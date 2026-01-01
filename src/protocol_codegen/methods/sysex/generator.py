@@ -336,7 +336,7 @@ class SysExGenerator(BaseProtocolGenerator[SysExConfig]):
         enum_stats = GenerationStats()
         for enum_def in self.enum_defs:
             java_enum_path = java_base / f"{enum_def.name}.java"
-            java_enum_code = generate_enum_java(enum_def, java_enum_path)
+            java_enum_code = generate_enum_java(enum_def, java_enum_path, java_package)
             was_written = write_if_changed(java_enum_path, java_enum_code)
             enum_stats.record_write(java_enum_path, was_written)
 

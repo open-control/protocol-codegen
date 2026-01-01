@@ -137,7 +137,7 @@ class TestJavaEnumGenerator:
 
     def test_generates_java_enum(self, simple_enum: EnumDef) -> None:
         """Test generating a Java enum."""
-        code = generate_enum_java(simple_enum, Path("TrackType.java"))
+        code = generate_enum_java(simple_enum, Path("TrackType.java"), "protocol")
 
         assert "public enum TrackType" in code
         assert "AUDIO(0)" in code
@@ -146,14 +146,14 @@ class TestJavaEnumGenerator:
 
     def test_generates_get_value_method(self, simple_enum: EnumDef) -> None:
         """Test getValue method is generated."""
-        code = generate_enum_java(simple_enum, Path("TrackType.java"))
+        code = generate_enum_java(simple_enum, Path("TrackType.java"), "protocol")
 
         assert "public int getValue()" in code
         assert "return value;" in code
 
     def test_generates_from_value_method(self, simple_enum: EnumDef) -> None:
         """Test fromValue method is generated."""
-        code = generate_enum_java(simple_enum, Path("TrackType.java"))
+        code = generate_enum_java(simple_enum, Path("TrackType.java"), "protocol")
 
         assert "public static TrackType fromValue(int value)" in code
         assert "for (TrackType e : values())" in code
@@ -161,18 +161,17 @@ class TestJavaEnumGenerator:
 
     def test_generates_package(self, simple_enum: EnumDef) -> None:
         """Test package declaration."""
-        code = generate_enum_java(simple_enum, Path("TrackType.java"))
+        code = generate_enum_java(simple_enum, Path("TrackType.java"), "protocol")
 
         assert "package protocol;" in code
 
     def test_generates_custom_package(self) -> None:
-        """Test custom package."""
+        """Test custom package passed as parameter."""
         enum = EnumDef(
             name="Custom",
             values={"A": 0},
-            java_package="com.example",
         )
-        code = generate_enum_java(enum, Path("Custom.java"))
+        code = generate_enum_java(enum, Path("Custom.java"), "com.example")
 
         assert "package com.example;" in code
 
@@ -186,7 +185,7 @@ class TestJavaEnumGenerator:
                 "instrument": "INSTRUMENT",
             },
         )
-        code = generate_enum_java(enum, Path("DeviceType.java"))
+        code = generate_enum_java(enum, Path("DeviceType.java"), "protocol")
 
         assert "public static DeviceType fromString(String str)" in code
         assert 'case "audio-effect": return AUDIO_EFFECT;' in code
@@ -195,13 +194,13 @@ class TestJavaEnumGenerator:
 
     def test_no_from_string_without_mapping(self, simple_enum: EnumDef) -> None:
         """Test fromString is not generated without mapping."""
-        code = generate_enum_java(simple_enum, Path("TrackType.java"))
+        code = generate_enum_java(simple_enum, Path("TrackType.java"), "protocol")
 
         assert "fromString" not in code
 
     def test_generates_bitflags_class(self, bitflags_enum: EnumDef) -> None:
         """Test generating bitflags as a final class."""
-        code = generate_enum_java(bitflags_enum, Path("ChildType.java"))
+        code = generate_enum_java(bitflags_enum, Path("ChildType.java"), "protocol")
 
         # Should NOT have enum
         assert "public enum ChildType" not in code
@@ -215,19 +214,19 @@ class TestJavaEnumGenerator:
 
     def test_bitflags_private_constructor(self, bitflags_enum: EnumDef) -> None:
         """Test bitflags class has private constructor."""
-        code = generate_enum_java(bitflags_enum, Path("ChildType.java"))
+        code = generate_enum_java(bitflags_enum, Path("ChildType.java"), "protocol")
 
         assert "private ChildType() {}" in code
 
     def test_generates_header_comment(self, simple_enum: EnumDef) -> None:
         """Test header comment."""
-        code = generate_enum_java(simple_enum, Path("TrackType.java"))
+        code = generate_enum_java(simple_enum, Path("TrackType.java"), "protocol")
 
         assert "AUTO-GENERATED - DO NOT EDIT" in code
         assert "TrackType.java" in code
 
     def test_generates_description_comment(self, simple_enum: EnumDef) -> None:
         """Test description in comment."""
-        code = generate_enum_java(simple_enum, Path("TrackType.java"))
+        code = generate_enum_java(simple_enum, Path("TrackType.java"), "protocol")
 
         assert "Type of track in Bitwig" in code

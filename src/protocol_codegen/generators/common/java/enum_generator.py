@@ -10,7 +10,7 @@ from pathlib import Path
 from protocol_codegen.core.enum_def import EnumDef
 
 
-def generate_enum_java(enum_def: EnumDef, output_path: Path) -> str:
+def generate_enum_java(enum_def: EnumDef, output_path: Path, package: str) -> str:
     """
     Generate a Java file for an enum definition.
 
@@ -21,6 +21,7 @@ def generate_enum_java(enum_def: EnumDef, output_path: Path) -> str:
     Args:
         enum_def: The enum definition to generate
         output_path: Path where the file will be written (for header comment)
+        package: Java package name for the generated file
 
     Returns:
         Generated Java content as string
@@ -28,14 +29,14 @@ def generate_enum_java(enum_def: EnumDef, output_path: Path) -> str:
     Examples:
         >>> from protocol_codegen.core.enum_def import EnumDef
         >>> enum = EnumDef(name="TrackType", values={"AUDIO": 0, "INSTRUMENT": 1})
-        >>> code = generate_enum_java(enum, Path("TrackType.java"))
+        >>> code = generate_enum_java(enum, Path("TrackType.java"), "protocol")
         >>> "public enum TrackType" in code
         True
     """
     lines: list[str] = []
 
     # Package declaration
-    lines.append(f"package {enum_def.java_package};")
+    lines.append(f"package {package};")
     lines.append("")
 
     # Header comment
