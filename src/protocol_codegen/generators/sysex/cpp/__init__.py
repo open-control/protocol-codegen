@@ -1,6 +1,9 @@
 """
 C++ Code Generators for SysEx Protocol
-Generates C++ protocol files (structs, MessageID, etc.)
+Generates C++ protocol files for 7-bit MIDI SysEx.
+
+Note: Protocol template generation now uses:
+  - SysExCppProtocolRenderer from renderers/protocol/
 
 Note: Encoder/Decoder generation now uses templates directly via:
   - EncoderTemplate(CppBackend(), SysExEncodingStrategy())
@@ -17,7 +20,6 @@ from protocol_codegen.generators.common.cpp import (
     generate_protocol_methods_hpp,
     generate_struct_hpp,
 )
-from .protocol_generator import generate_protocol_template_hpp
 
 __all__ = [
     "generate_constants_hpp",
@@ -27,6 +29,5 @@ __all__ = [
     "generate_messageid_hpp",
     "generate_protocol_callbacks_hpp",
     "generate_protocol_methods_hpp",
-    "generate_protocol_template_hpp",
     "generate_struct_hpp",
 ]

@@ -1,6 +1,9 @@
 """
 Java Code Generators for SysEx Protocol
-Generates Java protocol files (structs, MessageID, etc.)
+Generates Java protocol files for 7-bit MIDI SysEx.
+
+Note: Protocol template generation now uses:
+  - SysExJavaProtocolRenderer from renderers/protocol/
 
 Note: Encoder/Decoder generation now uses templates directly via:
   - EncoderTemplate(JavaBackend(package=pkg), SysExEncodingStrategy())
@@ -17,7 +20,6 @@ from protocol_codegen.generators.common.java import (
     generate_struct_java,
 )
 from .message_structure_generator import generate_message_structure_java
-from .protocol_generator import generate_protocol_template_java
 
 __all__ = [
     "generate_constants_java",
@@ -27,6 +29,5 @@ __all__ = [
     "generate_messageid_java",
     "generate_protocol_callbacks_java",
     "generate_protocol_methods_java",
-    "generate_protocol_template_java",
     "generate_struct_java",
 ]
