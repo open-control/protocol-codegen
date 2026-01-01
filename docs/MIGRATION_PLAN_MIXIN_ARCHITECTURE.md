@@ -615,10 +615,10 @@ git add -A && git commit -m "refactor(api): hide struct_utils from public API
 ```
 
 #### Critères de Succès
-- [ ] struct_utils non accessibles via `common.cpp`
-- [ ] struct_utils non accessibles via `common.java`
-- [ ] Tous les tests passent
-- [ ] Génération fonctionne
+- [x] struct_utils non accessibles via `common.cpp`
+- [x] struct_utils non accessibles via `common.java`
+- [x] Tous les tests passent
+- [x] Génération fonctionne (commit 9584528)
 
 ---
 
@@ -2287,9 +2287,9 @@ Phase 2: Unification java_package
   [x] Tests passent
 
 Phase 3: Nettoyage API
-  [ ] struct_utils cachés
-  [ ] API surface réduite
-  [ ] Tests passent
+  [x] struct_utils cachés
+  [x] API surface réduite
+  [x] Tests passent
 
 Phase 4: Infrastructure Renderers
   [ ] Structure créée
