@@ -14,6 +14,11 @@ if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry
     from protocol_codegen.generators.backends.base import LanguageBackend
     from protocol_codegen.generators.common.encoding import EncodingStrategy
+    from protocol_codegen.generators.common.encoding.strategy import (
+        IntegerEncodingSpec,
+        NormEncodingSpec,
+        StringEncodingSpec,
+    )
 
 
 class EncoderTemplate:
@@ -194,7 +199,9 @@ static inline void encodeBool(uint8_t*& buf, bool val) {{
             return self._generate_java_integer_encoder(type_name, spec, description)
         return ""
 
-    def _generate_cpp_integer_encoder(self, type_name: str, spec, description: str) -> str:
+    def _generate_cpp_integer_encoder(
+        self, type_name: str, spec: IntegerEncodingSpec, description: str
+    ) -> str:
         """Generate C++ integer encoder."""
         # Get C++ type
         cpp_type = {
@@ -209,12 +216,9 @@ static inline void encodeBool(uint8_t*& buf, bool val) {{
         method_name = f"encode{type_name.capitalize()}"
 
         # Generate byte writes
-        lines = []
-        for i, (shift, mask) in enumerate(zip(spec.shifts, spec.masks)):
-            if shift == 0:
-                expr = f"val & 0x{mask:02X}"
-            else:
-                expr = f"(val >> {shift}) & 0x{mask:02X}"
+        lines: list[str] = []
+        for shift, mask in zip(spec.shifts, spec.masks, strict=True):
+            expr = f"val & 0x{mask:02X}" if shift == 0 else f"(val >> {shift}) & 0x{mask:02X}"
             lines.append(f"    *buf++ = {expr};")
 
         body = "\n".join(lines)
@@ -222,7 +226,6 @@ static inline void encodeBool(uint8_t*& buf, bool val) {{
         # For signed types, cast to unsigned first
         cast_line = ""
         if type_name.startswith("int") and spec.byte_count > 1:
-            unsigned_type = f"u{type_name}"
             cpp_unsigned = cpp_type.replace("int", "uint")
             cast_line = f"    {cpp_unsigned} val = static_cast<{cpp_unsigned}>(value);\n"
             body = body.replace("val", "val")
@@ -246,7 +249,9 @@ static inline void {method_name}(uint8_t*& buf, {cpp_type} val) {{
 }}
 """
 
-    def _generate_java_integer_encoder(self, type_name: str, spec, description: str) -> str:
+    def _generate_java_integer_encoder(
+        self, type_name: str, spec: IntegerEncodingSpec, description: str
+    ) -> str:
         """Generate Java integer encoder."""
         # Get Java type
         java_type = {
@@ -261,12 +266,13 @@ static inline void {method_name}(uint8_t*& buf, {cpp_type} val) {{
         method_name = f"write{type_name.capitalize()}"
 
         # Generate byte writes
-        lines = []
-        for i, (shift, mask) in enumerate(zip(spec.shifts, spec.masks)):
-            if shift == 0:
-                expr = f"(byte) (val & 0x{mask:02X})"
-            else:
-                expr = f"(byte) ((val >> {shift}) & 0x{mask:02X})"
+        lines: list[str] = []
+        for i, (shift, mask) in enumerate(zip(spec.shifts, spec.masks, strict=True)):
+            expr = (
+                f"(byte) (val & 0x{mask:02X})"
+                if shift == 0
+                else f"(byte) ((val >> {shift}) & 0x{mask:02X})"
+            )
             lines.append(f"        buffer[offset + {i}] = {expr};")
 
         body = "\n".join(lines)
@@ -337,14 +343,13 @@ static inline void {method_name}(uint8_t*& buf, {cpp_type} val) {{
             return self._generate_java_float_encoder(spec, description)
         return ""
 
-    def _generate_cpp_float_encoder(self, spec, description: str) -> str:
+    def _generate_cpp_float_encoder(
+        self, spec: IntegerEncodingSpec, description: str
+    ) -> str:
         """Generate C++ float32 encoder."""
-        lines = []
-        for i, (shift, mask) in enumerate(zip(spec.shifts, spec.masks)):
-            if shift == 0:
-                expr = f"bits & 0x{mask:02X}"
-            else:
-                expr = f"(bits >> {shift}) & 0x{mask:02X}"
+        lines: list[str] = []
+        for shift, mask in zip(spec.shifts, spec.masks, strict=True):
+            expr = f"bits & 0x{mask:02X}" if shift == 0 else f"(bits >> {shift}) & 0x{mask:02X}"
             lines.append(f"    *buf++ = {expr};")
 
         body = "\n".join(lines)
@@ -362,14 +367,17 @@ static inline void encodeFloat32(uint8_t*& buf, float val) {{
 }}
 """
 
-    def _generate_java_float_encoder(self, spec, description: str) -> str:
+    def _generate_java_float_encoder(
+        self, spec: IntegerEncodingSpec, description: str
+    ) -> str:
         """Generate Java float32 encoder."""
-        lines = []
-        for i, (shift, mask) in enumerate(zip(spec.shifts, spec.masks)):
-            if shift == 0:
-                expr = f"(byte) (bits & 0x{mask:02X})"
-            else:
-                expr = f"(byte) ((bits >> {shift}) & 0x{mask:02X})"
+        lines: list[str] = []
+        for i, (shift, mask) in enumerate(zip(spec.shifts, spec.masks, strict=True)):
+            expr = (
+                f"(byte) (bits & 0x{mask:02X})"
+                if shift == 0
+                else f"(byte) ((bits >> {shift}) & 0x{mask:02X})"
+            )
             lines.append(f"        buffer[offset + {i}] = {expr};")
 
         body = "\n".join(lines)
@@ -407,14 +415,16 @@ static inline void encodeFloat32(uint8_t*& buf, float val) {{
             return self._generate_java_norm_encoder(type_name, spec, description)
         return ""
 
-    def _generate_cpp_norm_encoder(self, type_name: str, spec, description: str) -> str:
+    def _generate_cpp_norm_encoder(
+        self, type_name: str, spec: NormEncodingSpec, description: str
+    ) -> str:
         """Generate C++ norm encoder."""
         method_name = f"encode{type_name.capitalize()}"
         max_val = spec.max_value
 
         if spec.byte_count == 1:
             # Single byte norm
-            mask = 0x7F if max_val == 127 else 0xFF
+            byte_mask = 0x7F if max_val == 127 else 0xFF
             return f"""
 /**
  * Encode {type_name} ({spec.comment})
@@ -425,7 +435,7 @@ static inline void encodeFloat32(uint8_t*& buf, float val) {{
 static inline void {method_name}(uint8_t*& buf, float val) {{
     if (val < 0.0f) val = 0.0f;
     if (val > 1.0f) val = 1.0f;
-    *buf++ = static_cast<uint8_t>(val * {max_val}.0f + 0.5f) & 0x{mask:02X};
+    *buf++ = static_cast<uint8_t>(val * {max_val}.0f + 0.5f) & 0x{byte_mask:02X};
 }}
 """
         else:
@@ -434,12 +444,9 @@ static inline void {method_name}(uint8_t*& buf, float val) {{
             if not int_spec:
                 return ""
 
-            lines = []
-            for i, (shift, mask) in enumerate(zip(int_spec.shifts, int_spec.masks)):
-                if shift == 0:
-                    expr = f"norm & 0x{mask:02X}"
-                else:
-                    expr = f"(norm >> {shift}) & 0x{mask:02X}"
+            lines: list[str] = []
+            for shift, mask in zip(int_spec.shifts, int_spec.masks, strict=True):
+                expr = f"norm & 0x{mask:02X}" if shift == 0 else f"(norm >> {shift}) & 0x{mask:02X}"
                 lines.append(f"    *buf++ = {expr};")
 
             body = "\n".join(lines)
@@ -460,13 +467,15 @@ static inline void {method_name}(uint8_t*& buf, float val) {{
 }}
 """
 
-    def _generate_java_norm_encoder(self, type_name: str, spec, description: str) -> str:
+    def _generate_java_norm_encoder(
+        self, type_name: str, spec: NormEncodingSpec, description: str
+    ) -> str:
         """Generate Java norm encoder."""
         method_name = f"write{type_name.capitalize()}"
         max_val = spec.max_value
 
         if spec.byte_count == 1:
-            mask = 0x7F if max_val == 127 else 0xFF
+            byte_mask = 0x7F if max_val == 127 else 0xFF
             return f"""
     /**
      * Write {type_name} ({spec.comment})
@@ -481,7 +490,7 @@ static inline void {method_name}(uint8_t*& buf, float val) {{
      */
     public static int {method_name}(byte[] buffer, int offset, float value) {{
         float clamped = Math.max(0.0f, Math.min(1.0f, value));
-        buffer[offset] = (byte) (Math.round(clamped * {max_val}.0f) & 0x{mask:02X});
+        buffer[offset] = (byte) (Math.round(clamped * {max_val}.0f) & 0x{byte_mask:02X});
         return 1;
     }}
 """
@@ -490,12 +499,13 @@ static inline void {method_name}(uint8_t*& buf, float val) {{
             if not int_spec:
                 return ""
 
-            lines = []
-            for i, (shift, mask) in enumerate(zip(int_spec.shifts, int_spec.masks)):
-                if shift == 0:
-                    expr = f"(byte) (val & 0x{mask:02X})"
-                else:
-                    expr = f"(byte) ((val >> {shift}) & 0x{mask:02X})"
+            lines: list[str] = []
+            for i, (shift, mask) in enumerate(zip(int_spec.shifts, int_spec.masks, strict=True)):
+                expr = (
+                    f"(byte) (val & 0x{mask:02X})"
+                    if shift == 0
+                    else f"(byte) ((val >> {shift}) & 0x{mask:02X})"
+                )
                 lines.append(f"        buffer[offset + {i}] = {expr};")
 
             body = "\n".join(lines)
@@ -534,7 +544,9 @@ static inline void {method_name}(uint8_t*& buf, float val) {{
             return self._generate_java_string_encoder(spec, description)
         return ""
 
-    def _generate_cpp_string_encoder(self, spec, description: str) -> str:
+    def _generate_cpp_string_encoder(
+        self, spec: StringEncodingSpec, description: str
+    ) -> str:
         """Generate C++ string encoder."""
         return f"""
 /**
@@ -554,7 +566,9 @@ static inline void encodeString(uint8_t*& buf, const std::string& str) {{
 }}
 """
 
-    def _generate_java_string_encoder(self, spec, description: str) -> str:
+    def _generate_java_string_encoder(
+        self, spec: StringEncodingSpec, description: str
+    ) -> str:
         """Generate Java string encoder."""
         return f"""
     /**

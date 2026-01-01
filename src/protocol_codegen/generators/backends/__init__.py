@@ -23,6 +23,8 @@ Usage:
     java.array_type("int", 16)    # -> "int[]"
 """
 
+from typing import Any
+
 from protocol_codegen.generators.backends.base import LanguageBackend
 from protocol_codegen.generators.backends.cpp import CppBackend
 from protocol_codegen.generators.backends.java import JavaBackend
@@ -34,7 +36,7 @@ __all__ = [
 ]
 
 
-def get_backend(language: str, **kwargs) -> LanguageBackend:
+def get_backend(language: str, **kwargs: Any) -> LanguageBackend:
     """Factory function to get a backend by language name.
 
     Args:
