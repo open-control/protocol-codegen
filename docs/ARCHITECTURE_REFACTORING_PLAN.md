@@ -1,686 +1,903 @@
 # Plan de Refactorisation Architecturale - Protocol Codegen
 
-> **Version** : 1.1
+> **Version** : 2.0
 > **Date** : 2026-01-01
-> **Dernière mise à jour** : 2026-01-01
+> **Branche** : `feature/extensible-architecture`
+> **Tag de référence** : `v2.0-pre-extensibility`
 > **Objectif** : Architecture extensible multi-langages / multi-protocoles
-
----
-
-## 📊 Suivi d'Avancement
-
-### État Global
-
-| Métrique | Valeur |
-|----------|--------|
-| **Phase actuelle** | 3.2c (Refactor encoder generators) |
-| **Tests** | 368 passent ✅ |
-| **Nouveaux fichiers** | 6 |
-| **Nouvelles lignes** | ~1,540 |
-| **Branche** | `feature/extensible-architecture` |
-
-### Progression des Phases
-
-| Phase | Description | Status | Commit | Lignes |
-|-------|-------------|--------|--------|--------|
-| 3.0 | Préparation (tag, branche) | ✅ Done | `v2.0-pre-extensibility` | - |
-| 3.1 | LanguageBackend (CppBackend, JavaBackend) | ✅ Done | `eef4cb4` | +700 |
-| 3.2a | Encoding specs dans EncodingStrategy | ✅ Done | `2fbb1d6` | +343 |
-| 3.2b | EncoderTemplate | ✅ Done | `7574e01` | +500 |
-| 3.2c | Refactor 4 encoder_generator.py | ⏳ Pending | - | -1,300 est. |
-| 3.3 | DecoderTemplate | ⏳ Pending | - | +350 est. |
-| 3.4 | ConstantsTemplate | ⏳ Pending | - | +150 est. |
-| 3.5 | FileManifest + Pipeline | ⏳ Pending | - | +250 est. |
-| 3.6 | Consolidation generators | ⏳ Pending | - | -400 est. |
-| 3.7 | Cleanup + docs | ⏳ Pending | - | - |
-
-### Fichiers Créés (Phase 3.1-3.2)
-
-```
-src/protocol_codegen/generators/
-├── backends/
-│   ├── __init__.py          ✅ (55 lignes)
-│   ├── base.py               ✅ (210 lignes) - LanguageBackend ABC
-│   ├── cpp.py                ✅ (217 lignes) - CppBackend
-│   └── java.py               ✅ (223 lignes) - JavaBackend
-└── templates/
-    ├── __init__.py           ✅ (20 lignes)
-    └── encoder.py            ✅ (500 lignes) - EncoderTemplate
-
-tests/generators/
-├── backends/
-│   ├── test_cpp_backend.py   ✅ (188 lignes)
-│   ├── test_java_backend.py  ✅ (195 lignes)
-│   └── test_backend_factory.py ✅ (41 lignes)
-└── templates/
-    └── test_encoder_template.py ✅ (150 lignes)
-```
-
-### Fichiers Modifiés (Phase 3.2a)
-
-```
-src/protocol_codegen/generators/common/encoding/
-├── strategy.py               ✅ +114 lignes (IntegerEncodingSpec, NormEncodingSpec, StringEncodingSpec)
-├── serial8_strategy.py       ✅ +103 lignes (encoding specs)
-└── sysex_strategy.py         ✅ +103 lignes (encoding specs)
-```
 
 ---
 
 ## Table des Matières
 
-1. [Analyse de l'Existant](#1-analyse-de-lexistant)
+1. [État Actuel de la Codebase](#1-état-actuel-de-la-codebase)
 2. [Architecture Cible](#2-architecture-cible)
-3. [Décision: Refactoring vs Réécriture](#3-décision-refactoring-vs-réécriture)
-4. [Plan d'Exécution Détaillé](#4-plan-dexécution-détaillé)
-5. [Inventaire Complet des Fichiers](#5-inventaire-complet-des-fichiers)
-6. [Conventions de Nommage](#6-conventions-de-nommage)
-7. [Risques et Mitigations](#7-risques-et-mitigations)
+3. [Plan d'Exécution Détaillé](#3-plan-dexécution-détaillé)
+4. [Inventaire Complet des Fichiers](#4-inventaire-complet-des-fichiers)
+5. [Conventions de Nommage](#5-conventions-de-nommage)
+6. [Risques et Mitigations](#6-risques-et-mitigations)
+7. [Validation Continue](#7-validation-continue)
 
 ---
 
-## 1. Analyse de l'Existant
+## 1. État Actuel de la Codebase
 
-### 1.1 Métriques Actuelles
+### 1.1 Commits Réalisés (Phase 3.0-3.2)
 
-| Catégorie | Fichiers | Lignes | % du Total |
-|-----------|----------|--------|------------|
-| **Core** (stable) | 13 | 1,574 | 12% |
-| **Common** (factorisé) | 22 | 3,609 | 27% |
-| **Serial8** (protocol-specific) | 12 | 2,595 | 19% |
-| **SysEx** (protocol-specific) | 13 | 3,304 | 25% |
-| **Methods** (orchestration) | 8 | 1,408 | 10% |
-| **CLI/Entry** | 4 | 322 | 2% |
-| **Autres** (__init__, etc.) | 7 | 604 | 5% |
-| **TOTAL** | **79** | **13,416** | 100% |
+| Commit | Description | Fichiers |
+|--------|-------------|----------|
+| `eef4cb4` | feat(backends): LanguageBackend abstraction | +4 fichiers, ~850 lignes |
+| `2fbb1d6` | feat(encoding): encoding specs | +320 lignes |
+| `7574e01` | feat(templates): EncoderTemplate | +600 lignes |
+| `b094997` | docs: architecture plan v1.1 | - |
+| `6121992` | fix(types): Pylance compliance | refactor |
 
-### 1.2 Duplication Identifiée
+### 1.2 Fichiers Existants - Backends (COMPLET ✅)
 
-| Générateur | Serial8 | SysEx | Diff | Similaire |
-|------------|---------|-------|------|-----------|
-| cpp/encoder | 273 | 298 | 137 | 76% |
-| cpp/decoder | 335 | 357 | 160 | 77% |
-| cpp/constants | 164 | 207 | 121 | 67% |
-| cpp/protocol | 214 | 272 | 296 | 39% |
-| cpp/decoder_registry | 142 | 142 | 284 | 0% |
-| java/encoder | 339 | 593 | 430 | 54% |
-| java/decoder | 365 | 386 | 139 | 81% |
-| java/constants | 158 | 204 | 120 | 67% |
-| java/protocol | 279 | 253 | 334 | 37% |
-| **methods/generator** | 375 | 397 | ~40 | 95% |
+| Fichier | Lignes | État |
+|---------|--------|------|
+| `generators/backends/__init__.py` | 62 | ✅ Complet |
+| `generators/backends/base.py` | 257 | ✅ Complet |
+| `generators/backends/cpp.py` | 238 | ✅ Complet |
+| `generators/backends/java.py` | 292 | ✅ Complet |
+| **Total backends** | **849** | |
 
-**Duplication totale estimée : ~3,500 lignes (26%)**
+### 1.3 Fichiers Existants - Encoding (COMPLET ✅)
 
-### 1.3 Points Forts Existants
+| Fichier | Lignes | État |
+|---------|--------|------|
+| `generators/common/encoding/__init__.py` | 56 | ✅ Complet |
+| `generators/common/encoding/strategy.py` | 164 | ✅ Complet |
+| `generators/common/encoding/serial8_strategy.py` | 142 | ✅ Complet |
+| `generators/common/encoding/sysex_strategy.py` | 145 | ✅ Complet |
+| **Total encoding** | **507** | |
 
-- ✅ `EncodingStrategy` - Pattern Strategy pour encodage (7-bit vs 8-bit)
-- ✅ `BaseProtocolGenerator` - Template Method pour pipeline
-- ✅ `common/cpp/struct_utils.py` - Factorisation réussie
-- ✅ `common/java/struct_utils.py` - Factorisation réussie
-- ✅ `PayloadCalculator` - Calcul de taille paramétré
+**Classes disponibles dans `strategy.py`** :
+- `IntegerEncodingSpec` (dataclass) - shifts, masks, byte_count
+- `NormEncodingSpec` (dataclass) - max_value, integer_spec
+- `StringEncodingSpec` (dataclass) - length_mask, char_mask
+- `EncodingStrategy` (ABC) - get_integer_spec(), get_norm_spec(), get_string_spec(), bool_true_value, bool_false_value
 
-### 1.4 Points Faibles
+### 1.4 Fichiers Existants - Templates (À REFACTORER)
 
-- ❌ Pas d'abstraction `LanguageBackend` pour syntaxe/idiomes
-- ❌ Encoders/Decoders dupliqués (templates inline)
-- ❌ `_generate_cpp()` / `_generate_java()` identiques à 95%
-- ❌ Pas de registre de générateurs (discovery)
-- ❌ Constants/Protocol generators partiellement dupliqués
+| Fichier | Lignes | État |
+|---------|--------|------|
+| `generators/templates/__init__.py` | 24 | ✅ Complet |
+| `generators/templates/encoder.py` | 601 | ⚠️ À refactorer |
+| **Total templates** | **625** | |
+
+**Problème avec `encoder.py`** : Mélange logique d'encodage et rendu syntaxique.
+
+**Méthodes actuelles de `EncoderTemplate`** (à extraire) :
+- `_generate_bool_encoder()` → `BoolEncoder`
+- `_generate_integer_encoder()` → `IntegerEncoder`
+- `_generate_cpp_integer_encoder()` → `CppBackend.render_encoder_method()`
+- `_generate_java_integer_encoder()` → `JavaBackend.render_encoder_method()`
+- `_generate_float_encoder()` → `FloatEncoder`
+- `_generate_norm_encoder()` → `NormEncoder`
+- `_generate_string_encoder()` → `StringEncoder`
+
+### 1.5 Fichiers À Supprimer (encoder_generator.py)
+
+| Fichier | Lignes | Raison |
+|---------|--------|--------|
+| `serial8/cpp/encoder_generator.py` | 273 | Remplacé par EncoderTemplate |
+| `serial8/java/encoder_generator.py` | 339 | Remplacé par EncoderTemplate |
+| `sysex/cpp/encoder_generator.py` | 298 | Remplacé par EncoderTemplate |
+| `sysex/java/encoder_generator.py` | 593 | Remplacé par EncoderTemplate |
+| **Total à supprimer** | **1,503** | |
+
+### 1.6 Fichiers Common Inchangés
+
+| Fichier | Lignes | Rôle |
+|---------|--------|------|
+| `common/cpp/struct_utils.py` | 741 | Génération structs C++ |
+| `common/java/struct_utils.py` | 1,104 | Génération structs Java |
+| `common/cpp/codec_utils.py` | 122 | Utilitaires codecs C++ |
+| `common/java/codec_utils.py` | 49 | Utilitaires codecs Java |
+| `common/naming.py` | 107 | Conventions nommage |
+| `common/payload_calculator.py` | 175 | Calcul tailles payload |
+| **Total inchangé** | **2,298** | |
+
+### 1.7 Tests Existants
+
+```
+368 tests passent ✅
+```
 
 ---
 
 ## 2. Architecture Cible
 
-### 2.1 Vision
+### 2.1 Problème Actuel
 
 ```
-                    ┌─────────────────────────────────────────┐
-                    │           Protocol Codegen              │
-                    └─────────────────────────────────────────┘
-                                       │
-         ┌─────────────────────────────┼─────────────────────────────┐
-         │                             │                             │
-         ▼                             ▼                             ▼
-┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
-│  LanguageBackend │         │ EncodingStrategy│         │  FileManifest   │
-│  (syntaxe)       │         │ (protocole)     │         │  (orchestration)│
-└─────────────────┘         └─────────────────┘         └─────────────────┘
-         │                             │                             │
-    ┌────┴────┐                   ┌────┴────┐                        │
-    ▼         ▼                   ▼         ▼                        ▼
-┌──────┐  ┌──────┐          ┌────────┐ ┌────────┐           ┌────────────────┐
-│ Cpp  │  │ Java │          │ Serial8│ │ SysEx  │           │ BaseGenerator  │
-│Backend│ │Backend│         │Strategy│ │Strategy│           │ (générique)    │
-└──────┘  └──────┘          └────────┘ └────────┘           └────────────────┘
-    │         │                   │         │                        │
-    └────┬────┘                   └────┬────┘                        │
-         │                             │                             │
-         ▼                             ▼                             ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              CodeGenerator                                   │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │
-│  │ EncoderTemplate │  │ DecoderTemplate │  │  StructTemplate │  ...         │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘              │
-└─────────────────────────────────────────────────────────────────────────────┘
+EncoderTemplate (601 lignes)
+├── Logique bool (C++ + Java mélangés)
+├── Logique integer (C++ + Java mélangés)
+├── Logique float (C++ + Java mélangés)
+├── Logique norm (C++ + Java mélangés)
+└── Logique string (C++ + Java mélangés)
 ```
 
-### 2.2 Principes
+**Violation** : Single Responsibility Principle - une classe fait tout.
 
-1. **Séparation des préoccupations**
-   - `LanguageBackend` : syntaxe, types, imports, idiomes
-   - `EncodingStrategy` : tailles, transformations d'encodage
-   - `Template` : logique de génération commune
+### 2.2 Architecture Cible
 
-2. **Composition plutôt qu'héritage**
-   - `CodeGenerator = Backend + Strategy + Template`
-   - Pas de hiérarchie de classes profonde
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    TYPE ENCODERS                            │
+│  Pattern d'encodage par type (injection de EncodingStrategy)│
+├─────────────┬───────────┬───────────┬───────────┬──────────┤
+│ BoolEncoder │IntEncoder │FloatEnc   │ NormEnc   │StringEnc │
+│   (40 L)    │  (60 L)   │  (50 L)   │  (60 L)   │  (50 L)  │
+└──────┬──────┴─────┬─────┴─────┬─────┴─────┬─────┴────┬─────┘
+       └────────────┴───────────┴───────────┴──────────┘
+                              │
+                              │ MethodSpec (dataclass)
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  LANGUAGE BACKENDS                          │
+│  render_encoder_method(spec: MethodSpec) -> str             │
+├────────────────────────────┬────────────────────────────────┤
+│   CppBackend (+80 L)       │   JavaBackend (+80 L)          │
+│   *buf++ = expr;           │   buffer[i] = (byte)expr;      │
+└────────────────────────────┴────────────────────────────────┘
+```
 
-3. **Convention over Configuration**
-   - Naming cohérent permet discovery automatique
-   - Manifests déclaratifs pour fichiers à générer
+### 2.3 Flux de Données
+
+```
+TypeRegistry ─────► TypeEncoder ─────► MethodSpec ─────► Backend ─────► Code
+                         │                                   │
+                         │ injection                         │ type mapping
+                         ▼                                   ▼
+                  EncodingStrategy                    TypeRegistry
+                  (Serial8/SysEx)                   (cpp_type/java_type)
+```
+
+### 2.4 Responsabilités Clarifiées
+
+| Composant | Responsabilité | Ne fait PAS |
+|-----------|---------------|-------------|
+| **TypeEncoder** | Logique d'encodage pour un pattern de type | Syntaxe langage |
+| **EncodingStrategy** | Paramètres du protocol (masks, shifts) | Logique d'encodage |
+| **MethodSpec** | Représentation intermédiaire (expressions) | Rendu syntaxique |
+| **LanguageBackend** | Syntaxe du langage cible | Logique d'encodage |
+
+### 2.5 Bénéfices Quantifiés
+
+| Action | Avant | Après |
+|--------|-------|-------|
+| Ajouter Rust | 12+ fichiers | 1 fichier `RustBackend` (~300L) |
+| Ajouter WebSocket | 12+ fichiers | 1 fichier `WebSocketStrategy` (~150L) |
+| Ajouter int64 | 4+ fichiers | Modifier `IntegerEncoder` (+20L) |
+| Duplication | ~26% | <5% |
 
 ---
 
-## 3. Décision: Refactoring vs Réécriture
+## 3. Plan d'Exécution Détaillé
 
-### 3.1 Critères d'Évaluation
+### Phase 3.3 : MethodSpec (Représentation Intermédiaire)
 
-| Critère | Refactoring Incrémental | Réécriture From Scratch |
-|---------|------------------------|-------------------------|
-| **Risque** | Faible (tests existants) | Élevé (nouveaux bugs) |
-| **Temps** | ~5-7 jours | ~10-15 jours |
-| **Continuité** | Toujours fonctionnel | Période non-fonctionnelle |
-| **Tests** | Réutilisables | À adapter |
-| **Complexité** | Migration graduelle | Architecture propre |
-| **Dette technique** | Résiduelle possible | Minimale |
+**Objectif** : Créer la structure de données qui découple TypeEncoder du Backend.
 
-### 3.2 Recommandation : REFACTORING INCRÉMENTAL
-
-**Justification :**
-
-1. **250 tests existants** → filet de sécurité
-2. **Core stable** (1,574 lignes) → pas besoin de toucher
-3. **struct_utils déjà factorisés** → preuve que l'approche marche
-4. **70%+ de similarité** → extraction mécaniquede patterns
-5. **Production active** → pas de période d'indisponibilité
-
-### 3.3 Snapshot de Référence
-
-Avant de commencer, créer un tag Git :
-
-```bash
-git tag -a v2.0-pre-refactoring -m "Snapshot before architecture refactoring"
-```
-
----
-
-## 4. Plan d'Exécution Détaillé
-
-### Phase 3.0 : Préparation (0.5 jour)
-
-| Étape | Action | Fichiers |
-|-------|--------|----------|
-| 3.0.1 | Créer tag Git `v2.0-pre-refactoring` | - |
-| 3.0.2 | Créer branche `feature/extensible-architecture` | - |
-| 3.0.3 | Valider baseline : `pytest && ruff check` | - |
-
----
-
-### Phase 3.1 : LanguageBackend Abstraction (1.5 jour)
-
-**Objectif** : Abstraire la syntaxe des langages C++ et Java
-
-#### Nouveaux Fichiers
-
-| Fichier | Lignes | Description |
-|---------|--------|-------------|
-| `generators/backends/__init__.py` | ~20 | Exports |
-| `generators/backends/base.py` | ~150 | `LanguageBackend` ABC |
-| `generators/backends/cpp.py` | ~200 | `CppBackend` implementation |
-| `generators/backends/java.py` | ~250 | `JavaBackend` implementation |
-
-#### Détail : `generators/backends/base.py`
+**Fichier à créer** : `generators/common/encoding/operations.py` (~80 lignes)
 
 ```python
 """
-Language Backend Abstract Base Class.
+Encoding Operations - Intermediate representation for code generation.
 
-Defines the interface for language-specific code generation.
-Each backend encapsulates syntax, types, and idioms for one target language.
+These dataclasses represent abstract encoding operations that are
+language-agnostic. They are produced by TypeEncoders and consumed
+by LanguageBackends to generate final code.
 """
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ByteWriteOp:
+    """Single byte write operation.
+
+    Attributes:
+        index: Byte index (for Java: buffer[offset + index])
+        expression: Language-agnostic expression (e.g., "val & 0xFF")
+    """
+
+    index: int
+    expression: str
+
+
+@dataclass(frozen=True)
+class MethodSpec:
+    """Language-agnostic specification for an encoder method.
+
+    This is the contract between TypeEncoder (producer) and
+    LanguageBackend (consumer).
+
+    Attributes:
+        type_name: Protocol-codegen type (e.g., "uint16")
+        method_name: Method name without prefix (e.g., "Uint16")
+        param_type: Parameter type name (protocol-codegen type)
+        byte_count: Number of bytes in encoded form
+        byte_writes: Tuple of byte write operations
+        doc_comment: Documentation string
+        preamble: Optional code before byte writes (e.g., "uint32_t bits; memcpy(...);")
+        needs_signed_cast: True if param is signed and needs cast to unsigned
+    """
+
+    type_name: str
+    method_name: str
+    param_type: str
+    byte_count: int
+    byte_writes: tuple[ByteWriteOp, ...]
+    doc_comment: str
+    preamble: str | None = None
+    needs_signed_cast: bool = False
+```
+
+**Fichier à créer** : `tests/generators/common/encoding/test_operations.py`
+
+```python
+"""Tests for encoding operations."""
+
+import pytest
+
+from protocol_codegen.generators.common.encoding.operations import (
+    ByteWriteOp,
+    MethodSpec,
+)
+
+
+class TestByteWriteOp:
+    def test_create(self) -> None:
+        op = ByteWriteOp(index=0, expression="val & 0xFF")
+        assert op.index == 0
+        assert op.expression == "val & 0xFF"
+
+    def test_immutable(self) -> None:
+        op = ByteWriteOp(index=0, expression="val & 0xFF")
+        with pytest.raises(AttributeError):
+            op.index = 1  # type: ignore
+
+
+class TestMethodSpec:
+    def test_create_simple(self) -> None:
+        spec = MethodSpec(
+            type_name="uint8",
+            method_name="Uint8",
+            param_type="uint8",
+            byte_count=1,
+            byte_writes=(ByteWriteOp(0, "val & 0xFF"),),
+            doc_comment="8-bit unsigned integer",
+        )
+        assert spec.type_name == "uint8"
+        assert spec.byte_count == 1
+        assert len(spec.byte_writes) == 1
+
+    def test_with_preamble(self) -> None:
+        spec = MethodSpec(
+            type_name="float32",
+            method_name="Float32",
+            param_type="float32",
+            byte_count=4,
+            byte_writes=(
+                ByteWriteOp(0, "bits & 0xFF"),
+                ByteWriteOp(1, "(bits >> 8) & 0xFF"),
+                ByteWriteOp(2, "(bits >> 16) & 0xFF"),
+                ByteWriteOp(3, "(bits >> 24) & 0xFF"),
+            ),
+            doc_comment="IEEE 754 float",
+            preamble="uint32_t bits; memcpy(&bits, &val, sizeof(float));",
+        )
+        assert spec.preamble is not None
+        assert "memcpy" in spec.preamble
+```
+
+**Modification** : `generators/common/encoding/__init__.py`
+
+Ajouter export :
+```python
+from .operations import ByteWriteOp, MethodSpec
+```
+
+**Validation Phase 3.3** :
+```bash
+pytest tests/generators/common/encoding/test_operations.py -v
+ruff check src/protocol_codegen/generators/common/encoding/operations.py
+```
+
+---
+
+### Phase 3.4 : TypeEncoders
+
+**Objectif** : Extraire la logique d'encodage de `EncoderTemplate` en classes dédiées.
+
+**Structure à créer** :
+```
+generators/common/types/
+├── __init__.py              (~30 lignes)
+├── base.py                  (~50 lignes)
+├── bool_encoder.py          (~45 lignes)
+├── integer_encoder.py       (~70 lignes)
+├── float_encoder.py         (~55 lignes)
+├── norm_encoder.py          (~65 lignes)
+└── string_encoder.py        (~55 lignes)
+```
+
+**Fichier** : `generators/common/types/base.py`
+
+```python
+"""
+Type Encoder Base Class.
+
+Defines the interface for type-specific encoding logic.
+Each TypeEncoder knows how to produce a MethodSpec for its supported types.
+"""
+
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from protocol_codegen.core.field import FieldBase
-    from protocol_codegen.core.types import AtomicType
+    from protocol_codegen.generators.common.encoding import EncodingStrategy
+    from protocol_codegen.generators.common.encoding.operations import MethodSpec
 
-class LanguageBackend(ABC):
-    """Abstract base for language-specific code generation."""
 
-    # ─────────────────────────────────────────────────────────────
-    # Identity
-    # ─────────────────────────────────────────────────────────────
+class TypeEncoder(ABC):
+    """Base class for type-specific encoding logic.
 
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Language identifier: 'cpp', 'java', 'rust', etc."""
-        ...
+    TypeEncoders are responsible for producing MethodSpecs that describe
+    HOW to encode a type. They use an injected EncodingStrategy to get
+    protocol-specific parameters (masks, shifts, byte counts).
 
-    @property
-    @abstractmethod
-    def file_extension(self) -> str:
-        """File extension: '.hpp', '.java', '.rs', etc."""
-        ...
+    The MethodSpec is then rendered to actual code by a LanguageBackend.
+    """
 
-    # ─────────────────────────────────────────────────────────────
-    # Type Mapping
-    # ─────────────────────────────────────────────────────────────
+    def __init__(self, strategy: EncodingStrategy) -> None:
+        """Initialize with encoding strategy.
+
+        Args:
+            strategy: Protocol-specific encoding parameters
+        """
+        self.strategy = strategy
 
     @abstractmethod
-    def map_atomic_type(self, type_name: str) -> str:
-        """Map protocol type to language type.
+    def supported_types(self) -> tuple[str, ...]:
+        """Return type names this encoder handles.
 
-        Example: 'uint8' → 'uint8_t' (C++) or 'int' (Java)
+        Returns:
+            Tuple of protocol-codegen type names (e.g., ("uint8", "uint16"))
         """
         ...
 
     @abstractmethod
-    def array_type(self, element_type: str, size: int | None) -> str:
-        """Generate array type declaration.
+    def get_method_spec(self, type_name: str, description: str) -> MethodSpec:
+        """Generate method specification for the given type.
 
-        Example: ('uint8_t', 16) → 'std::array<uint8_t, 16>' (C++)
-                 ('int', 16) → 'int[]' (Java)
+        Args:
+            type_name: Protocol-codegen type name
+            description: Human-readable description from TypeRegistry
+
+        Returns:
+            MethodSpec describing how to encode this type
+
+        Raises:
+            ValueError: If type_name is not in supported_types()
         """
-        ...
-
-    @abstractmethod
-    def optional_type(self, inner_type: str) -> str:
-        """Generate optional type wrapper.
-
-        Example: 'Foo' → 'std::optional<Foo>' (C++) or 'Foo' (Java, nullable)
-        """
-        ...
-
-    # ─────────────────────────────────────────────────────────────
-    # Syntax Elements
-    # ─────────────────────────────────────────────────────────────
-
-    @abstractmethod
-    def include_statement(self, path: str) -> str:
-        """Generate include/import statement.
-
-        Example: 'Encoder' → '#include "Encoder.hpp"' (C++)
-                 'Encoder' → 'import protocol.Encoder;' (Java)
-        """
-        ...
-
-    @abstractmethod
-    def namespace_open(self, name: str) -> str:
-        """Open namespace/package scope."""
-        ...
-
-    @abstractmethod
-    def namespace_close(self, name: str) -> str:
-        """Close namespace/package scope."""
-        ...
-
-    @abstractmethod
-    def struct_declaration(
-        self,
-        name: str,
-        fields: list[tuple[str, str]],  # [(type, name), ...]
-        constants: list[tuple[str, str, str]] = [],  # [(type, name, value), ...]
-    ) -> str:
-        """Generate struct/class declaration with fields."""
-        ...
-
-    @abstractmethod
-    def function_signature(
-        self,
-        name: str,
-        params: list[tuple[str, str]],  # [(type, name), ...]
-        return_type: str,
-        modifiers: list[str] = [],  # ['static', 'inline', 'const', ...]
-    ) -> str:
-        """Generate function/method signature."""
-        ...
-
-    # ─────────────────────────────────────────────────────────────
-    # Encoder/Decoder Idioms
-    # ─────────────────────────────────────────────────────────────
-
-    @abstractmethod
-    def encode_call(self, encoder_var: str, method: str, value: str) -> str:
-        """Generate encoder method call.
-
-        Example: ('Encoder', 'encodeUint8', 'val')
-                 → 'Encoder::encodeUint8(buf, val);' (C++)
-                 → 'Encoder.encodeUint8(buffer, val);' (Java)
-        """
-        ...
-
-    @abstractmethod
-    def decode_call(self, decoder_var: str, method: str) -> str:
-        """Generate decoder method call.
-
-        Example: ('Decoder', 'decodeUint8')
-                 → 'Decoder::decodeUint8(buf)' (C++)
-                 → 'Decoder.decodeUint8(buffer)' (Java)
-        """
-        ...
-
-    # ─────────────────────────────────────────────────────────────
-    # File Assembly
-    # ─────────────────────────────────────────────────────────────
-
-    @abstractmethod
-    def file_header(self, description: str, includes: list[str]) -> str:
-        """Generate file header with includes/imports."""
-        ...
-
-    @abstractmethod
-    def file_footer(self) -> str:
-        """Generate file footer (closing braces, etc.)."""
         ...
 ```
 
-#### Détail : `generators/backends/cpp.py`
+**Fichier** : `generators/common/types/integer_encoder.py`
 
 ```python
 """
-C++ Language Backend.
+Integer Type Encoder.
 
-Implements LanguageBackend for C++ code generation.
-Handles C++ syntax, STL types, and embedded-friendly patterns.
-"""
-
-from protocol_codegen.generators.backends.base import LanguageBackend
-
-
-class CppBackend(LanguageBackend):
-    """C++ code generation backend."""
-
-    # Type mapping: protocol type → C++ type
-    TYPE_MAP = {
-        "bool": "bool",
-        "uint8": "uint8_t",
-        "int8": "int8_t",
-        "uint16": "uint16_t",
-        "int16": "int16_t",
-        "uint32": "uint32_t",
-        "int32": "int32_t",
-        "float32": "float",
-        "norm8": "float",
-        "norm16": "float",
-        "string": "std::string",
-    }
-
-    @property
-    def name(self) -> str:
-        return "cpp"
-
-    @property
-    def file_extension(self) -> str:
-        return ".hpp"
-
-    def map_atomic_type(self, type_name: str) -> str:
-        return self.TYPE_MAP.get(type_name, type_name)
-
-    def array_type(self, element_type: str, size: int | None) -> str:
-        if size is not None:
-            return f"std::array<{element_type}, {size}>"
-        return f"std::vector<{element_type}>"
-
-    def optional_type(self, inner_type: str) -> str:
-        return f"std::optional<{inner_type}>"
-
-    def include_statement(self, path: str) -> str:
-        if path.startswith("<"):
-            return f"#include {path}"
-        return f'#include "{path}"'
-
-    def namespace_open(self, name: str) -> str:
-        return f"namespace {name} {{"
-
-    def namespace_close(self, name: str) -> str:
-        return f"}}  // namespace {name}"
-
-    def struct_declaration(
-        self,
-        name: str,
-        fields: list[tuple[str, str]],
-        constants: list[tuple[str, str, str]] = [],
-    ) -> str:
-        lines = [f"struct {name} {{"]
-
-        # Constants
-        for const_type, const_name, const_value in constants:
-            lines.append(f"    static constexpr {const_type} {const_name} = {const_value};")
-
-        if constants and fields:
-            lines.append("")
-
-        # Fields
-        for field_type, field_name in fields:
-            lines.append(f"    {field_type} {field_name};")
-
-        lines.append("};")
-        return "\n".join(lines)
-
-    def function_signature(
-        self,
-        name: str,
-        params: list[tuple[str, str]],
-        return_type: str,
-        modifiers: list[str] = [],
-    ) -> str:
-        mod_str = " ".join(modifiers) + " " if modifiers else ""
-        param_str = ", ".join(f"{t} {n}" for t, n in params)
-        return f"{mod_str}{return_type} {name}({param_str})"
-
-    def encode_call(self, encoder_var: str, method: str, value: str) -> str:
-        return f"{encoder_var}::{method}(buf, {value});"
-
-    def decode_call(self, decoder_var: str, method: str) -> str:
-        return f"{decoder_var}::{method}(buf)"
-
-    def file_header(self, description: str, includes: list[str]) -> str:
-        lines = [
-            "#pragma once",
-            "",
-            "/**",
-            f" * {description}",
-            " *",
-            " * AUTO-GENERATED - DO NOT EDIT",
-            " */",
-            "",
-        ]
-        for inc in includes:
-            lines.append(self.include_statement(inc))
-        lines.append("")
-        return "\n".join(lines)
-
-    def file_footer(self) -> str:
-        return ""
-```
-
-#### Détail : `generators/backends/java.py`
-
-```python
-"""
-Java Language Backend.
-
-Implements LanguageBackend for Java code generation.
-Handles Java syntax, package structure, and Android compatibility.
-"""
-
-from protocol_codegen.generators.backends.base import LanguageBackend
-
-
-class JavaBackend(LanguageBackend):
-    """Java code generation backend."""
-
-    TYPE_MAP = {
-        "bool": "boolean",
-        "uint8": "int",      # Java n'a pas de unsigned, on utilise int
-        "int8": "byte",
-        "uint16": "int",
-        "int16": "short",
-        "uint32": "long",
-        "int32": "int",
-        "float32": "float",
-        "norm8": "float",
-        "norm16": "float",
-        "string": "String",
-    }
-
-    def __init__(self, package: str = "protocol"):
-        self._package = package
-
-    @property
-    def name(self) -> str:
-        return "java"
-
-    @property
-    def file_extension(self) -> str:
-        return ".java"
-
-    @property
-    def package(self) -> str:
-        return self._package
-
-    def map_atomic_type(self, type_name: str) -> str:
-        return self.TYPE_MAP.get(type_name, type_name)
-
-    def array_type(self, element_type: str, size: int | None) -> str:
-        return f"{element_type}[]"
-
-    def optional_type(self, inner_type: str) -> str:
-        # Java uses nullable references
-        return inner_type
-
-    def include_statement(self, path: str) -> str:
-        return f"import {path};"
-
-    def namespace_open(self, name: str) -> str:
-        return f"package {name};"
-
-    def namespace_close(self, name: str) -> str:
-        return ""  # Java doesn't close packages
-
-    def struct_declaration(
-        self,
-        name: str,
-        fields: list[tuple[str, str]],
-        constants: list[tuple[str, str, str]] = [],
-    ) -> str:
-        lines = [f"public final class {name} {{"]
-
-        # Constants
-        for const_type, const_name, const_value in constants:
-            lines.append(f"    public static final {const_type} {const_name} = {const_value};")
-
-        if constants and fields:
-            lines.append("")
-
-        # Fields (private final)
-        for field_type, field_name in fields:
-            lines.append(f"    private final {field_type} {field_name};")
-
-        lines.append("}")
-        return "\n".join(lines)
-
-    def function_signature(
-        self,
-        name: str,
-        params: list[tuple[str, str]],
-        return_type: str,
-        modifiers: list[str] = [],
-    ) -> str:
-        mod_str = " ".join(modifiers) + " " if modifiers else ""
-        param_str = ", ".join(f"{t} {n}" for t, n in params)
-        return f"{mod_str}{return_type} {name}({param_str})"
-
-    def encode_call(self, encoder_var: str, method: str, value: str) -> str:
-        return f"{encoder_var}.{method}(buffer, {value});"
-
-    def decode_call(self, decoder_var: str, method: str) -> str:
-        return f"{decoder_var}.{method}(buffer)"
-
-    def file_header(self, description: str, includes: list[str]) -> str:
-        lines = [
-            f"package {self._package};",
-            "",
-            "/**",
-            f" * {description}",
-            " *",
-            " * AUTO-GENERATED - DO NOT EDIT",
-            " */",
-            "",
-        ]
-        for inc in includes:
-            lines.append(self.include_statement(inc))
-        if includes:
-            lines.append("")
-        return "\n".join(lines)
-
-    def file_footer(self) -> str:
-        return ""
-```
-
-#### Tests à Créer
-
-| Fichier | Description |
-|---------|-------------|
-| `tests/generators/backends/test_cpp_backend.py` | Tests unitaires CppBackend |
-| `tests/generators/backends/test_java_backend.py` | Tests unitaires JavaBackend |
-
-#### Validation Phase 3.1
-
-```bash
-pytest tests/generators/backends/
-ruff check src/protocol_codegen/generators/backends/
-```
-
----
-
-### Phase 3.2 : CodecTemplate - Encoders (1 jour)
-
-**Objectif** : Factoriser `encoder_generator.py` (Serial8 + SysEx) × (C++ + Java)
-
-#### Nouveaux Fichiers
-
-| Fichier | Lignes | Description |
-|---------|--------|-------------|
-| `generators/templates/__init__.py` | ~10 | Exports |
-| `generators/templates/encoder.py` | ~300 | `EncoderTemplate` générique |
-
-#### Fichiers Modifiés
-
-| Fichier | Action |
-|---------|--------|
-| `serial8/cpp/encoder_generator.py` | Réduire à orchestrateur (~50 lignes) |
-| `serial8/java/encoder_generator.py` | Réduire à orchestrateur (~50 lignes) |
-| `sysex/cpp/encoder_generator.py` | Réduire à orchestrateur (~50 lignes) |
-| `sysex/java/encoder_generator.py` | Réduire à orchestrateur (~50 lignes) |
-
-#### Détail : `generators/templates/encoder.py`
-
-```python
-"""
-Encoder Template.
-
-Generates Encoder.hpp/java files for any combination of:
-- LanguageBackend (C++, Java, Rust, ...)
-- EncodingStrategy (Serial8, SysEx, WebSocket, ...)
+Handles encoding of integer types: uint8, int8, uint16, int16, uint32, int32.
+Uses EncodingStrategy to get protocol-specific byte layout.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
+from protocol_codegen.generators.common.encoding.operations import (
+    ByteWriteOp,
+    MethodSpec,
+)
+from protocol_codegen.generators.common.types.base import TypeEncoder
+
+if TYPE_CHECKING:
+    pass
+
+
+class IntegerEncoder(TypeEncoder):
+    """Encoder for integer types."""
+
+    def supported_types(self) -> tuple[str, ...]:
+        return ("uint8", "int8", "uint16", "int16", "uint32", "int32")
+
+    def get_method_spec(self, type_name: str, description: str) -> MethodSpec:
+        if type_name not in self.supported_types():
+            raise ValueError(f"Unsupported type: {type_name}")
+
+        spec = self.strategy.get_integer_spec(type_name)
+        if not spec:
+            raise ValueError(f"No integer spec for {type_name}")
+
+        # Build byte write operations
+        byte_writes = tuple(
+            ByteWriteOp(
+                index=i,
+                expression=(
+                    f"val & 0x{mask:02X}"
+                    if shift == 0
+                    else f"(val >> {shift}) & 0x{mask:02X}"
+                ),
+            )
+            for i, (shift, mask) in enumerate(zip(spec.shifts, spec.masks, strict=True))
+        )
+
+        # Signed types need cast to unsigned
+        needs_signed_cast = type_name.startswith("int") and spec.byte_count > 1
+
+        return MethodSpec(
+            type_name=type_name,
+            method_name=type_name.capitalize(),
+            param_type=type_name,
+            byte_count=spec.byte_count,
+            byte_writes=byte_writes,
+            doc_comment=f"{description} ({spec.comment})",
+            needs_signed_cast=needs_signed_cast,
+        )
+```
+
+**Fichier** : `generators/common/types/bool_encoder.py`
+
+```python
+"""
+Bool Type Encoder.
+
+Handles encoding of boolean values using strategy-specific true/false values.
+"""
+
+from __future__ import annotations
+
+from protocol_codegen.generators.common.encoding.operations import (
+    ByteWriteOp,
+    MethodSpec,
+)
+from protocol_codegen.generators.common.types.base import TypeEncoder
+
+
+class BoolEncoder(TypeEncoder):
+    """Encoder for boolean type."""
+
+    def supported_types(self) -> tuple[str, ...]:
+        return ("bool",)
+
+    def get_method_spec(self, type_name: str, description: str) -> MethodSpec:
+        if type_name != "bool":
+            raise ValueError(f"Unsupported type: {type_name}")
+
+        true_val = self.strategy.bool_true_value
+        false_val = self.strategy.bool_false_value
+
+        return MethodSpec(
+            type_name="bool",
+            method_name="Bool",
+            param_type="bool",
+            byte_count=1,
+            byte_writes=(
+                ByteWriteOp(
+                    index=0,
+                    expression=f"val ? 0x{true_val:02X} : 0x{false_val:02X}",
+                ),
+            ),
+            doc_comment=f"{description} (0x{false_val:02X} or 0x{true_val:02X})",
+        )
+```
+
+**Fichier** : `generators/common/types/float_encoder.py`
+
+```python
+"""
+Float Type Encoder.
+
+Handles encoding of float32 using bitcast to uint32 then integer encoding.
+"""
+
+from __future__ import annotations
+
+from protocol_codegen.generators.common.encoding.operations import (
+    ByteWriteOp,
+    MethodSpec,
+)
+from protocol_codegen.generators.common.types.base import TypeEncoder
+
+
+class FloatEncoder(TypeEncoder):
+    """Encoder for float32 type."""
+
+    def supported_types(self) -> tuple[str, ...]:
+        return ("float32",)
+
+    def get_method_spec(self, type_name: str, description: str) -> MethodSpec:
+        if type_name != "float32":
+            raise ValueError(f"Unsupported type: {type_name}")
+
+        # Float uses same encoding as uint32 after bitcast
+        spec = self.strategy.get_integer_spec("float32")
+        if not spec:
+            raise ValueError("No float32 spec in strategy")
+
+        byte_writes = tuple(
+            ByteWriteOp(
+                index=i,
+                expression=(
+                    f"bits & 0x{mask:02X}"
+                    if shift == 0
+                    else f"(bits >> {shift}) & 0x{mask:02X}"
+                ),
+            )
+            for i, (shift, mask) in enumerate(zip(spec.shifts, spec.masks, strict=True))
+        )
+
+        return MethodSpec(
+            type_name="float32",
+            method_name="Float32",
+            param_type="float32",
+            byte_count=spec.byte_count,
+            byte_writes=byte_writes,
+            doc_comment=f"{description} ({spec.comment})",
+            preamble="uint32_t bits; memcpy(&bits, &val, sizeof(float));",
+        )
+```
+
+**Fichier** : `generators/common/types/norm_encoder.py`
+
+```python
+"""
+Norm Type Encoder.
+
+Handles encoding of norm8 and norm16 (normalized floats).
+"""
+
+from __future__ import annotations
+
+from protocol_codegen.generators.common.encoding.operations import (
+    ByteWriteOp,
+    MethodSpec,
+)
+from protocol_codegen.generators.common.types.base import TypeEncoder
+
+
+class NormEncoder(TypeEncoder):
+    """Encoder for normalized float types."""
+
+    def supported_types(self) -> tuple[str, ...]:
+        return ("norm8", "norm16")
+
+    def get_method_spec(self, type_name: str, description: str) -> MethodSpec:
+        if type_name not in self.supported_types():
+            raise ValueError(f"Unsupported type: {type_name}")
+
+        spec = self.strategy.get_norm_spec(type_name)
+        if not spec:
+            raise ValueError(f"No norm spec for {type_name}")
+
+        max_val = spec.max_value
+
+        if spec.byte_count == 1:
+            # Single byte norm
+            byte_mask = 0x7F if max_val == 127 else 0xFF
+            return MethodSpec(
+                type_name=type_name,
+                method_name=type_name.capitalize(),
+                param_type=type_name,
+                byte_count=1,
+                byte_writes=(
+                    ByteWriteOp(
+                        index=0,
+                        expression=f"static_cast<uint8_t>(val * {max_val}.0f + 0.5f) & 0x{byte_mask:02X}",
+                    ),
+                ),
+                doc_comment=f"{description} ({spec.comment})",
+                preamble="if (val < 0.0f) val = 0.0f; if (val > 1.0f) val = 1.0f;",
+            )
+        else:
+            # Multi-byte norm uses integer spec
+            int_spec = spec.integer_spec
+            if not int_spec:
+                raise ValueError(f"No integer spec for {type_name}")
+
+            byte_writes = tuple(
+                ByteWriteOp(
+                    index=i,
+                    expression=(
+                        f"norm & 0x{mask:02X}"
+                        if shift == 0
+                        else f"(norm >> {shift}) & 0x{mask:02X}"
+                    ),
+                )
+                for i, (shift, mask) in enumerate(
+                    zip(int_spec.shifts, int_spec.masks, strict=True)
+                )
+            )
+
+            return MethodSpec(
+                type_name=type_name,
+                method_name=type_name.capitalize(),
+                param_type=type_name,
+                byte_count=spec.byte_count,
+                byte_writes=byte_writes,
+                doc_comment=f"{description} ({spec.comment})",
+                preamble=f"if (val < 0.0f) val = 0.0f; if (val > 1.0f) val = 1.0f; uint16_t norm = static_cast<uint16_t>(val * {max_val}.0f + 0.5f);",
+            )
+```
+
+**Fichier** : `generators/common/types/string_encoder.py`
+
+```python
+"""
+String Type Encoder.
+
+Handles encoding of variable-length strings with length prefix.
+"""
+
+from __future__ import annotations
+
+from protocol_codegen.generators.common.encoding.operations import MethodSpec
+from protocol_codegen.generators.common.types.base import TypeEncoder
+
+
+class StringEncoder(TypeEncoder):
+    """Encoder for string type."""
+
+    def supported_types(self) -> tuple[str, ...]:
+        return ("string",)
+
+    def get_method_spec(self, type_name: str, description: str) -> MethodSpec:
+        if type_name != "string":
+            raise ValueError(f"Unsupported type: {type_name}")
+
+        spec = self.strategy.get_string_spec()
+
+        # String is special - uses loop, not fixed byte writes
+        # We encode this in the preamble and leave byte_writes empty
+        # The backend will handle the special case
+
+        return MethodSpec(
+            type_name="string",
+            method_name="String",
+            param_type="string",
+            byte_count=-1,  # Variable length
+            byte_writes=(),  # Special handling by backend
+            doc_comment=f"{description} ({spec.comment})",
+            preamble=f"LENGTH_MASK=0x{spec.length_mask:02X};CHAR_MASK=0x{spec.char_mask:02X};MAX_LENGTH={spec.max_length}",
+        )
+```
+
+**Fichier** : `generators/common/types/__init__.py`
+
+```python
+"""
+Type Encoders.
+
+This package provides type-specific encoding logic that produces
+MethodSpecs for the LanguageBackend to render.
+"""
+
+from .base import TypeEncoder
+from .bool_encoder import BoolEncoder
+from .float_encoder import FloatEncoder
+from .integer_encoder import IntegerEncoder
+from .norm_encoder import NormEncoder
+from .string_encoder import StringEncoder
+
+__all__ = [
+    "TypeEncoder",
+    "BoolEncoder",
+    "FloatEncoder",
+    "IntegerEncoder",
+    "NormEncoder",
+    "StringEncoder",
+]
+```
+
+**Tests** : `tests/generators/common/types/test_integer_encoder.py` (exemple)
+
+```python
+"""Tests for IntegerEncoder."""
+
+import pytest
+
+from protocol_codegen.generators.common.encoding import Serial8EncodingStrategy
+from protocol_codegen.generators.common.types import IntegerEncoder
+
+
+class TestIntegerEncoderSerial8:
+    @pytest.fixture
+    def encoder(self) -> IntegerEncoder:
+        return IntegerEncoder(Serial8EncodingStrategy())
+
+    def test_supported_types(self, encoder: IntegerEncoder) -> None:
+        assert "uint8" in encoder.supported_types()
+        assert "uint16" in encoder.supported_types()
+        assert "uint32" in encoder.supported_types()
+
+    def test_uint8_spec(self, encoder: IntegerEncoder) -> None:
+        spec = encoder.get_method_spec("uint8", "8-bit unsigned")
+        assert spec.byte_count == 1
+        assert len(spec.byte_writes) == 1
+        assert spec.byte_writes[0].expression == "val & 0xFF"
+
+    def test_uint16_spec(self, encoder: IntegerEncoder) -> None:
+        spec = encoder.get_method_spec("uint16", "16-bit unsigned")
+        assert spec.byte_count == 2
+        assert len(spec.byte_writes) == 2
+        assert "val & 0xFF" in spec.byte_writes[0].expression
+        assert "(val >> 8)" in spec.byte_writes[1].expression
+
+    def test_unsupported_type_raises(self, encoder: IntegerEncoder) -> None:
+        with pytest.raises(ValueError, match="Unsupported type"):
+            encoder.get_method_spec("float32", "not an integer")
+```
+
+**Validation Phase 3.4** :
+```bash
+pytest tests/generators/common/types/ -v
+ruff check src/protocol_codegen/generators/common/types/
+```
+
+---
+
+### Phase 3.5 : Backend Render Methods
+
+**Objectif** : Ajouter `render_encoder_method()` aux backends.
+
+**Modification** : `generators/backends/base.py` (+15 lignes)
+
+Ajouter après `decode_call()` :
+
+```python
+    # ─────────────────────────────────────────────────────────────
+    # Method Rendering
+    # ─────────────────────────────────────────────────────────────
+
+    @abstractmethod
+    def render_encoder_method(
+        self,
+        spec: "MethodSpec",
+        registry: "TypeRegistry",
+    ) -> str:
+        """Render a MethodSpec to language-specific encoder code.
+
+        Args:
+            spec: Language-agnostic method specification
+            registry: Type registry for type mapping
+
+        Returns:
+            Complete encoder method as string
+        """
+        ...
+```
+
+**Modification** : `generators/backends/cpp.py` (+80 lignes)
+
+Ajouter méthode :
+
+```python
+    def render_encoder_method(
+        self,
+        spec: MethodSpec,
+        registry: TypeRegistry,
+    ) -> str:
+        """Render encoder method for C++."""
+        cpp_type = self.get_type(spec.param_type, registry)
+        method_name = f"encode{spec.method_name}"
+
+        # Handle string specially
+        if spec.type_name == "string":
+            return self._render_cpp_string_encoder(spec)
+
+        # Build body from byte writes
+        if spec.needs_signed_cast:
+            unsigned_type = cpp_type.replace("int", "uint")
+            preamble = f"    {unsigned_type} val = static_cast<{unsigned_type}>(value);\n"
+            param_name = "value"
+        else:
+            preamble = f"    {spec.preamble}\n" if spec.preamble else ""
+            param_name = "val"
+
+        lines = [f"    *buf++ = {op.expression};" for op in spec.byte_writes]
+        body = "\n".join(lines)
+
+        return f"""
+/**
+ * Encode {spec.type_name} ({spec.byte_count} bytes)
+ * {spec.doc_comment}
+ */
+static inline void {method_name}(uint8_t*& buf, {cpp_type} {param_name}) {{
+{preamble}{body}
+}}
+"""
+
+    def _render_cpp_string_encoder(self, spec: MethodSpec) -> str:
+        """Render C++ string encoder (special case)."""
+        # Parse preamble for masks
+        parts = dict(p.split("=") for p in spec.preamble.split(";") if "=" in p)
+        length_mask = parts.get("LENGTH_MASK", "0xFF")
+        char_mask = parts.get("CHAR_MASK", "0xFF")
+        max_length = parts.get("MAX_LENGTH", "255")
+
+        return f"""
+/**
+ * Encode string (variable length)
+ * {spec.doc_comment}
+ *
+ * Format: [length] [char0] [char1] ... [charN-1]
+ * Max length: {max_length} chars
+ */
+static inline void encodeString(uint8_t*& buf, const std::string& str) {{
+    uint8_t len = static_cast<uint8_t>(str.length()) & {length_mask};
+    *buf++ = len;
+
+    for (size_t i = 0; i < len; ++i) {{
+        *buf++ = static_cast<uint8_t>(str[i]) & {char_mask};
+    }}
+}}
+"""
+```
+
+**Modification** : `generators/backends/java.py` (+80 lignes)
+
+Similaire avec syntaxe Java :
+- `buffer[offset + i] = (byte)(expr);`
+- `return byteCount;`
+
+**Validation Phase 3.5** :
+```bash
+pytest tests/generators/backends/ -v
+ruff check src/protocol_codegen/generators/backends/
+```
+
+---
+
+### Phase 3.6 : Refactor EncoderTemplate
+
+**Objectif** : Simplifier `EncoderTemplate` de 601 → ~120 lignes.
+
+**Avant** (encoder.py) :
+- 23 méthodes
+- Logique + rendu mélangés
+- Duplication C++/Java dans chaque méthode
+
+**Après** (encoder.py) :
+```python
+"""
+Encoder Template.
+
+Orchestrates TypeEncoders and LanguageBackend to generate encoder files.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from protocol_codegen.generators.common.types import (
+    BoolEncoder,
+    FloatEncoder,
+    IntegerEncoder,
+    NormEncoder,
+    StringEncoder,
+)
 
 if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry
@@ -689,544 +906,338 @@ if TYPE_CHECKING:
 
 
 class EncoderTemplate:
-    """Template for encoder code generation."""
+    """Template for generating Encoder files.
+
+    Combines:
+    - TypeEncoders: produce MethodSpecs (what to encode)
+    - LanguageBackend: renders MethodSpecs (how to write it)
+    """
 
     def __init__(
         self,
         backend: LanguageBackend,
         strategy: EncodingStrategy,
-    ):
+    ) -> None:
         self.backend = backend
         self.strategy = strategy
+        self.encoders = [
+            BoolEncoder(strategy),
+            IntegerEncoder(strategy),
+            FloatEncoder(strategy),
+            NormEncoder(strategy),
+            StringEncoder(strategy),
+        ]
 
-    def generate(self, type_registry: TypeRegistry) -> str:
+    def generate(self, type_registry: TypeRegistry, output_path: Path) -> str:
         """Generate complete encoder file."""
-        header = self._generate_header()
-        encoders = self._generate_encode_methods(type_registry)
-        footer = self.backend.file_footer()
+        parts = [
+            self._generate_header(output_path),
+            self._generate_class_open(),
+            self._generate_encoder_methods(type_registry),
+            self._generate_class_close(),
+            self._generate_footer(),
+        ]
+        return "\n".join(filter(None, parts))
 
-        return f"{header}\n{encoders}\n{footer}"
+    def _generate_header(self, output_path: Path) -> str:
+        """Generate file header."""
+        # Keep existing logic from current encoder.py
+        ...
 
-    def _generate_header(self) -> str:
-        """Generate file header with includes."""
-        includes = self._get_required_includes()
-        return self.backend.file_header(
-            description=f"Encoder for {self.strategy.name} protocol",
-            includes=includes,
-        )
-
-    def _get_required_includes(self) -> list[str]:
-        """Get required includes for this backend."""
+    def _generate_class_open(self) -> str:
+        """Generate class/struct opening."""
         if self.backend.name == "cpp":
-            return ["<cstdint>", "<cstring>", "<string>"]
+            return "struct Encoder {"
         elif self.backend.name == "java":
-            return []
-        return []
-
-    def _generate_encode_methods(self, type_registry: TypeRegistry) -> str:
-        """Generate all encode methods."""
-        methods = []
-
-        for type_name, atomic_type in sorted(type_registry.types.items()):
-            if atomic_type.cpp_type is None:
-                continue
-
-            method = self._generate_single_encoder(type_name, atomic_type)
-            if method:
-                methods.append(method)
-
-        return "\n".join(methods)
-
-    def _generate_single_encoder(self, type_name: str, atomic_type) -> str:
-        """Generate encoder for a single type."""
-        # Delegate to strategy for encoding logic
-        encode_logic = self.strategy.get_encode_logic(type_name)
-
-        # Use backend for syntax
-        method_name = f"encode{type_name.capitalize()}"
-        lang_type = self.backend.map_atomic_type(type_name)
-
-        if self.backend.name == "cpp":
-            return self._generate_cpp_encoder(method_name, lang_type, encode_logic, atomic_type.description)
-        elif self.backend.name == "java":
-            return self._generate_java_encoder(method_name, lang_type, encode_logic, atomic_type.description)
-
+            return "public final class Encoder {"
         return ""
 
-    def _generate_cpp_encoder(self, method_name: str, param_type: str, logic: str, desc: str) -> str:
-        """Generate C++ encoder method."""
-        return f'''
-/**
- * {desc}
- */
-static inline void {method_name}(uint8_t*& buf, {param_type} val) {{
-{logic}
-}}
-'''
+    def _generate_class_close(self) -> str:
+        """Generate class/struct closing."""
+        return "};" if self.backend.name == "cpp" else "}"
 
-    def _generate_java_encoder(self, method_name: str, param_type: str, logic: str, desc: str) -> str:
-        """Generate Java encoder method."""
-        return f'''
-    /**
-     * {desc}
-     */
-    public static void {method_name}(ByteBuffer buffer, {param_type} val) {{
-{logic}
-    }}
-'''
+    def _generate_footer(self) -> str:
+        """Generate file footer."""
+        if self.backend.name == "cpp":
+            return "\n}  // namespace Protocol\n"
+        return ""
+
+    def _generate_encoder_methods(self, type_registry: TypeRegistry) -> str:
+        """Generate all encoder methods using TypeEncoders + Backend."""
+        methods: list[str] = []
+
+        for type_name, atomic_type in sorted(type_registry.types.items()):
+            if not atomic_type.is_builtin:
+                continue
+
+            # Find encoder that supports this type
+            for encoder in self.encoders:
+                if type_name in encoder.supported_types():
+                    spec = encoder.get_method_spec(type_name, atomic_type.description)
+                    code = self.backend.render_encoder_method(spec, type_registry)
+                    methods.append(code)
+                    break
+
+        return "\n".join(methods)
 ```
 
-#### Extension de EncodingStrategy
+**Delta** : -480 lignes (601 → ~120)
 
-Ajouter à `generators/common/encoding/strategy.py` :
-
-```python
-@abstractmethod
-def get_encode_logic(self, type_name: str) -> str:
-    """Return the encoding logic for a given type.
-
-    Returns language-agnostic pseudo-code that templates transform.
-    """
-    ...
-```
-
-#### Validation Phase 3.2
-
+**Validation Phase 3.6** :
 ```bash
-# Générer avec nouveau code
-python -m protocol_codegen generate sysex ...
+# Tests unitaires
+pytest tests/generators/templates/test_encoder_template.py -v
 
-# Comparer output
-diff -r output_before/ output_after/
+# Génération de référence AVANT
+python -m protocol_codegen generate sysex \
+    --messages-dir examples/messages \
+    --config examples/sysex/protocol_config.py \
+    --output output_reference/
 
-# Tests
+# Génération avec nouveau code
+python -m protocol_codegen generate sysex \
+    --messages-dir examples/messages \
+    --config examples/sysex/protocol_config.py \
+    --output output_test/
+
+# Diff
+diff output_reference/cpp/Encoder.hpp output_test/cpp/Encoder.hpp
+diff output_reference/java/Encoder.java output_test/java/Encoder.java
+```
+
+---
+
+### Phase 3.7 : Supprimer Anciens encoder_generator.py
+
+**Objectif** : Nettoyer les fichiers obsolètes.
+
+**Fichiers à supprimer** :
+```
+rm src/protocol_codegen/generators/serial8/cpp/encoder_generator.py   # 273 L
+rm src/protocol_codegen/generators/serial8/java/encoder_generator.py  # 339 L
+rm src/protocol_codegen/generators/sysex/cpp/encoder_generator.py     # 298 L
+rm src/protocol_codegen/generators/sysex/java/encoder_generator.py    # 593 L
+```
+
+**Fichiers à modifier** (`__init__.py`) :
+- Retirer les imports de `encoder_generator`
+- Vérifier que les orchestrateurs utilisent `EncoderTemplate`
+
+**Validation Phase 3.7** :
+```bash
 pytest
+ruff check src/
 ```
 
 ---
 
-### Phase 3.3 : CodecTemplate - Decoders (1 jour)
+### Phase 3.8 : DecoderTemplate (même pattern)
 
-**Objectif** : Factoriser `decoder_generator.py`
+**Objectif** : Appliquer le même pattern aux décodeurs.
 
-#### Nouveaux Fichiers
+**Fichiers à créer** :
+- `generators/common/encoding/operations.py` : ajouter `DecoderMethodSpec`
+- `generators/common/types/` : ajouter `*_decoder.py` pour chaque type
+- `generators/backends/*.py` : ajouter `render_decoder_method()`
+- `generators/templates/decoder.py` : refactorer
 
-| Fichier | Lignes | Description |
-|---------|--------|-------------|
-| `generators/templates/decoder.py` | ~350 | `DecoderTemplate` générique |
-
-#### Fichiers Modifiés
-
-| Fichier | Action |
-|---------|--------|
-| `serial8/cpp/decoder_generator.py` | Réduire à orchestrateur (~50 lignes) |
-| `serial8/java/decoder_generator.py` | Réduire à orchestrateur (~50 lignes) |
-| `sysex/cpp/decoder_generator.py` | Réduire à orchestrateur (~50 lignes) |
-| `sysex/java/decoder_generator.py` | Réduire à orchestrateur (~50 lignes) |
-
-#### Structure identique à Phase 3.2
-
----
-
-### Phase 3.4 : ConstantsTemplate (0.5 jour)
-
-**Objectif** : Factoriser `constants_generator.py`
-
-#### Nouveaux Fichiers
-
-| Fichier | Lignes | Description |
-|---------|--------|-------------|
-| `generators/templates/constants.py` | ~150 | `ConstantsTemplate` |
-
-#### Fichiers Modifiés
-
-| Fichier | Action |
-|---------|--------|
-| `serial8/cpp/constants_generator.py` | Réduire (~40 lignes) |
-| `serial8/java/constants_generator.py` | Réduire (~40 lignes) |
-| `sysex/cpp/constants_generator.py` | Réduire (~40 lignes) |
-| `sysex/java/constants_generator.py` | Réduire (~40 lignes) |
-
----
-
-### Phase 3.5 : FileManifest + Orchestration Générique (1 jour)
-
-**Objectif** : Éliminer duplication dans `_generate_cpp()` / `_generate_java()`
-
-#### Nouveaux Fichiers
-
-| Fichier | Lignes | Description |
-|---------|--------|-------------|
-| `generators/manifest.py` | ~100 | `FileManifest` déclaratif |
-| `generators/pipeline.py` | ~150 | `GenerationPipeline` |
-
-#### Fichiers Modifiés
-
-| Fichier | Action |
-|---------|--------|
-| `methods/base_generator.py` | Utiliser pipeline générique |
-| `methods/serial8/generator.py` | Réduire à ~150 lignes |
-| `methods/sysex/generator.py` | Réduire à ~150 lignes |
-
-#### Détail : `generators/manifest.py`
-
-```python
-"""
-File Manifest.
-
-Declarative specification of files to generate per language.
-"""
-
-from dataclasses import dataclass
-from enum import Enum, auto
-from typing import Callable
-
-
-class FileScope(Enum):
-    """Scope of file generation."""
-    ONCE = auto()        # Generate once (e.g., Encoder.hpp)
-    PER_MESSAGE = auto() # Generate per message (e.g., FooMessage.hpp)
-    PER_ENUM = auto()    # Generate per enum (e.g., FooEnum.hpp)
-
-
-@dataclass
-class FileSpec:
-    """Specification for a generated file."""
-
-    filename_pattern: str  # e.g., "Encoder.hpp", "{name}Message.hpp"
-    generator: Callable    # Function that generates content
-    scope: FileScope = FileScope.ONCE
-    subdirectory: str = ""  # e.g., "structs/"
-
-
-# C++ Manifest
-CPP_MANIFEST = [
-    FileSpec("Encoder.hpp", generate_encoder_hpp),
-    FileSpec("Decoder.hpp", generate_decoder_hpp),
-    FileSpec("ProtocolConstants.hpp", generate_constants_hpp),
-    FileSpec("MessageID.hpp", generate_messageid_hpp),
-    FileSpec("MessageStructure.hpp", generate_message_structure_hpp),
-    FileSpec("ProtocolCallbacks.hpp", generate_callbacks_hpp),
-    FileSpec("DecoderRegistry.hpp", generate_decoder_registry_hpp),
-    FileSpec("Protocol.hpp.template", generate_protocol_template_hpp),
-    FileSpec("ProtocolMethods.inl", generate_methods_hpp),
-    FileSpec("{name}Message.hpp", generate_struct_hpp, FileScope.PER_MESSAGE, "structs/"),
-    FileSpec("{name}.hpp", generate_enum_hpp, FileScope.PER_ENUM),
-]
-
-# Java Manifest
-JAVA_MANIFEST = [
-    FileSpec("Encoder.java", generate_encoder_java),
-    FileSpec("Decoder.java", generate_decoder_java),
-    FileSpec("ProtocolConstants.java", generate_constants_java),
-    FileSpec("MessageID.java", generate_messageid_java),
-    FileSpec("ProtocolCallbacks.java", generate_callbacks_java),
-    FileSpec("DecoderRegistry.java", generate_decoder_registry_java),
-    FileSpec("Protocol.java.template", generate_protocol_template_java),
-    FileSpec("ProtocolMethods.java", generate_methods_java),
-    FileSpec("{name}Message.java", generate_struct_java, FileScope.PER_MESSAGE, "struct/"),
-    FileSpec("{name}.java", generate_enum_java, FileScope.PER_ENUM),
-]
+**Fichiers à supprimer** :
 ```
-
-#### Détail : `generators/pipeline.py`
-
-```python
-"""
-Generation Pipeline.
-
-Generic file generation orchestration.
-"""
-
-from pathlib import Path
-from typing import TYPE_CHECKING
-
-from protocol_codegen.core.file_utils import GenerationStats, write_if_changed
-from protocol_codegen.generators.manifest import FileScope, FileSpec
-
-if TYPE_CHECKING:
-    from protocol_codegen.core.message import Message
-    from protocol_codegen.core.enum_def import EnumDef
-
-
-class GenerationPipeline:
-    """Executes file generation from a manifest."""
-
-    def __init__(self, base_path: Path, verbose: bool = False):
-        self.base_path = base_path
-        self.verbose = verbose
-        self.stats = GenerationStats()
-
-    def execute(
-        self,
-        manifest: list[FileSpec],
-        context: "GenerationContext",
-    ) -> None:
-        """Execute all file specifications in manifest."""
-        for spec in manifest:
-            self._execute_spec(spec, context)
-
-    def _execute_spec(self, spec: FileSpec, context: "GenerationContext") -> None:
-        """Execute a single file specification."""
-        output_dir = self.base_path / spec.subdirectory
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        if spec.scope == FileScope.ONCE:
-            self._generate_single(spec, output_dir, context)
-        elif spec.scope == FileScope.PER_MESSAGE:
-            self._generate_per_message(spec, output_dir, context)
-        elif spec.scope == FileScope.PER_ENUM:
-            self._generate_per_enum(spec, output_dir, context)
-
-    def _generate_single(self, spec: FileSpec, output_dir: Path, context) -> None:
-        path = output_dir / spec.filename_pattern
-        content = spec.generator(context)
-        was_written = write_if_changed(path, content)
-        self.stats.record_write(path, was_written)
-
-    def _generate_per_message(self, spec: FileSpec, output_dir: Path, context) -> None:
-        for message in context.messages:
-            pascal_name = self._to_pascal_case(message.name)
-            filename = spec.filename_pattern.format(name=pascal_name)
-            path = output_dir / filename
-            content = spec.generator(message, context)
-            was_written = write_if_changed(path, content)
-            self.stats.record_write(path, was_written)
-
-    def _generate_per_enum(self, spec: FileSpec, output_dir: Path, context) -> None:
-        for enum_def in context.enum_defs:
-            filename = spec.filename_pattern.format(name=enum_def.name)
-            path = output_dir / filename
-            content = spec.generator(enum_def, context)
-            was_written = write_if_changed(path, content)
-            self.stats.record_write(path, was_written)
-
-    def _to_pascal_case(self, name: str) -> str:
-        return "".join(word.capitalize() for word in name.split("_"))
-
-    def summary(self) -> str:
-        return self.stats.summary()
+serial8/cpp/decoder_generator.py   # 335 L
+serial8/java/decoder_generator.py  # 365 L
+sysex/cpp/decoder_generator.py     # 357 L
+sysex/java/decoder_generator.py    # 386 L
+Total: 1,443 L
 ```
 
 ---
 
-### Phase 3.6 : Consolidation Protocol Generators (0.5 jour)
+### Phase 3.9 : Autres Templates
 
-**Objectif** : Factoriser `protocol_generator.py` et `decoder_registry_generator.py`
+**Objectif** : Factoriser ConstantsTemplate, etc. si bénéfice significatif.
 
-#### Fichiers Modifiés
+**Analyse** :
+- `constants_generator.py` : ~165-207 L × 4 = ~730 L, ~67% similarité
+- Bénéfice potentiel : ~400 L
 
-| Fichier | Action |
-|---------|--------|
-| `serial8/cpp/protocol_generator.py` | Analyser différences |
-| `sysex/cpp/protocol_generator.py` | Merger si possible |
-| `serial8/cpp/decoder_registry_generator.py` | Analyser différences |
-| `sysex/cpp/decoder_registry_generator.py` | Merger si possible |
-
-Note: Ces fichiers ont ~40% de similarité, la factorisation peut être partielle.
+**Décision** : Optionnel, priorité moindre.
 
 ---
 
-### Phase 3.7 : Nettoyage et Documentation (0.5 jour)
+### Phase 3.10 : Cleanup et Documentation
 
-| Étape | Action |
-|-------|--------|
-| 3.7.1 | Supprimer code mort / fichiers obsolètes |
-| 3.7.2 | Mettre à jour `__init__.py` exports |
-| 3.7.3 | Documenter l'architecture dans README |
-| 3.7.4 | Valider tous les tests |
-| 3.7.5 | Merger dans main |
+**Actions** :
+1. Supprimer code mort
+2. Mettre à jour tous les `__init__.py`
+3. Documenter architecture dans `docs/ARCHITECTURE.md`
+4. Valider tous les tests
+5. Merger dans `main`
 
 ---
 
-## 5. Inventaire Complet des Fichiers
+## 4. Inventaire Complet des Fichiers
 
-### 5.1 Fichiers à CRÉER
+### 4.1 Fichiers à CRÉER
 
 | Chemin | Lignes | Phase |
 |--------|--------|-------|
-| `generators/backends/__init__.py` | ~20 | 3.1 |
-| `generators/backends/base.py` | ~150 | 3.1 |
-| `generators/backends/cpp.py` | ~200 | 3.1 |
-| `generators/backends/java.py` | ~250 | 3.1 |
-| `generators/templates/__init__.py` | ~10 | 3.2 |
-| `generators/templates/encoder.py` | ~300 | 3.2 |
-| `generators/templates/decoder.py` | ~350 | 3.3 |
-| `generators/templates/constants.py` | ~150 | 3.4 |
-| `generators/manifest.py` | ~100 | 3.5 |
-| `generators/pipeline.py` | ~150 | 3.5 |
-| `tests/generators/backends/test_cpp_backend.py` | ~100 | 3.1 |
-| `tests/generators/backends/test_java_backend.py` | ~100 | 3.1 |
-| `tests/generators/templates/test_encoder.py` | ~100 | 3.2 |
-| `tests/generators/templates/test_decoder.py` | ~100 | 3.3 |
-| **TOTAL CRÉÉ** | **~2,080** | |
+| `common/encoding/operations.py` | ~80 | 3.3 |
+| `common/types/__init__.py` | ~30 | 3.4 |
+| `common/types/base.py` | ~50 | 3.4 |
+| `common/types/bool_encoder.py` | ~45 | 3.4 |
+| `common/types/integer_encoder.py` | ~70 | 3.4 |
+| `common/types/float_encoder.py` | ~55 | 3.4 |
+| `common/types/norm_encoder.py` | ~65 | 3.4 |
+| `common/types/string_encoder.py` | ~55 | 3.4 |
+| `tests/generators/common/encoding/test_operations.py` | ~50 | 3.3 |
+| `tests/generators/common/types/test_*.py` | ~200 | 3.4 |
+| **Total créé** | **~700** | |
 
-### 5.2 Fichiers à MODIFIER
+### 4.2 Fichiers à MODIFIER
 
 | Chemin | Avant | Après | Delta | Phase |
 |--------|-------|-------|-------|-------|
-| `common/encoding/strategy.py` | 50 | 80 | +30 | 3.2 |
-| `common/encoding/serial8_strategy.py` | 39 | 100 | +61 | 3.2 |
-| `common/encoding/sysex_strategy.py` | 42 | 110 | +68 | 3.2 |
-| `serial8/cpp/encoder_generator.py` | 273 | 50 | -223 | 3.2 |
-| `serial8/java/encoder_generator.py` | 339 | 50 | -289 | 3.2 |
-| `sysex/cpp/encoder_generator.py` | 298 | 50 | -248 | 3.2 |
-| `sysex/java/encoder_generator.py` | 593 | 50 | -543 | 3.2 |
-| `serial8/cpp/decoder_generator.py` | 335 | 50 | -285 | 3.3 |
-| `serial8/java/decoder_generator.py` | 365 | 50 | -315 | 3.3 |
-| `sysex/cpp/decoder_generator.py` | 357 | 50 | -307 | 3.3 |
-| `sysex/java/decoder_generator.py` | 386 | 50 | -336 | 3.3 |
-| `serial8/cpp/constants_generator.py` | 164 | 40 | -124 | 3.4 |
-| `serial8/java/constants_generator.py` | 158 | 40 | -118 | 3.4 |
-| `sysex/cpp/constants_generator.py` | 207 | 40 | -167 | 3.4 |
-| `sysex/java/constants_generator.py` | 204 | 40 | -164 | 3.4 |
-| `methods/base_generator.py` | 233 | 180 | -53 | 3.5 |
-| `methods/serial8/generator.py` | 375 | 150 | -225 | 3.5 |
-| `methods/sysex/generator.py` | 397 | 150 | -247 | 3.5 |
-| **TOTAL MODIFICATIONS** | **4,815** | **1,380** | **-3,435** | |
+| `backends/base.py` | 257 | 275 | +18 | 3.5 |
+| `backends/cpp.py` | 238 | 320 | +82 | 3.5 |
+| `backends/java.py` | 292 | 375 | +83 | 3.5 |
+| `templates/encoder.py` | 601 | 120 | **-481** | 3.6 |
+| `common/encoding/__init__.py` | 56 | 60 | +4 | 3.3 |
+| **Total modifications** | **1,444** | **1,150** | **-294** | |
 
-### 5.3 Fichiers INCHANGÉS
+### 4.3 Fichiers à SUPPRIMER
 
-| Catégorie | Fichiers | Lignes |
-|-----------|----------|--------|
-| `core/*` | 13 | 1,574 |
-| `generators/common/cpp/struct_utils.py` | 1 | 741 |
-| `generators/common/java/struct_utils.py` | 1 | 1,104 |
-| `generators/common/cpp/*` (autres) | 6 | 604 |
-| `generators/common/java/*` (autres) | 5 | 513 |
-| `generators/common/naming.py` | 1 | 107 |
-| `generators/common/payload_calculator.py` | 1 | 175 |
-| `serial8/cpp/struct_generator.py` | 1 | 127 |
-| `serial8/java/struct_generator.py` | 1 | 135 |
-| `sysex/cpp/struct_generator.py` | 1 | 127 |
-| `sysex/java/struct_generator.py` | 1 | 135 |
-| `serial8/cpp/protocol_generator.py` | 1 | 214 |
-| `sysex/cpp/protocol_generator.py` | 1 | 272 |
-| `serial8/java/protocol_generator.py` | 1 | 279 |
-| `sysex/java/protocol_generator.py` | 1 | 253 |
-| `serial8/cpp/decoder_registry_generator.py` | 1 | 142 |
-| `sysex/cpp/decoder_registry_generator.py` | 1 | 142 |
-| `cli.py`, `__main__.py`, etc. | 4 | 322 |
-| `__init__.py` files | ~15 | ~400 |
-| **TOTAL INCHANGÉ** | ~53 | ~6,366 |
+| Chemin | Lignes | Phase |
+|--------|--------|-------|
+| `serial8/cpp/encoder_generator.py` | 273 | 3.7 |
+| `serial8/java/encoder_generator.py` | 339 | 3.7 |
+| `sysex/cpp/encoder_generator.py` | 298 | 3.7 |
+| `sysex/java/encoder_generator.py` | 593 | 3.7 |
+| `serial8/cpp/decoder_generator.py` | 335 | 3.8 |
+| `serial8/java/decoder_generator.py` | 365 | 3.8 |
+| `sysex/cpp/decoder_generator.py` | 357 | 3.8 |
+| `sysex/java/decoder_generator.py` | 386 | 3.8 |
+| **Total supprimé** | **2,946** | |
 
-### 5.4 Fichiers à SUPPRIMER
+### 4.4 Bilan Net
 
-Aucun fichier n'est supprimé - les fichiers existants sont réduits à des orchestrateurs légers.
+| Métrique | Valeur |
+|----------|--------|
+| Lignes créées | +700 |
+| Lignes modifiées | -294 |
+| Lignes supprimées | -2,946 |
+| **Delta net** | **-2,540** |
 
 ---
 
-## 6. Conventions de Nommage
+## 5. Conventions de Nommage
 
-### 6.1 Modules
+### 5.1 Modules
 
 | Pattern | Exemple | Usage |
 |---------|---------|-------|
 | `backends/{lang}.py` | `backends/cpp.py` | Un backend par langage |
 | `templates/{artifact}.py` | `templates/encoder.py` | Un template par artifact |
-| `{protocol}/{lang}/{artifact}_generator.py` | `sysex/cpp/encoder_generator.py` | Orchestrateur protocol×lang |
+| `common/types/{type}_encoder.py` | `common/types/integer_encoder.py` | Un encoder par pattern |
 
-### 6.2 Classes
-
-| Pattern | Exemple | Usage |
-|---------|---------|-------|
-| `{Lang}Backend` | `CppBackend`, `JavaBackend` | Implementation LanguageBackend |
-| `{Artifact}Template` | `EncoderTemplate`, `DecoderTemplate` | Template générique |
-| `{Protocol}EncodingStrategy` | `SysExEncodingStrategy` | Strategy d'encodage |
-| `{Protocol}Generator` | `SysExGenerator` | Générateur principal |
-
-### 6.3 Fonctions
+### 5.2 Classes
 
 | Pattern | Exemple | Usage |
 |---------|---------|-------|
-| `generate_{artifact}_{ext}` | `generate_encoder_hpp` | Point d'entrée génération |
-| `_generate_{part}` | `_generate_header` | Fonction interne |
-| `map_{thing}` | `map_atomic_type` | Mapping/transformation |
-| `get_{thing}` | `get_encode_logic` | Accesseur |
+| `{Lang}Backend` | `CppBackend`, `JavaBackend` | Backend de langage |
+| `{Type}Encoder` | `IntegerEncoder`, `BoolEncoder` | Encoder de type |
+| `{Artifact}Template` | `EncoderTemplate`, `DecoderTemplate` | Template orchestrateur |
+| `{Spec}` | `MethodSpec`, `ByteWriteOp` | Dataclass intermédiaire |
 
-### 6.4 Fichiers Générés
+### 5.3 Méthodes
 
-| Pattern C++ | Pattern Java | Exemple |
-|-------------|--------------|---------|
-| `{Name}.hpp` | `{Name}.java` | `Encoder.hpp`, `Encoder.java` |
-| `{Name}Message.hpp` | `{Name}Message.java` | `TransportPlayMessage.hpp` |
-| `Protocol*.hpp` | `Protocol*.java` | `ProtocolConstants.hpp` |
+| Pattern | Exemple | Usage |
+|---------|---------|-------|
+| `get_{thing}` | `get_method_spec()`, `get_integer_spec()` | Accesseur |
+| `render_{thing}` | `render_encoder_method()` | Rendu syntaxique |
+| `supported_types()` | `supported_types()` | Types gérés |
+| `_generate_{part}` | `_generate_header()` | Génération interne |
 
 ---
 
-## 7. Risques et Mitigations
+## 6. Risques et Mitigations
 
-### 7.1 Risques Techniques
+### 6.1 Risques Techniques
 
 | Risque | Probabilité | Impact | Mitigation |
 |--------|-------------|--------|------------|
-| Régression encode/decode | Moyenne | Élevé | Tests comparatifs output |
-| Imports circulaires | Faible | Moyen | Structure claire backends/templates |
-| Performance génération | Faible | Faible | Benchmark avant/après |
+| Régression output | Moyenne | Élevé | Diff systématique avant/après |
+| Expressions non portables | Faible | Moyen | Tests sur les deux backends |
+| String encoder spécial | Moyenne | Moyen | Gérer cas spécial dans backend |
 
-### 7.2 Risques Projet
+### 6.2 Risques Projet
 
 | Risque | Probabilité | Impact | Mitigation |
 |--------|-------------|--------|------------|
 | Scope creep | Moyenne | Moyen | Phases bien définies |
-| Temps sous-estimé | Moyenne | Moyen | Buffer 20% par phase |
-| Perte de compatibilité | Faible | Élevé | Tag Git pré-refactoring |
+| Tests insuffisants | Faible | Élevé | 368 tests existants + nouveaux |
 
-### 7.3 Validation Continue
+---
 
-Après chaque phase :
+## 7. Validation Continue
+
+### 7.1 Après Chaque Phase
 
 ```bash
 # 1. Tests unitaires
-pytest
+pytest -v
 
 # 2. Lint
 ruff check src/
 
-# 3. Génération de référence
+# 3. Type check (si configuré)
+# mypy src/
+
+# 4. Génération de référence
 python -m protocol_codegen generate sysex \
     --messages-dir examples/messages \
     --config examples/sysex/protocol_config.py \
-    --plugin-paths examples/sysex/plugin_paths.py \
     --output output_test/
 
-# 4. Diff avec référence
+# 5. Diff
 diff -r output_reference/ output_test/
+```
+
+### 7.2 Avant Merge Final
+
+```bash
+# Tests complets
+pytest
+
+# Génération Serial8 + SysEx
+python -m protocol_codegen generate serial8 --output output_serial8/
+python -m protocol_codegen generate sysex --output output_sysex/
+
+# Diff avec références
+diff -r output_reference_serial8/ output_serial8/
+diff -r output_reference_sysex/ output_sysex/
 ```
 
 ---
 
 ## 8. Résumé Exécutif
 
-### Métriques Finales Projetées
+### Effort par Phase
 
-| Métrique | Avant | Après | Gain |
-|----------|-------|-------|------|
-| **Fichiers Python** | 79 | ~68 | -11 |
-| **Lignes de code** | 13,416 | ~10,000 | -3,400 (25%) |
-| **Duplication estimée** | 26% | <5% | -21pp |
-| **Fichiers à modifier pour nouveau langage** | ~12 | **1** | -92% |
-| **Fichiers à modifier pour nouveau protocole** | ~12 | **1** | -92% |
+| Phase | Description | Lignes | Estimé |
+|-------|-------------|--------|--------|
+| 3.3 | MethodSpec | +80 | 0.5j |
+| 3.4 | TypeEncoders | +370 | 1j |
+| 3.5 | Backend render | +180 | 0.5j |
+| 3.6 | EncoderTemplate refactor | -481 | 0.5j |
+| 3.7 | Supprimer encoder_generator | -1,503 | 0.25j |
+| 3.8 | DecoderTemplate | +370/-1,443 | 1j |
+| 3.9 | Autres templates | optionnel | 0.5j |
+| 3.10 | Cleanup | - | 0.25j |
+| **Total** | | **-2,540** | **4.5j** |
 
-### Effort Total Estimé
+### Bénéfices
 
-| Phase | Effort | Cumulatif |
-|-------|--------|-----------|
-| 3.0 Préparation | 0.5j | 0.5j |
-| 3.1 LanguageBackend | 1.5j | 2j |
-| 3.2 EncoderTemplate | 1j | 3j |
-| 3.3 DecoderTemplate | 1j | 4j |
-| 3.4 ConstantsTemplate | 0.5j | 4.5j |
-| 3.5 FileManifest | 1j | 5.5j |
-| 3.6 Consolidation | 0.5j | 6j |
-| 3.7 Nettoyage | 0.5j | 6.5j |
-| **TOTAL** | | **6.5 jours** |
-
-### Décision
-
-✅ **REFACTORING INCRÉMENTAL RECOMMANDÉ**
-
-- Tests existants = filet de sécurité
-- Architecture cible claire
-- Gains quantifiables
-- Aucune période d'indisponibilité
+- **Duplication** : 26% → <5%
+- **Nouveau langage** : 12+ fichiers → 1 fichier
+- **Nouveau protocol** : 12+ fichiers → 1 fichier
+- **Maintenabilité** : Responsabilités séparées
