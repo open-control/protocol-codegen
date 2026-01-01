@@ -1,0 +1,1 @@
+"""Universal renderers (backend + strategy)."""
