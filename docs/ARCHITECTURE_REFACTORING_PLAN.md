@@ -1,8 +1,69 @@
 # Plan de Refactorisation Architecturale - Protocol Codegen
 
-> **Version** : 1.0
+> **Version** : 1.1
 > **Date** : 2026-01-01
+> **Dernière mise à jour** : 2026-01-01
 > **Objectif** : Architecture extensible multi-langages / multi-protocoles
+
+---
+
+## 📊 Suivi d'Avancement
+
+### État Global
+
+| Métrique | Valeur |
+|----------|--------|
+| **Phase actuelle** | 3.2c (Refactor encoder generators) |
+| **Tests** | 368 passent ✅ |
+| **Nouveaux fichiers** | 6 |
+| **Nouvelles lignes** | ~1,540 |
+| **Branche** | `feature/extensible-architecture` |
+
+### Progression des Phases
+
+| Phase | Description | Status | Commit | Lignes |
+|-------|-------------|--------|--------|--------|
+| 3.0 | Préparation (tag, branche) | ✅ Done | `v2.0-pre-extensibility` | - |
+| 3.1 | LanguageBackend (CppBackend, JavaBackend) | ✅ Done | `eef4cb4` | +700 |
+| 3.2a | Encoding specs dans EncodingStrategy | ✅ Done | `2fbb1d6` | +343 |
+| 3.2b | EncoderTemplate | ✅ Done | `7574e01` | +500 |
+| 3.2c | Refactor 4 encoder_generator.py | ⏳ Pending | - | -1,300 est. |
+| 3.3 | DecoderTemplate | ⏳ Pending | - | +350 est. |
+| 3.4 | ConstantsTemplate | ⏳ Pending | - | +150 est. |
+| 3.5 | FileManifest + Pipeline | ⏳ Pending | - | +250 est. |
+| 3.6 | Consolidation generators | ⏳ Pending | - | -400 est. |
+| 3.7 | Cleanup + docs | ⏳ Pending | - | - |
+
+### Fichiers Créés (Phase 3.1-3.2)
+
+```
+src/protocol_codegen/generators/
+├── backends/
+│   ├── __init__.py          ✅ (55 lignes)
+│   ├── base.py               ✅ (210 lignes) - LanguageBackend ABC
+│   ├── cpp.py                ✅ (217 lignes) - CppBackend
+│   └── java.py               ✅ (223 lignes) - JavaBackend
+└── templates/
+    ├── __init__.py           ✅ (20 lignes)
+    └── encoder.py            ✅ (500 lignes) - EncoderTemplate
+
+tests/generators/
+├── backends/
+│   ├── test_cpp_backend.py   ✅ (188 lignes)
+│   ├── test_java_backend.py  ✅ (195 lignes)
+│   └── test_backend_factory.py ✅ (41 lignes)
+└── templates/
+    └── test_encoder_template.py ✅ (150 lignes)
+```
+
+### Fichiers Modifiés (Phase 3.2a)
+
+```
+src/protocol_codegen/generators/common/encoding/
+├── strategy.py               ✅ +114 lignes (IntegerEncodingSpec, NormEncodingSpec, StringEncodingSpec)
+├── serial8_strategy.py       ✅ +103 lignes (encoding specs)
+└── sysex_strategy.py         ✅ +103 lignes (encoding specs)
+```
 
 ---
 
