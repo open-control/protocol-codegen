@@ -8,6 +8,7 @@ Note: Encoder/Decoder generation now uses templates directly via:
 """
 
 from protocol_codegen.generators.common.java import (
+    generate_constants_java,
     generate_decoder_registry_java,
     generate_enum_java,
     generate_messageid_java,
@@ -15,8 +16,6 @@ from protocol_codegen.generators.common.java import (
     generate_protocol_methods_java,
     generate_struct_java,
 )
-
-from .constants_generator import generate_constants_java
 from .protocol_generator import generate_protocol_template_java
 
 __all__ = [

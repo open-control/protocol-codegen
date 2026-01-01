@@ -13,6 +13,12 @@ from typing import TYPE_CHECKING
 from protocol_codegen.core.file_utils import GenerationStats, write_if_changed
 from protocol_codegen.generators.backends import CppBackend, JavaBackend
 from protocol_codegen.generators.common.encoding import SysExEncodingStrategy
+from protocol_codegen.generators.common.cpp.constants_generator import (
+    ProtocolConfig as CppProtocolConfig,
+)
+from protocol_codegen.generators.common.java.constants_generator import (
+    ProtocolConfig as JavaProtocolConfig,
+)
 from protocol_codegen.generators.sysex.cpp import (
     generate_constants_hpp,
     generate_decoder_registry_hpp,
@@ -24,9 +30,6 @@ from protocol_codegen.generators.sysex.cpp import (
     generate_protocol_template_hpp,
     generate_struct_hpp,
 )
-from protocol_codegen.generators.sysex.cpp.constants_generator import (
-    ProtocolConfig as CppProtocolConfig,
-)
 from protocol_codegen.generators.sysex.java import (
     generate_constants_java,
     generate_decoder_registry_java,
@@ -36,9 +39,6 @@ from protocol_codegen.generators.sysex.java import (
     generate_protocol_methods_java,
     generate_protocol_template_java,
     generate_struct_java,
-)
-from protocol_codegen.generators.sysex.java.constants_generator import (
-    ProtocolConfig as JavaProtocolConfig,
 )
 from protocol_codegen.generators.templates import DecoderTemplate, EncoderTemplate
 from protocol_codegen.methods.base_generator import BaseProtocolGenerator

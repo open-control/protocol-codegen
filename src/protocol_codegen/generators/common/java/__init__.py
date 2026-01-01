@@ -7,6 +7,9 @@ Shared generators for Java code generation across protocols (SysEx, Serial8).
 from protocol_codegen.generators.common.java.callbacks_generator import (
     generate_protocol_callbacks_java,
 )
+from protocol_codegen.generators.common.java.constants_generator import (
+    generate_constants_java,
+)
 from protocol_codegen.generators.common.java.decoder_registry_generator import (
     generate_decoder_registry_java,
 )
@@ -44,6 +47,8 @@ from protocol_codegen.generators.common.java.struct_utils import (
 __all__ = [
     # Callbacks
     "generate_protocol_callbacks_java",
+    # Constants
+    "generate_constants_java",
     # Decoder Registry
     "generate_decoder_registry_java",
     # Enum
