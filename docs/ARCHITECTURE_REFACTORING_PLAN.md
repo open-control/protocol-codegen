@@ -1,11 +1,11 @@
 # Plan de Refactorisation Architecturale - Protocol Codegen
 
-> **Version** : 2.1
+> **Version** : 2.2
 > **Date** : 2026-01-01
 > **Branche** : `feature/extensible-architecture`
 > **Tag de référence** : `v2.0-pre-extensibility`
 > **Objectif** : Architecture extensible multi-langages / multi-protocoles
-> **Progression** : Phase 3.5/3.10 (TypeEncoder pattern implémenté)
+> **Progression** : Phase 3.7/3.10 (EncoderTemplate refactoré, -1,893 lignes)
 
 ---
 
@@ -34,6 +34,8 @@
 | `6121992` | fix(types): Pylance compliance | refactor |
 | `cf50d56` | docs: architecture plan v2.0 | - |
 | `97ae652` | feat(architecture): TypeEncoder pattern (3.3-3.5) | +16 fichiers, ~1042 lignes |
+| `723b685` | docs: update architecture plan v2.1 | - |
+| `717bf23` | refactor(encoder): use TypeEncoder pattern (3.6-3.7) | -1,893 lignes, +100 lignes |
 
 ### 1.2 Fichiers Existants - Backends (COMPLET ✅)
 
@@ -79,24 +81,18 @@
 
 **Note** : Renommé de `types/` à `type_encoders/` pour éviter conflit avec module Python builtin `types`.
 
-### 1.4 Fichiers Existants - Templates (À REFACTORER)
+### 1.4 Fichiers Existants - Templates (COMPLET ✅)
 
 | Fichier | Lignes | État |
 |---------|--------|------|
 | `generators/templates/__init__.py` | 24 | ✅ Complet |
-| `generators/templates/encoder.py` | 601 | ⚠️ À refactorer |
-| **Total templates** | **625** | |
+| `generators/templates/encoder.py` | 173 | ✅ Complet (refactoré de 601L) |
+| **Total templates** | **197** | |
 
-**Problème avec `encoder.py`** : Mélange logique d'encodage et rendu syntaxique.
-
-**Méthodes actuelles de `EncoderTemplate`** (à extraire) :
-- `_generate_bool_encoder()` → `BoolEncoder`
-- `_generate_integer_encoder()` → `IntegerEncoder`
-- `_generate_cpp_integer_encoder()` → `CppBackend.render_encoder_method()`
-- `_generate_java_integer_encoder()` → `JavaBackend.render_encoder_method()`
-- `_generate_float_encoder()` → `FloatEncoder`
-- `_generate_norm_encoder()` → `NormEncoder`
-- `_generate_string_encoder()` → `StringEncoder`
+**Refactoring effectué (Phase 3.6)** :
+- EncoderTemplate utilise maintenant TypeEncoders + MethodSpec + render_encoder_method()
+- Réduction : 602 → 173 lignes (-71%)
+- 10 méthodes au lieu de 23
 
 ### 1.5 Fichiers À Supprimer (encoder_generator.py)
 
@@ -904,9 +900,11 @@ ruff check src/protocol_codegen/generators/backends/
 
 ---
 
-### Phase 3.6 : Refactor EncoderTemplate
+### Phase 3.6 : Refactor EncoderTemplate ✅ COMPLÈTE
 
 **Objectif** : Simplifier `EncoderTemplate` de 601 → ~120 lignes.
+
+**Résultat** : 602 → 173 lignes (-71%)
 
 **Avant** (encoder.py) :
 - 23 méthodes
@@ -1042,21 +1040,27 @@ diff output_reference/java/Encoder.java output_test/java/Encoder.java
 
 ---
 
-### Phase 3.7 : Supprimer Anciens encoder_generator.py
+### Phase 3.7 : Refactorer encoder_generator.py ✅ COMPLÈTE
 
-**Objectif** : Nettoyer les fichiers obsolètes.
+**Objectif** : Convertir les fichiers `encoder_generator.py` en wrappers minces.
 
-**Fichiers à supprimer** :
+**Approche choisie** : Plutôt que supprimer, les fichiers ont été refactorés en wrappers
+pour maintenir la compatibilité avec les imports existants dans `methods/*/generator.py`.
+
+**Résultat** :
+| Fichier | Avant | Après | Réduction |
+|---------|-------|-------|-----------|
+| `serial8/cpp/encoder_generator.py` | 274L | 33L | -88% |
+| `serial8/java/encoder_generator.py` | ~300L | 36L | -88% |
+| `sysex/cpp/encoder_generator.py` | ~350L | 33L | -91% |
+| `sysex/java/encoder_generator.py` | ~587L | 36L | -94% |
+
+**Exemple de wrapper** :
+```python
+def generate_encoder_hpp(type_registry: TypeRegistry, output_path: Path) -> str:
+    template = EncoderTemplate(CppBackend(), Serial8EncodingStrategy())
+    return template.generate(type_registry, output_path)
 ```
-rm src/protocol_codegen/generators/serial8/cpp/encoder_generator.py   # 273 L
-rm src/protocol_codegen/generators/serial8/java/encoder_generator.py  # 339 L
-rm src/protocol_codegen/generators/sysex/cpp/encoder_generator.py     # 298 L
-rm src/protocol_codegen/generators/sysex/java/encoder_generator.py    # 593 L
-```
-
-**Fichiers à modifier** (`__init__.py`) :
-- Retirer les imports de `encoder_generator`
-- Vérifier que les orchestrateurs utilisent `EncoderTemplate`
 
 **Validation Phase 3.7** :
 ```bash
