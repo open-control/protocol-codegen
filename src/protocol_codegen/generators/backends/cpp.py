@@ -249,7 +249,8 @@ static inline void {method_name}(uint8_t*& buf, {cpp_type} {param_name}) {{
 
     def _render_cpp_string_encoder(self, spec: MethodSpec) -> str:
         """Render C++ string encoder (special case)."""
-        # Parse preamble for masks
+        # Parse preamble for masks (always set for string type)
+        assert spec.preamble is not None, "String encoder requires preamble"
         parts = dict(p.split("=") for p in spec.preamble.split(";") if "=" in p)
         length_mask = parts.get("LENGTH_MASK", "0xFF")
         char_mask = parts.get("CHAR_MASK", "0xFF")
@@ -376,6 +377,7 @@ static inline bool {method_name}(
 
     def _render_cpp_string_decoder(self, spec: DecoderMethodSpec) -> str:
         """Render C++ string decoder (special case)."""
+        assert spec.postamble is not None, "String decoder requires postamble"
         parts = dict(p.split("=") for p in spec.postamble.split(";") if "=" in p)
         length_mask = parts.get("LENGTH_MASK", "0xFF")
         char_mask = parts.get("CHAR_MASK", "0xFF")
