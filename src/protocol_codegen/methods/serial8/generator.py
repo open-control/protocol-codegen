@@ -11,11 +11,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from protocol_codegen.core.file_utils import GenerationStats, write_if_changed
+from protocol_codegen.generators.backends import CppBackend, JavaBackend
+from protocol_codegen.generators.common.encoding import Serial8EncodingStrategy
 from protocol_codegen.generators.serial8.cpp import (
     generate_constants_hpp,
-    generate_decoder_hpp,
     generate_decoder_registry_hpp,
-    generate_encoder_hpp,
     generate_enum_hpp,
     generate_message_structure_hpp,
     generate_messageid_hpp,
@@ -29,9 +29,7 @@ from protocol_codegen.generators.serial8.cpp.constants_generator import (
 )
 from protocol_codegen.generators.serial8.java import (
     generate_constants_java,
-    generate_decoder_java,
     generate_decoder_registry_java,
-    generate_encoder_java,
     generate_enum_java,
     generate_messageid_java,
     generate_protocol_callbacks_java,
@@ -42,6 +40,7 @@ from protocol_codegen.generators.serial8.java import (
 from protocol_codegen.generators.serial8.java.constants_generator import (
     ProtocolConfig as JavaProtocolConfig,
 )
+from protocol_codegen.generators.templates import DecoderTemplate, EncoderTemplate
 from protocol_codegen.methods.base_generator import BaseProtocolGenerator
 from protocol_codegen.methods.serial8.config import Serial8Config
 
@@ -116,16 +115,21 @@ class Serial8Generator(BaseProtocolGenerator[Serial8Config]):
 
         protocol_config_dict = self._convert_config_to_cpp()
 
-        # Generate base files
+        # Generate base files using templates
+        cpp_backend = CppBackend()
+        strategy = Serial8EncodingStrategy()
+
         cpp_encoder_path = cpp_base / "Encoder.hpp"
+        encoder_template = EncoderTemplate(cpp_backend, strategy)
         was_written = write_if_changed(
-            cpp_encoder_path, generate_encoder_hpp(self.registry, cpp_encoder_path)
+            cpp_encoder_path, encoder_template.generate(self.registry, cpp_encoder_path)
         )
         stats.record_write(cpp_encoder_path, was_written)
 
         cpp_decoder_path = cpp_base / "Decoder.hpp"
+        decoder_template = DecoderTemplate(cpp_backend, strategy)
         was_written = write_if_changed(
-            cpp_decoder_path, generate_decoder_hpp(self.registry, cpp_decoder_path)
+            cpp_decoder_path, decoder_template.generate(self.registry, cpp_decoder_path)
         )
         stats.record_write(cpp_decoder_path, was_written)
 
@@ -236,18 +240,23 @@ class Serial8Generator(BaseProtocolGenerator[Serial8Config]):
         java_package = self.plugin_paths["output_java"]["package"]
         protocol_config_dict = self._convert_config_to_java()
 
-        # Generate base files
+        # Generate base files using templates
+        java_backend = JavaBackend(package=java_package)
+        strategy = Serial8EncodingStrategy()
+
         java_encoder_path = java_base / "Encoder.java"
+        encoder_template = EncoderTemplate(java_backend, strategy)
         was_written = write_if_changed(
             java_encoder_path,
-            generate_encoder_java(self.registry, java_encoder_path, java_package),
+            encoder_template.generate(self.registry, java_encoder_path),
         )
         stats.record_write(java_encoder_path, was_written)
 
         java_decoder_path = java_base / "Decoder.java"
+        decoder_template = DecoderTemplate(java_backend, strategy)
         was_written = write_if_changed(
             java_decoder_path,
-            generate_decoder_java(self.registry, java_decoder_path, java_package),
+            decoder_template.generate(self.registry, java_decoder_path),
         )
         stats.record_write(java_decoder_path, was_written)
 
