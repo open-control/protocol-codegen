@@ -17,6 +17,7 @@ from protocol_codegen.generators.backends.base import LanguageBackend
 
 if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry
+    from protocol_codegen.generators.common.encoding.operations import MethodSpec
 
 
 class JavaBackend(LanguageBackend):
@@ -176,6 +177,92 @@ class JavaBackend(LanguageBackend):
     def decode_call(self, method: str, buffer_var: str = "buffer") -> str:
         """Generate Java decoder call (static method)."""
         return f"Decoder.{method}({buffer_var})"
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Method Rendering
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def render_encoder_method(
+        self,
+        spec: MethodSpec,
+        registry: TypeRegistry,
+    ) -> str:
+        """Render encoder method for Java."""
+        java_type = self.get_type(spec.param_type, registry)
+        method_name = f"write{spec.method_name}"
+
+        # Handle string specially
+        if spec.type_name == "string":
+            return self._render_java_string_encoder(spec)
+
+        # Build body from byte writes
+        body_lines: list[str] = []
+
+        # Handle preamble
+        if spec.preamble:
+            if spec.preamble == "FLOAT_BITCAST":
+                body_lines.append("int bits = Float.floatToIntBits(val);")
+            elif spec.preamble.startswith("NORM_CLAMP"):
+                body_lines.append("if (val < 0.0f) val = 0.0f;")
+                body_lines.append("if (val > 1.0f) val = 1.0f;")
+                # Extract scale from preamble
+                parts = dict(p.split("=") for p in spec.preamble.split(";") if "=" in p)
+                scale = parts.get("NORM_SCALE", "255")
+                body_lines.append(f"int norm = (int)(val * {scale}.0f + 0.5f);")
+
+        # Handle signed cast for multi-byte
+        if spec.needs_signed_cast:
+            body_lines.append("int val = value & 0xFFFF;")
+            param_name = "value"
+        else:
+            param_name = "val"
+
+        # Add byte writes
+        for op in spec.byte_writes:
+            body_lines.append(f"buffer[offset + {op.index}] = (byte)({op.expression});")
+
+        # Return byte count
+        body_lines.append(f"return {spec.byte_count};")
+
+        # Build method
+        body = "\n".join(f"        {line}" for line in body_lines)
+
+        return f"""
+    /**
+     * Write {spec.type_name} ({spec.byte_count} byte{"s" if spec.byte_count != 1 else ""})
+     * {spec.doc_comment}
+     * @return number of bytes written
+     */
+    public static int {method_name}(byte[] buffer, int offset, {java_type} {param_name}) {{
+{body}
+    }}"""
+
+    def _render_java_string_encoder(self, spec: MethodSpec) -> str:
+        """Render Java string encoder (special case)."""
+        # Parse preamble for masks
+        parts = dict(p.split("=") for p in spec.preamble.split(";") if "=" in p)
+        length_mask = parts.get("LENGTH_MASK", "0xFF")
+        char_mask = parts.get("CHAR_MASK", "0xFF")
+        max_length = parts.get("MAX_LENGTH", "255")
+
+        return f"""
+    /**
+     * Write string (variable length)
+     * {spec.doc_comment}
+     *
+     * Format: [length] [char0] [char1] ... [charN-1]
+     * Max length: {max_length} chars
+     * @return number of bytes written
+     */
+    public static int writeString(byte[] buffer, int offset, String str) {{
+        int len = Math.min(str.length(), {max_length}) & {length_mask};
+        buffer[offset] = (byte)len;
+
+        for (int i = 0; i < len; i++) {{
+            buffer[offset + 1 + i] = (byte)(str.charAt(i) & {char_mask});
+        }}
+        return 1 + len;
+    }}"""
 
     # ─────────────────────────────────────────────────────────────────────────
     # Java Specific Helpers

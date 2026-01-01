@@ -9,8 +9,10 @@ Components:
 - IntegerEncodingSpec, NormEncodingSpec, StringEncodingSpec: Data specs for code generation
 - Serial8EncodingStrategy: 8-bit binary encoding (no expansion)
 - SysExEncodingStrategy: 7-bit MIDI-safe encoding (with expansion)
+- ByteWriteOp, MethodSpec: Intermediate representation for code generation
 """
 
+from .operations import ByteWriteOp, MethodSpec
 from .serial8_strategy import Serial8EncodingStrategy
 from .strategy import (
     EncodingStrategy,
@@ -48,6 +50,9 @@ __all__ = [
     "IntegerEncodingSpec",
     "NormEncodingSpec",
     "StringEncodingSpec",
+    # Intermediate representation
+    "ByteWriteOp",
+    "MethodSpec",
     # Implementations
     "Serial8EncodingStrategy",
     "SysExEncodingStrategy",

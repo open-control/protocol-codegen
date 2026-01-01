@@ -16,6 +16,7 @@ from protocol_codegen.generators.backends.base import LanguageBackend
 
 if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry
+    from protocol_codegen.generators.common.encoding.operations import MethodSpec
 
 
 class CppBackend(LanguageBackend):
@@ -178,6 +179,95 @@ class CppBackend(LanguageBackend):
     def decode_call(self, method: str, buffer_var: str = "buf") -> str:
         """Generate C++ decoder call (static method)."""
         return f"Decoder::{method}({buffer_var})"
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Method Rendering
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def render_encoder_method(
+        self,
+        spec: MethodSpec,
+        registry: TypeRegistry,
+    ) -> str:
+        """Render encoder method for C++."""
+        cpp_type = self.get_type(spec.param_type, registry)
+        method_name = f"encode{spec.method_name}"
+
+        # Handle string specially
+        if spec.type_name == "string":
+            return self._render_cpp_string_encoder(spec)
+
+        # Build body from byte writes
+        body_lines: list[str] = []
+
+        # Handle preamble
+        if spec.preamble:
+            if spec.preamble == "FLOAT_BITCAST":
+                body_lines.append("uint32_t bits;")
+                body_lines.append("memcpy(&bits, &val, sizeof(float));")
+            elif spec.preamble.startswith("NORM_CLAMP"):
+                body_lines.append("if (val < 0.0f) val = 0.0f;")
+                body_lines.append("if (val > 1.0f) val = 1.0f;")
+                # Extract scale from preamble
+                parts = dict(p.split("=") for p in spec.preamble.split(";") if "=" in p)
+                scale = parts.get("NORM_SCALE", "255")
+                if spec.byte_count == 1:
+                    body_lines.append(
+                        f"uint8_t norm = static_cast<uint8_t>(val * {scale}.0f + 0.5f);"
+                    )
+                else:
+                    body_lines.append(
+                        f"uint16_t norm = static_cast<uint16_t>(val * {scale}.0f + 0.5f);"
+                    )
+
+        # Handle signed cast
+        if spec.needs_signed_cast:
+            unsigned_type = cpp_type.replace("int", "uint")
+            body_lines.append(f"{unsigned_type} val = static_cast<{unsigned_type}>(value);")
+            param_name = "value"
+        else:
+            param_name = "val"
+
+        # Add byte writes
+        for op in spec.byte_writes:
+            body_lines.append(f"*buf++ = {op.expression};")
+
+        # Build function
+        body = "\n".join(f"    {line}" for line in body_lines)
+
+        return f"""
+/**
+ * Encode {spec.type_name} ({spec.byte_count} byte{"s" if spec.byte_count != 1 else ""})
+ * {spec.doc_comment}
+ */
+static inline void {method_name}(uint8_t*& buf, {cpp_type} {param_name}) {{
+{body}
+}}"""
+
+    def _render_cpp_string_encoder(self, spec: MethodSpec) -> str:
+        """Render C++ string encoder (special case)."""
+        # Parse preamble for masks
+        parts = dict(p.split("=") for p in spec.preamble.split(";") if "=" in p)
+        length_mask = parts.get("LENGTH_MASK", "0xFF")
+        char_mask = parts.get("CHAR_MASK", "0xFF")
+        max_length = parts.get("MAX_LENGTH", "255")
+
+        return f"""
+/**
+ * Encode string (variable length)
+ * {spec.doc_comment}
+ *
+ * Format: [length] [char0] [char1] ... [charN-1]
+ * Max length: {max_length} chars
+ */
+static inline void encodeString(uint8_t*& buf, const std::string& str) {{
+    uint8_t len = static_cast<uint8_t>(str.length()) & {length_mask};
+    *buf++ = len;
+
+    for (size_t i = 0; i < len; ++i) {{
+        *buf++ = static_cast<uint8_t>(str[i]) & {char_mask};
+    }}
+}}"""
 
     # ─────────────────────────────────────────────────────────────────────────
     # C++ Specific Helpers
