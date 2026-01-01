@@ -19,11 +19,37 @@ from protocol_codegen.generators.common.cpp.messageid_generator import (
 from protocol_codegen.generators.common.cpp.method_generator import (
     generate_protocol_methods_hpp,
 )
+from protocol_codegen.generators.common.cpp.struct_utils import (
+    analyze_includes_needed,
+    generate_composite_structs,
+    generate_decode_function,
+    generate_encode_function,
+    generate_footer,
+    generate_header,
+    generate_single_composite_struct,
+    generate_struct_definition,
+    get_cpp_type_for_field,
+)
 
 __all__ = [
-    "generate_enum_hpp",
-    "generate_message_structure_hpp",
-    "generate_messageid_hpp",
+    # Callbacks
     "generate_protocol_callbacks_hpp",
+    # Enum
+    "generate_enum_hpp",
+    # Message Structure
+    "generate_message_structure_hpp",
+    # MessageID
+    "generate_messageid_hpp",
+    # Methods
     "generate_protocol_methods_hpp",
+    # Struct Utils
+    "analyze_includes_needed",
+    "generate_composite_structs",
+    "generate_decode_function",
+    "generate_encode_function",
+    "generate_footer",
+    "generate_header",
+    "generate_single_composite_struct",
+    "generate_struct_definition",
+    "get_cpp_type_for_field",
 ]
