@@ -522,12 +522,12 @@ that receive package as a parameter."
 ```
 
 #### Critères de Succès
-- [ ] `java_package` supprimé de EnumDef
-- [ ] `generate_enum_java` a paramètre `package`
-- [ ] Serial8Generator mis à jour
-- [ ] SysExGenerator mis à jour
-- [ ] Tests mis à jour et passent
-- [ ] Génération fonctionne
+- [x] `java_package` supprimé de EnumDef
+- [x] `generate_enum_java` a paramètre `package`
+- [x] Serial8Generator mis à jour
+- [x] SysExGenerator mis à jour
+- [x] Tests mis à jour et passent
+- [x] Génération fonctionne (commit b04dfea)
 
 ---
 
@@ -2281,10 +2281,10 @@ Phase 1: Extraction Config
   [x] Tests passent
 
 Phase 2: Unification java_package
-  [ ] java_package retiré de EnumDef
-  [ ] Paramètre ajouté à generate_enum_java
-  [ ] Orchestrateurs mis à jour
-  [ ] Tests passent
+  [x] java_package retiré de EnumDef
+  [x] Paramètre ajouté à generate_enum_java
+  [x] Orchestrateurs mis à jour
+  [x] Tests passent
 
 Phase 3: Nettoyage API
   [ ] struct_utils cachés
