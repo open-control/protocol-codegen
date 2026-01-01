@@ -2,11 +2,10 @@
 Common C++ Struct Generator Utilities.
 
 Shared utilities for generating C++ struct headers across protocols (Serial8, SysEx).
-Protocol-specific behavior is controlled by EncodingStrategy and config parameters.
+Protocol-specific behavior is controlled by EncodingStrategy and encoding_description.
 
-Key Differences:
-- Serial8: always_encode_array_count=True, needs_cstring=True, encoding="8-bit binary"
-- SysEx: always_encode_array_count=False, needs_cstring=False, encoding="7-bit MIDI-safe"
+Both protocols use identical encode/decode mechanics - only the encoding description
+and PayloadCalculator strategy differ.
 """
 
 from __future__ import annotations
@@ -76,7 +75,6 @@ def generate_header(
     fields: Sequence[FieldBase],
     type_registry: TypeRegistry,
     encoding_description: str,
-    needs_cstring: bool = False,
 ) -> str:
     """
     Generate file header with conditional includes based on field analysis.
@@ -87,17 +85,13 @@ def generate_header(
         fields: Message fields
         type_registry: TypeRegistry for resolving field types
         encoding_description: Encoding description for comment (e.g., "8-bit binary (Serial8)")
-        needs_cstring: Whether to include <cstring> (Serial8 needs it)
     """
     needs_array, needs_string, needs_vector, enum_names = analyze_includes_needed(
         fields, type_registry
     )
 
-    # Build conditional includes
-    std_includes = ["#include <cstdint>"]
-    if needs_cstring:
-        std_includes.append("#include <cstring>")
-    std_includes.append("#include <optional>")
+    # Build conditional includes - always include <cstring> for strlen(MESSAGE_NAME)
+    std_includes = ["#include <cstdint>", "#include <cstring>", "#include <optional>"]
     if needs_array:
         std_includes.insert(0, "#include <array>")
     if needs_string:
@@ -377,7 +371,6 @@ def generate_decode_function(
     type_registry: TypeRegistry,
     string_max_length: int,
     include_message_name: bool = True,
-    always_encode_array_count: bool = True,
 ) -> str:
     """
     Generate static decode() function calling Decoder.
@@ -388,8 +381,6 @@ def generate_decode_function(
         type_registry: TypeRegistry for resolving field types
         string_max_length: Maximum string length from config
         include_message_name: Whether MESSAGE_NAME is in payload
-        always_encode_array_count: If True (Serial8), always read count from message.
-                                   If False (SysEx), fixed arrays use known size.
     """
     # Decode for empty messages
     if not fields:
@@ -493,36 +484,27 @@ def generate_decode_function(
                 var_name = f"{field.name}_data"
                 lines.append(f"        {cpp_type} {var_name};")
 
-                if field.dynamic or always_encode_array_count:
-                    # Read count from message
-                    lines.append(f"        uint8_t count_{field.name};")
+                # Always read count from message (consistent with encoder)
+                lines.append(f"        uint8_t count_{field.name};")
+                lines.append(
+                    f"        if (!decodeUint8(ptr, remaining, count_{field.name})) return std::nullopt;"
+                )
+                if field.dynamic:
                     lines.append(
-                        f"        if (!decodeUint8(ptr, remaining, count_{field.name})) return std::nullopt;"
+                        f"        for (uint8_t i = 0; i < count_{field.name} && i < {field.array}; ++i) {{"
                     )
-                    if field.dynamic:
-                        lines.append(
-                            f"        for (uint8_t i = 0; i < count_{field.name} && i < {field.array}; ++i) {{"
-                        )
-                        base_cpp_type = get_cpp_type(field_type_name, type_registry)
-                        lines.append(f"            {base_cpp_type} temp_item;")
-                        decoder_call = get_decoder_call(
-                            "temp_item", field_type_name, type_registry, direct_target="temp_item"
-                        )
-                        lines.append(f"            {decoder_call}")
-                        lines.append(f"            {var_name}.push_back(temp_item);")
-                        lines.append("        }")
-                    else:
-                        lines.append(
-                            f"        for (uint8_t i = 0; i < count_{field.name} && i < {field.array}; ++i) {{"
-                        )
-                        decoder_call = get_decoder_call(
-                            "temp_item", field_type_name, type_registry, direct_target=f"{var_name}[i]"
-                        )
-                        lines.append(f"            {decoder_call}")
-                        lines.append("        }")
+                    base_cpp_type = get_cpp_type(field_type_name, type_registry)
+                    lines.append(f"            {base_cpp_type} temp_item;")
+                    decoder_call = get_decoder_call(
+                        "temp_item", field_type_name, type_registry, direct_target="temp_item"
+                    )
+                    lines.append(f"            {decoder_call}")
+                    lines.append(f"            {var_name}.push_back(temp_item);")
+                    lines.append("        }")
                 else:
-                    # Fixed array without count (SysEx mode)
-                    lines.append(f"        for (uint8_t i = 0; i < {field.array}; ++i) {{")
+                    lines.append(
+                        f"        for (uint8_t i = 0; i < count_{field.name} && i < {field.array}; ++i) {{"
+                    )
                     decoder_call = get_decoder_call(
                         "temp_item", field_type_name, type_registry, direct_target=f"{var_name}[i]"
                     )

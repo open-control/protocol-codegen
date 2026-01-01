@@ -42,8 +42,6 @@ if TYPE_CHECKING:
 ENCODING_DESCRIPTION = "8-bit binary (Serial8)"
 ENCODING_DESCRIPTION_SHORT = "8-bit"
 DEFAULT_INCLUDE_MESSAGE_NAME = True
-NEEDS_CSTRING = True
-ALWAYS_ENCODE_ARRAY_COUNT = True
 
 
 def generate_struct_hpp(
@@ -88,7 +86,6 @@ def generate_struct_hpp(
         fields=fields,
         type_registry=type_registry,
         encoding_description=ENCODING_DESCRIPTION,
-        needs_cstring=NEEDS_CSTRING,
     )
 
     # Generate composite structs FIRST (if any)
@@ -121,7 +118,6 @@ def generate_struct_hpp(
         type_registry=type_registry,
         string_max_length=string_max_length,
         include_message_name=include_message_name,
-        always_encode_array_count=ALWAYS_ENCODE_ARRAY_COUNT,
     )
 
     footer = generate_footer()
