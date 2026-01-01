@@ -11,6 +11,12 @@ Subpackages:
 
 # Submodules
 from protocol_codegen.generators.common import cpp, encoding, java, type_decoders, type_encoders
+from protocol_codegen.generators.common.config import (
+    LimitsConfig,
+    ProtocolConfig,
+    StructureConfig,
+    SysExFramingConfig,
+)
 from protocol_codegen.generators.common.naming import (
     message_name_to_callback_name,
     message_name_to_method_name,
@@ -25,6 +31,11 @@ __all__ = [
     "java",
     "type_decoders",
     "type_encoders",
+    # Config TypedDicts
+    "LimitsConfig",
+    "ProtocolConfig",
+    "StructureConfig",
+    "SysExFramingConfig",
     # Naming utilities
     "message_name_to_callback_name",
     "message_name_to_method_name",

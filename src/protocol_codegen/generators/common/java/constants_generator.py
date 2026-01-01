@@ -20,51 +20,12 @@ Generated Output:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING
+
+from protocol_codegen.generators.common.config import ProtocolConfig
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TypedDict Definitions (for type checking)
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-class StructureConfig(TypedDict, total=False):
-    """Message structure configuration (Serial8)."""
-
-    message_type_offset: int
-    payload_offset: int
-
-
-class SysExFramingConfig(TypedDict, total=False):
-    """SysEx framing configuration."""
-
-    start: int
-    end: int
-    manufacturer_id: int
-    device_id: int
-    min_message_length: int
-    message_type_offset: int
-    payload_offset: int
-
-
-class LimitsConfig(TypedDict, total=False):
-    """Protocol encoding limits."""
-
-    string_max_length: int
-    array_max_items: int
-    max_payload_size: int
-    max_message_size: int
-
-
-class ProtocolConfig(TypedDict, total=False):
-    """Unified protocol configuration."""
-
-    structure: StructureConfig  # Serial8
-    sysex: SysExFramingConfig  # SysEx
-    limits: LimitsConfig
 
 
 # ─────────────────────────────────────────────────────────────────────────────
