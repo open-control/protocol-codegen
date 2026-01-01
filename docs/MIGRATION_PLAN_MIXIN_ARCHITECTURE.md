@@ -2254,12 +2254,12 @@ Breaking changes:
 ```
 
 #### Critères de Succès
-- [ ] Anciens protocol_generator.py supprimés
-- [ ] __init__.py mis à jour
-- [ ] Tous les imports fonctionnent
-- [ ] Tous les tests passent
-- [ ] Linting passe
-- [ ] Génération fonctionne
+- [x] Anciens protocol_generator.py supprimés (commit 5670795)
+- [x] __init__.py mis à jour
+- [x] Tous les imports fonctionnent
+- [x] Tous les tests passent (405 tests)
+- [x] Linting passe (ruff check clean)
+- [x] Génération fonctionne (end-to-end verified)
 - [ ] Merge sur main
 
 ---
@@ -2316,8 +2316,8 @@ Phase 8: Intégration
   [x] Génération équivalente
 
 Phase 9: Nettoyage
-  [ ] Anciens fichiers supprimés
-  [ ] Imports vérifiés
+  [x] Anciens fichiers supprimés
+  [x] Imports vérifiés
   [ ] Merge sur main
 ```
 
