@@ -933,13 +933,13 @@ git add -A && git commit -m "feat(renderers): create renderer infrastructure
 ```
 
 #### Critères de Succès
-- [ ] Structure de dossiers créée
-- [ ] `renderers/__init__.py` créé
-- [ ] `renderers/base.py` créé avec ABCs
-- [ ] `renderers/registry.py` créé avec registry
-- [ ] Tous les __init__.py créés
-- [ ] Imports fonctionnent
-- [ ] Tests passent
+- [x] Structure de dossiers créée
+- [x] `renderers/__init__.py` créé
+- [x] `renderers/base.py` créé avec ABCs
+- [x] `renderers/registry.py` créé avec registry
+- [x] Tous les __init__.py créés
+- [x] Imports fonctionnent
+- [x] Tests passent (commit 6045892)
 
 ---
 
@@ -2292,9 +2292,9 @@ Phase 3: Nettoyage API
   [x] Tests passent
 
 Phase 4: Infrastructure Renderers
-  [ ] Structure créée
-  [ ] ABCs définis
-  [ ] Registry fonctionnel
+  [x] Structure créée
+  [x] ABCs définis
+  [x] Registry fonctionnel
 
 Phase 5: Mixins Langage
   [ ] CppProtocolMixin créé
