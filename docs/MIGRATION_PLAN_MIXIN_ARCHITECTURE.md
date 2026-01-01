@@ -2108,10 +2108,10 @@ git add -A && git commit -m "refactor(generators): use new protocol renderers in
 ```
 
 #### Critères de Succès
-- [ ] Serial8Generator utilise nouveaux renderers
-- [ ] SysExGenerator utilise nouveaux renderers
-- [ ] Génération produit output équivalent
-- [ ] Tous les tests passent
+- [x] Serial8Generator utilise nouveaux renderers
+- [x] SysExGenerator utilise nouveaux renderers
+- [x] Génération produit output équivalent
+- [x] Tous les tests passent (commit 2e1989e)
 
 ---
 
@@ -2311,9 +2311,9 @@ Phase 7: Implémentation Renderers
   [x] Tests passent
 
 Phase 8: Intégration
-  [ ] Serial8Generator utilise renderers
-  [ ] SysExGenerator utilise renderers
-  [ ] Génération équivalente
+  [x] Serial8Generator utilise renderers
+  [x] SysExGenerator utilise renderers
+  [x] Génération équivalente
 
 Phase 9: Nettoyage
   [ ] Anciens fichiers supprimés
