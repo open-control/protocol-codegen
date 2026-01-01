@@ -21,7 +21,10 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry
-    from protocol_codegen.generators.common.encoding.operations import MethodSpec
+    from protocol_codegen.generators.common.encoding.operations import (
+        DecoderMethodSpec,
+        MethodSpec,
+    )
 
 
 class LanguageBackend(ABC):
@@ -229,6 +232,27 @@ class LanguageBackend(ABC):
 
         Returns:
             Complete encoder method as string
+        """
+        ...
+
+    @abstractmethod
+    def render_decoder_method(
+        self,
+        spec: DecoderMethodSpec,
+        registry: TypeRegistry,
+    ) -> str:
+        """Render a DecoderMethodSpec to language-specific decoder code.
+
+        This is the main entry point for generating decoder methods.
+        The DecoderMethodSpec contains language-agnostic decoding logic,
+        and this method translates it to concrete syntax.
+
+        Args:
+            spec: Language-agnostic method specification
+            registry: Type registry for type mapping
+
+        Returns:
+            Complete decoder method as string
         """
         ...
 

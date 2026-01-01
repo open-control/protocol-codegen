@@ -6,18 +6,21 @@ to generate protocol-specific code for different target languages.
 
 Templates:
 - EncoderTemplate: Generates Encoder.hpp/Encoder.java files
+- DecoderTemplate: Generates Decoder.hpp/Decoder.java files
 
 Usage:
     from protocol_codegen.generators.backends import CppBackend
     from protocol_codegen.generators.common.encoding import Serial8EncodingStrategy
-    from protocol_codegen.generators.templates import EncoderTemplate
+    from protocol_codegen.generators.templates import EncoderTemplate, DecoderTemplate
 
-    template = EncoderTemplate(CppBackend(), Serial8EncodingStrategy())
-    code = template.generate(type_registry, output_path)
+    encoder = EncoderTemplate(CppBackend(), Serial8EncodingStrategy())
+    decoder = DecoderTemplate(CppBackend(), Serial8EncodingStrategy())
 """
 
+from .decoder import DecoderTemplate
 from .encoder import EncoderTemplate
 
 __all__ = [
+    "DecoderTemplate",
     "EncoderTemplate",
 ]

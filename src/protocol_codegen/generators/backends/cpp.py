@@ -16,7 +16,10 @@ from protocol_codegen.generators.backends.base import LanguageBackend
 
 if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry
-    from protocol_codegen.generators.common.encoding.operations import MethodSpec
+    from protocol_codegen.generators.common.encoding.operations import (
+        DecoderMethodSpec,
+        MethodSpec,
+    )
 
 
 class CppBackend(LanguageBackend):
@@ -267,6 +270,142 @@ static inline void encodeString(uint8_t*& buf, const std::string& str) {{
     for (size_t i = 0; i < len; ++i) {{
         *buf++ = static_cast<uint8_t>(str[i]) & {char_mask};
     }}
+}}"""
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Decoder Method Rendering
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def render_decoder_method(
+        self,
+        spec: DecoderMethodSpec,
+        registry: TypeRegistry,
+    ) -> str:
+        """Render decoder method for C++."""
+        cpp_type = self.get_type(spec.result_type, registry)
+        method_name = f"decode{spec.method_name}"
+
+        # Handle string specially
+        if spec.type_name == "string":
+            return self._render_cpp_string_decoder(spec)
+
+        # Build body
+        body_lines: list[str] = []
+
+        # Size check
+        if spec.byte_count > 0:
+            body_lines.append(f"if (remaining < {spec.byte_count}) return false;")
+            body_lines.append("")
+
+        # Bool is special case
+        if spec.type_name == "bool":
+            body_lines.append("out = (*buf++) != 0x00;")
+            body_lines.append("remaining -= 1;")
+            body_lines.append("return true;")
+        elif spec.postamble and spec.postamble == "FLOAT_BITCAST":
+            # Float: read bytes into bits, then memcpy
+            self._build_cpp_byte_reads(spec, body_lines, "bits", "uint32_t")
+            body_lines.append("memcpy(&out, &bits, sizeof(float));")
+            body_lines.append(f"buf += {spec.byte_count};")
+            body_lines.append(f"remaining -= {spec.byte_count};")
+            body_lines.append("return true;")
+        elif spec.postamble and spec.postamble.startswith("NORM_SCALE"):
+            # Norm: read bytes, then scale to float
+            parts = dict(p.split("=") for p in spec.postamble.split(";") if "=" in p)
+            scale = parts.get("NORM_SCALE", "255")
+            if spec.byte_count == 1:
+                mask = spec.byte_reads[0].mask
+                if mask:
+                    body_lines.append(f"uint8_t raw = *buf++ & 0x{mask:02X};")
+                else:
+                    body_lines.append("uint8_t raw = *buf++;")
+            else:
+                self._build_cpp_byte_reads(spec, body_lines, "raw", "uint16_t")
+                body_lines.append(f"buf += {spec.byte_count};")
+            body_lines.append(f"out = static_cast<float>(raw) / {scale}.0f;")
+            body_lines.append(f"remaining -= {spec.byte_count};")
+            body_lines.append("return true;")
+        else:
+            # Integer types
+            if spec.needs_signed_cast:
+                unsigned_type = cpp_type.replace("int", "uint")
+                self._build_cpp_byte_reads(spec, body_lines, "bits", unsigned_type)
+                body_lines.append(f"out = static_cast<{cpp_type}>(bits);")
+            else:
+                self._build_cpp_byte_reads(spec, body_lines, "out", cpp_type)
+            body_lines.append(f"buf += {spec.byte_count};")
+            body_lines.append(f"remaining -= {spec.byte_count};")
+            body_lines.append("return true;")
+
+        body = "\n".join(f"    {line}" for line in body_lines)
+
+        return f"""
+/**
+ * Decode {spec.type_name} ({spec.byte_count} byte{"s" if spec.byte_count != 1 else ""})
+ * {spec.doc_comment}
+ */
+static inline bool {method_name}(
+    const uint8_t*& buf, size_t& remaining, {cpp_type}& out) {{
+{body}
+}}"""
+
+    def _build_cpp_byte_reads(
+        self,
+        spec: DecoderMethodSpec,
+        body_lines: list[str],
+        var_name: str,
+        var_type: str,
+    ) -> None:
+        """Build C++ byte read expressions."""
+        parts: list[str] = []
+        for op in spec.byte_reads:
+            expr = f"buf[{op.index}]"
+            if op.mask:
+                expr = f"({expr} & 0x{op.mask:02X})"
+            if op.shift > 0:
+                expr = f"(static_cast<{var_type}>({expr}) << {op.shift})"
+            parts.append(expr)
+
+        if len(parts) == 1:
+            body_lines.append(f"{var_type} {var_name} = {parts[0]};")
+        else:
+            body_lines.append(f"{var_type} {var_name} = {parts[0]}")
+            for part in parts[1:-1]:
+                body_lines.append(f"    | {part}")
+            body_lines.append(f"    | {parts[-1]};")
+
+    def _render_cpp_string_decoder(self, spec: DecoderMethodSpec) -> str:
+        """Render C++ string decoder (special case)."""
+        parts = dict(p.split("=") for p in spec.postamble.split(";") if "=" in p)
+        length_mask = parts.get("LENGTH_MASK", "0xFF")
+        char_mask = parts.get("CHAR_MASK", "0xFF")
+        max_length = parts.get("MAX_LENGTH", "255")
+
+        return f"""
+/**
+ * Decode string (variable length)
+ * {spec.doc_comment}
+ *
+ * Format: [length] [char0] [char1] ... [charN-1]
+ * Max length: {max_length} chars
+ */
+static inline bool decodeString(
+    const uint8_t*& buf, size_t& remaining, std::string& out) {{
+
+    if (remaining < 1) return false;
+
+    uint8_t len = *buf++ & {length_mask};
+    remaining -= 1;
+
+    if (remaining < len) return false;
+
+    out.clear();
+    out.reserve(len);
+    for (uint8_t i = 0; i < len; ++i) {{
+        out.push_back(static_cast<char>(*buf++ & {char_mask}));
+    }}
+    remaining -= len;
+    return true;
 }}"""
 
     # ─────────────────────────────────────────────────────────────────────────

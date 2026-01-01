@@ -17,7 +17,10 @@ from protocol_codegen.generators.backends.base import LanguageBackend
 
 if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry
-    from protocol_codegen.generators.common.encoding.operations import MethodSpec
+    from protocol_codegen.generators.common.encoding.operations import (
+        DecoderMethodSpec,
+        MethodSpec,
+    )
 
 
 class JavaBackend(LanguageBackend):
@@ -262,6 +265,115 @@ class JavaBackend(LanguageBackend):
             buffer[offset + 1 + i] = (byte)(str.charAt(i) & {char_mask});
         }}
         return 1 + len;
+    }}"""
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Decoder Method Rendering
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def render_decoder_method(
+        self,
+        spec: DecoderMethodSpec,
+        registry: TypeRegistry,
+    ) -> str:
+        """Render decoder method for Java."""
+        java_type = self.get_type(spec.result_type, registry)
+        method_name = f"read{spec.method_name}"
+
+        # Handle string specially
+        if spec.type_name == "string":
+            return self._render_java_string_decoder(spec)
+
+        # Build body
+        body_lines: list[str] = []
+
+        # Bool is special case
+        if spec.type_name == "bool":
+            body_lines.append("return buffer[offset] != 0;")
+        elif spec.postamble and spec.postamble == "FLOAT_BITCAST":
+            # Float: read bytes into bits, then convert
+            self._build_java_byte_reads(spec, body_lines, "bits", "int")
+            body_lines.append("return Float.intBitsToFloat(bits);")
+        elif spec.postamble and spec.postamble.startswith("NORM_SCALE"):
+            # Norm: read bytes, then scale to float
+            parts = dict(p.split("=") for p in spec.postamble.split(";") if "=" in p)
+            scale = parts.get("NORM_SCALE", "255")
+            if spec.byte_count == 1:
+                mask = spec.byte_reads[0].mask
+                if mask:
+                    body_lines.append(f"int raw = buffer[offset] & 0x{mask:02X};")
+                else:
+                    body_lines.append("int raw = buffer[offset] & 0xFF;")
+            else:
+                self._build_java_byte_reads(spec, body_lines, "raw", "int")
+            body_lines.append(f"return (float) raw / {scale}.0f;")
+        else:
+            # Integer types
+            self._build_java_byte_reads(spec, body_lines, "result", java_type)
+            if spec.needs_signed_cast:
+                body_lines.append(f"return ({java_type}) result;")
+            else:
+                body_lines.append("return result;")
+
+        body = "\n".join(f"        {line}" for line in body_lines)
+
+        return f"""
+    /**
+     * Read {spec.type_name} ({spec.byte_count} byte{"s" if spec.byte_count != 1 else ""})
+     * {spec.doc_comment}
+     */
+    public static {java_type} {method_name}(byte[] buffer, int offset) {{
+{body}
+    }}"""
+
+    def _build_java_byte_reads(
+        self,
+        spec: DecoderMethodSpec,
+        body_lines: list[str],
+        var_name: str,
+        var_type: str,
+    ) -> None:
+        """Build Java byte read expressions."""
+        parts: list[str] = []
+        for op in spec.byte_reads:
+            expr = f"(buffer[offset + {op.index}] & 0xFF)"
+            if op.mask:
+                expr = f"(buffer[offset + {op.index}] & 0x{op.mask:02X})"
+            if op.shift > 0:
+                expr = f"({expr} << {op.shift})"
+            parts.append(expr)
+
+        if len(parts) == 1:
+            body_lines.append(f"{var_type} {var_name} = {parts[0]};")
+        else:
+            body_lines.append(f"{var_type} {var_name} = {parts[0]}")
+            for part in parts[1:-1]:
+                body_lines.append(f"    | {part}")
+            body_lines.append(f"    | {parts[-1]};")
+
+    def _render_java_string_decoder(self, spec: DecoderMethodSpec) -> str:
+        """Render Java string decoder (special case)."""
+        parts = dict(p.split("=") for p in spec.postamble.split(";") if "=" in p)
+        length_mask = parts.get("LENGTH_MASK", "0xFF")
+        char_mask = parts.get("CHAR_MASK", "0xFF")
+        max_length = parts.get("MAX_LENGTH", "255")
+
+        return f"""
+    /**
+     * Read string (variable length)
+     * {spec.doc_comment}
+     *
+     * Format: [length] [char0] [char1] ... [charN-1]
+     * Max length: {max_length} chars
+     * @return Decoded string
+     */
+    public static String readString(byte[] buffer, int offset) {{
+        int len = buffer[offset] & {length_mask};
+        StringBuilder sb = new StringBuilder(len);
+        for (int i = 0; i < len; i++) {{
+            sb.append((char) (buffer[offset + 1 + i] & {char_mask}));
+        }}
+        return sb.toString();
     }}"""
 
     # ─────────────────────────────────────────────────────────────────────────
