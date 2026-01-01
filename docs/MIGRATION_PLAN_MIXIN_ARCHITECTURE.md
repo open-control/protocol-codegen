@@ -1587,11 +1587,11 @@ git add -A && git commit -m "feat(mixins): add framing mixins for protocol rende
 ```
 
 #### Critères de Succès
-- [ ] Serial8FramingMixin créé
-- [ ] SysExFramingMixin créé
-- [ ] Composition fonctionne (C++ + Serial8, Java + SysEx)
-- [ ] __init__.py avec exports
-- [ ] Tests passent
+- [x] Serial8FramingMixin créé
+- [x] SysExFramingMixin créé
+- [x] Composition fonctionne (C++ + Serial8, Java + SysEx)
+- [x] __init__.py avec exports
+- [x] Tests passent (commit 1f5c3b7)
 
 ---
 
@@ -2302,9 +2302,9 @@ Phase 5: Mixins Langage
   [x] Tests passent
 
 Phase 6: Mixins Protocol
-  [ ] Serial8FramingMixin créé
-  [ ] SysExFramingMixin créé
-  [ ] Composition fonctionne
+  [x] Serial8FramingMixin créé
+  [x] SysExFramingMixin créé
+  [x] Composition fonctionne
 
 Phase 7: Implémentation Renderers
   [ ] 4 renderers créés
