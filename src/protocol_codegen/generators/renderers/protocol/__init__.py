@@ -4,13 +4,13 @@ Protocol Renderers.
 Mixin-based renderers for protocol template generation.
 """
 
-from protocol_codegen.generators.renderers.protocol.base import ProtocolRendererBase
-from protocol_codegen.generators.renderers.protocol.implementations import (
+from protocol_codegen.generators.compositions import (
     Serial8CppProtocolRenderer,
     Serial8JavaProtocolRenderer,
     SysExCppProtocolRenderer,
     SysExJavaProtocolRenderer,
 )
+from protocol_codegen.generators.compositions.protocol_base import ProtocolRendererBase
 
 __all__ = [
     "ProtocolRendererBase",

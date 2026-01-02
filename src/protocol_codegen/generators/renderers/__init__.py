@@ -8,12 +8,12 @@ Provides file renderers organized by dependency type:
 - protocol/: Protocol template renderers (mixin-based)
 """
 
-from protocol_codegen.generators.renderers.base import (
+from protocol_codegen.generators.compositions.base import (
     BackendRenderer,
     BackendStrategyRenderer,
     FileRenderer,
 )
-from protocol_codegen.generators.renderers.registry import (
+from protocol_codegen.generators.compositions.registry import (
     RendererRegistry,
     get_renderer,
     register_renderer,

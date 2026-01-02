@@ -1,13 +1,13 @@
 """SysEx Java Protocol Renderer."""
 
+from protocol_codegen.generators.compositions.protocol_base import ProtocolRendererBase
+from protocol_codegen.generators.compositions.registry import register_renderer
 from protocol_codegen.generators.languages.java.protocol_mixin import (
     JavaProtocolMixin,
 )
 from protocol_codegen.generators.protocols.sysex.framing import (
     SysExFramingMixin,
 )
-from protocol_codegen.generators.renderers.protocol.base import ProtocolRendererBase
-from protocol_codegen.generators.renderers.registry import register_renderer
 
 
 @register_renderer("protocol", "java", "sysex")
