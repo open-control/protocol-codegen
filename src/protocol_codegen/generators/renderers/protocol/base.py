@@ -4,7 +4,6 @@ Base Protocol Renderer.
 Template method pattern for protocol template generation.
 """
 
-from abc import ABC
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -12,19 +11,22 @@ if TYPE_CHECKING:
     from protocol_codegen.core.message import Message
 
 
-class ProtocolRendererBase(ABC):
+class ProtocolRendererBase:
     """
     Base class for protocol template renderers.
 
     Uses template method pattern - subclasses provide mixins,
     this class provides the assembly logic.
+
+    Mixins must provide the following properties:
+    - is_cpp: bool - Whether generating C++ code
+    - is_java: bool - Whether generating Java code
+    - default_transport_type: str - Default transport type name
+    - protocol_name: str - Protocol name (e.g., "Serial8", "SysEx")
     """
 
-    # These properties/methods must be provided by mixins (not abstract - provided via mixin composition)
-    is_cpp: bool
-    is_java: bool
-    default_transport_type: str
-    protocol_name: str
+    # Note: is_cpp, is_java, default_transport_type, protocol_name are provided by mixins
+    # They are defined as @property in language/framing mixins, not as class variables here
 
     def render_file_header(self, output_path: Path) -> str: ...  # noqa: B027
     def render_transport_includes(self) -> str: ...  # noqa: B027

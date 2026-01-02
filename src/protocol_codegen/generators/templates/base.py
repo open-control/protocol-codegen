@@ -62,7 +62,7 @@ class CodecTemplate(ABC):
         return []
 
     @abstractmethod
-    def _build_handler_map(self) -> dict:
+    def _build_handler_map(self) -> dict[str, object]:
         """Build type -> handler mapping."""
         ...
 

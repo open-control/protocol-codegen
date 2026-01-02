@@ -4,11 +4,6 @@ SysEx Framing Mixin for Protocol Renderers.
 Provides SysEx MIDI protocol framing (F0...F7).
 """
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
-
 
 class SysExFramingMixin:
     """
@@ -16,18 +11,10 @@ class SysExFramingMixin:
 
     Wire format: [F0][MANUFACTURER_ID][DEVICE_ID][MessageID][payload...][F7]
     All payload bytes must be < 0x80 (7-bit encoding)
+
+    Expected to be combined with a LanguageMixin that provides is_cpp, is_java,
+    render_memcpy, render_arraycopy, and render_cast_message_id.
     """
-
-    # These properties are expected from the language mixin
-    is_cpp: bool
-    is_java: bool
-
-    # These methods are expected from the language mixin
-    def render_memcpy(self, dest: str, src: str, size: str) -> str: ...
-    def render_arraycopy(
-        self, src: str, src_pos: str, dest: str, dest_pos: str, length: str
-    ) -> str: ...
-    def render_cast_message_id(self) -> str: ...
 
     @property
     def protocol_name(self) -> str:

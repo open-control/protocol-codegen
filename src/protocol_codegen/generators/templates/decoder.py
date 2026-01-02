@@ -38,6 +38,8 @@ class DecoderTemplate(CodecTemplate):
     language-specific rendering.
     """
 
+    _handler_map: dict[str, TypeDecoder]
+
     @property
     def codec_name(self) -> str:
         """Return 'Decoder'."""
