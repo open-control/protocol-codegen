@@ -87,7 +87,9 @@ def generate(
     # Import generator based on method
     try:
         if method.lower() == "sysex":
-            from protocol_codegen.methods.sysex.generator import generate_sysex_protocol
+            from protocol_codegen.generators.orchestrators.sysex.generator import (
+                generate_sysex_protocol,
+            )
 
             generate_sysex_protocol(
                 messages_dir=messages_path,
@@ -97,7 +99,9 @@ def generate(
                 verbose=verbose,
             )
         elif method.lower() == "serial8":
-            from protocol_codegen.methods.serial8.generator import generate_serial8_protocol
+            from protocol_codegen.generators.orchestrators.serial8.generator import (
+                generate_serial8_protocol,
+            )
 
             generate_serial8_protocol(
                 messages_dir=messages_path,

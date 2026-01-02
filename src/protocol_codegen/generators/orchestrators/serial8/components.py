@@ -8,12 +8,12 @@ Provides Serial8-specific implementations of protocol components:
 
 from __future__ import annotations
 
+from protocol_codegen.generators.orchestrators.protocol_components import ProtocolComponents
 from protocol_codegen.generators.protocols.serial8 import Serial8EncodingStrategy
 from protocol_codegen.generators.renderers.protocol import (
     Serial8CppProtocolRenderer,
     Serial8JavaProtocolRenderer,
 )
-from protocol_codegen.methods.protocol_components import ProtocolComponents
 
 
 class Serial8Components(ProtocolComponents):

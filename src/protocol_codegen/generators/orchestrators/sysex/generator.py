@@ -15,10 +15,10 @@ from protocol_codegen.generators.languages.cpp.file_generators.constants import 
 from protocol_codegen.generators.languages.java.file_generators.constants import (
     ProtocolConfig as JavaProtocolConfig,
 )
-from protocol_codegen.methods.base_generator import BaseProtocolGenerator
-from protocol_codegen.methods.protocol_components import ProtocolComponents
-from protocol_codegen.methods.sysex.components import SysExComponents
-from protocol_codegen.methods.sysex.config import SysExConfig
+from protocol_codegen.generators.orchestrators.base import BaseProtocolGenerator
+from protocol_codegen.generators.orchestrators.protocol_components import ProtocolComponents
+from protocol_codegen.generators.orchestrators.sysex.components import SysExComponents
+from protocol_codegen.generators.orchestrators.sysex.config import SysExConfig
 
 
 class SysExGenerator(BaseProtocolGenerator[SysExConfig]):

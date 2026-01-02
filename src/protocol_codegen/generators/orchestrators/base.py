@@ -57,9 +57,9 @@ from protocol_codegen.generators.languages.java.file_generators import (
     generate_protocol_methods_java,
     generate_struct_java,
 )
+from protocol_codegen.generators.orchestrators.common import collect_enum_defs
+from protocol_codegen.generators.orchestrators.protocol_components import ProtocolComponents
 from protocol_codegen.generators.templates import DecoderTemplate, EncoderTemplate
-from protocol_codegen.methods.common import collect_enum_defs
-from protocol_codegen.methods.protocol_components import ProtocolComponents
 
 if TYPE_CHECKING:
     from types import ModuleType
