@@ -9,6 +9,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from protocol_codegen.generators.common.naming import (
+    message_name_to_callback_name,
+    to_pascal_case,
+)
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -29,12 +34,8 @@ def generate_protocol_callbacks_hpp(messages: list[Message], output_path: Path) 
     # Generate callback declarations for each message
     callbacks: list[str] = []
     for message in messages:
-        # Convert SCREAMING_SNAKE_CASE to PascalCase
-        pascal_name = "".join(word.capitalize() for word in message.name.split("_"))
-        class_name = f"{pascal_name}Message"
-
-        # Callback name: onTransportPlay, onParameterSet, etc.
-        callback_name = f"on{pascal_name}"
+        class_name = f"{to_pascal_case(message.name)}Message"
+        callback_name = message_name_to_callback_name(message.name)
 
         callbacks.append(f"    std::function<void(const {class_name}&)> {callback_name};")
 

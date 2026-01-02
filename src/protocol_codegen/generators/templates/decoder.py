@@ -10,7 +10,6 @@ to the LanguageBackend.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from protocol_codegen.generators.common.type_decoders import (
@@ -21,14 +20,13 @@ from protocol_codegen.generators.common.type_decoders import (
     StringDecoder,
     TypeDecoder,
 )
+from protocol_codegen.generators.templates.base import CodecTemplate
 
 if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry
-    from protocol_codegen.generators.backends.base import LanguageBackend
-    from protocol_codegen.generators.common.encoding import EncodingStrategy
 
 
-class DecoderTemplate:
+class DecoderTemplate(CodecTemplate):
     """Template for generating Decoder files.
 
     Generates complete decoder files for any combination of:
@@ -40,112 +38,34 @@ class DecoderTemplate:
     language-specific rendering.
     """
 
-    def __init__(
-        self,
-        backend: LanguageBackend,
-        strategy: EncodingStrategy,
-    ):
-        """Initialize decoder template.
+    @property
+    def codec_name(self) -> str:
+        """Return 'Decoder'."""
+        return "Decoder"
 
-        Args:
-            backend: Language backend for syntax
-            strategy: Encoding strategy for protocol-specific logic
-        """
-        self.backend = backend
-        self.strategy = strategy
+    @property
+    def cpp_extra_includes(self) -> list[str]:
+        """Decoder needs cstddef for size_t."""
+        return ["<cstddef>"]
 
-        # Create type decoders with the encoding strategy
-        self._type_decoders: list[TypeDecoder] = [
-            BoolDecoder(strategy),
-            IntegerDecoder(strategy),
-            FloatDecoder(strategy),
-            NormDecoder(strategy),
-            StringDecoder(strategy),
+    def _build_handler_map(self) -> dict[str, TypeDecoder]:
+        """Build type -> decoder mapping."""
+        type_decoders: list[TypeDecoder] = [
+            BoolDecoder(self.strategy),
+            IntegerDecoder(self.strategy),
+            FloatDecoder(self.strategy),
+            NormDecoder(self.strategy),
+            StringDecoder(self.strategy),
         ]
 
-        # Build type -> decoder mapping for fast lookup
-        self._decoder_map: dict[str, TypeDecoder] = {}
-        for decoder in self._type_decoders:
+        decoder_map: dict[str, TypeDecoder] = {}
+        for decoder in type_decoders:
             for type_name in decoder.supported_types():
-                self._decoder_map[type_name] = decoder
+                decoder_map[type_name] = decoder
 
-    def generate(self, type_registry: TypeRegistry, output_path: Path) -> str:
-        """Generate complete decoder file.
+        return decoder_map
 
-        Args:
-            type_registry: Registry with builtin types
-            output_path: Output file path (for header comment)
-
-        Returns:
-            Complete decoder file content
-        """
-        parts = [
-            self._generate_header(output_path),
-            self._generate_class_open(),
-            self._generate_decoders(type_registry),
-            self._generate_class_close(),
-            self._generate_footer(),
-        ]
-        return "\n".join(filter(None, parts))
-
-    def _generate_header(self, output_path: Path) -> str:
-        """Generate file header with includes/imports."""
-        if self.backend.name == "cpp":
-            return self._generate_cpp_header(output_path)
-        elif self.backend.name == "java":
-            return self._generate_java_header(output_path)
-        return ""
-
-    def _generate_cpp_header(self, output_path: Path) -> str:
-        """Generate C++ header."""
-        return f"""#pragma once
-
-{self.backend.auto_generated_comment(output_path.name)}
-
-// {self.strategy.name} Decoder - {self.strategy.description}
-
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
-#include <string>
-
-namespace Protocol {{
-"""
-
-    def _generate_java_header(self, output_path: Path) -> str:
-        """Generate Java header."""
-        package = getattr(self.backend, "package", "protocol")
-        return f"""package {package};
-
-{self.backend.auto_generated_comment(output_path.name)}
-
-// {self.strategy.name} Decoder - {self.strategy.description}
-
-"""
-
-    def _generate_class_open(self) -> str:
-        """Generate class/struct opening."""
-        if self.backend.name == "cpp":
-            return "struct Decoder {"
-        elif self.backend.name == "java":
-            return "public final class Decoder {"
-        return ""
-
-    def _generate_class_close(self) -> str:
-        """Generate class/struct closing."""
-        if self.backend.name == "cpp":
-            return "};"
-        elif self.backend.name == "java":
-            return "}"
-        return ""
-
-    def _generate_footer(self) -> str:
-        """Generate file footer."""
-        if self.backend.name == "cpp":
-            return "\n}  // namespace Protocol\n"
-        return ""
-
-    def _generate_decoders(self, type_registry: TypeRegistry) -> str:
+    def _generate_methods(self, type_registry: TypeRegistry) -> str:
         """Generate all decoder methods using TypeDecoders.
 
         For each builtin type in the registry:
@@ -159,7 +79,7 @@ namespace Protocol {{
             if not atomic_type.is_builtin:
                 continue
 
-            decoder = self._decoder_map.get(type_name)
+            decoder = self._handler_map.get(type_name)
             if not decoder:
                 continue
 

@@ -10,7 +10,6 @@ to the LanguageBackend.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from protocol_codegen.generators.common.type_encoders import (
@@ -21,14 +20,13 @@ from protocol_codegen.generators.common.type_encoders import (
     StringEncoder,
     TypeEncoder,
 )
+from protocol_codegen.generators.templates.base import CodecTemplate
 
 if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry
-    from protocol_codegen.generators.backends.base import LanguageBackend
-    from protocol_codegen.generators.common.encoding import EncodingStrategy
 
 
-class EncoderTemplate:
+class EncoderTemplate(CodecTemplate):
     """Template for generating Encoder files.
 
     Generates complete encoder files for any combination of:
@@ -40,111 +38,29 @@ class EncoderTemplate:
     language-specific rendering.
     """
 
-    def __init__(
-        self,
-        backend: LanguageBackend,
-        strategy: EncodingStrategy,
-    ):
-        """Initialize encoder template.
+    @property
+    def codec_name(self) -> str:
+        """Return 'Encoder'."""
+        return "Encoder"
 
-        Args:
-            backend: Language backend for syntax
-            strategy: Encoding strategy for protocol-specific logic
-        """
-        self.backend = backend
-        self.strategy = strategy
-
-        # Create type encoders with the encoding strategy
-        self._type_encoders: list[TypeEncoder] = [
-            BoolEncoder(strategy),
-            IntegerEncoder(strategy),
-            FloatEncoder(strategy),
-            NormEncoder(strategy),
-            StringEncoder(strategy),
+    def _build_handler_map(self) -> dict[str, TypeEncoder]:
+        """Build type -> encoder mapping."""
+        type_encoders: list[TypeEncoder] = [
+            BoolEncoder(self.strategy),
+            IntegerEncoder(self.strategy),
+            FloatEncoder(self.strategy),
+            NormEncoder(self.strategy),
+            StringEncoder(self.strategy),
         ]
 
-        # Build type -> encoder mapping for fast lookup
-        self._encoder_map: dict[str, TypeEncoder] = {}
-        for encoder in self._type_encoders:
+        encoder_map: dict[str, TypeEncoder] = {}
+        for encoder in type_encoders:
             for type_name in encoder.supported_types():
-                self._encoder_map[type_name] = encoder
+                encoder_map[type_name] = encoder
 
-    def generate(self, type_registry: TypeRegistry, output_path: Path) -> str:
-        """Generate complete encoder file.
+        return encoder_map
 
-        Args:
-            type_registry: Registry with builtin types
-            output_path: Output file path (for header comment)
-
-        Returns:
-            Complete encoder file content
-        """
-        parts = [
-            self._generate_header(output_path),
-            self._generate_class_open(),
-            self._generate_encoders(type_registry),
-            self._generate_class_close(),
-            self._generate_footer(),
-        ]
-        return "\n".join(filter(None, parts))
-
-    def _generate_header(self, output_path: Path) -> str:
-        """Generate file header with includes/imports."""
-        if self.backend.name == "cpp":
-            return self._generate_cpp_header(output_path)
-        elif self.backend.name == "java":
-            return self._generate_java_header(output_path)
-        return ""
-
-    def _generate_cpp_header(self, output_path: Path) -> str:
-        """Generate C++ header."""
-        return f"""#pragma once
-
-{self.backend.auto_generated_comment(output_path.name)}
-
-// {self.strategy.name} Encoder - {self.strategy.description}
-
-#include <cstdint>
-#include <cstring>
-#include <string>
-
-namespace Protocol {{
-"""
-
-    def _generate_java_header(self, output_path: Path) -> str:
-        """Generate Java header."""
-        package = getattr(self.backend, "package", "protocol")
-        return f"""package {package};
-
-{self.backend.auto_generated_comment(output_path.name)}
-
-// {self.strategy.name} Encoder - {self.strategy.description}
-
-"""
-
-    def _generate_class_open(self) -> str:
-        """Generate class/struct opening."""
-        if self.backend.name == "cpp":
-            return "struct Encoder {"
-        elif self.backend.name == "java":
-            return "public final class Encoder {"
-        return ""
-
-    def _generate_class_close(self) -> str:
-        """Generate class/struct closing."""
-        if self.backend.name == "cpp":
-            return "};"
-        elif self.backend.name == "java":
-            return "}"
-        return ""
-
-    def _generate_footer(self) -> str:
-        """Generate file footer."""
-        if self.backend.name == "cpp":
-            return "\n}  // namespace Protocol\n"
-        return ""
-
-    def _generate_encoders(self, type_registry: TypeRegistry) -> str:
+    def _generate_methods(self, type_registry: TypeRegistry) -> str:
         """Generate all encoder methods using TypeEncoders.
 
         For each builtin type in the registry:
@@ -158,7 +74,7 @@ namespace Protocol {{
             if not atomic_type.is_builtin:
                 continue
 
-            encoder = self._encoder_map.get(type_name)
+            encoder = self._handler_map.get(type_name)
             if not encoder:
                 continue
 
