@@ -135,19 +135,14 @@ parameter_value = PrimitiveField('value', type_name=Type.NORM16)
 
 **protocol_config.py:**
 ```python
-from protocol_codegen.methods.serial8 import Serial8Config, Serial8Limits, Serial8Structure
+from protocol_codegen.generators.orchestrators.serial8 import (
+    Serial8Config,
+    Serial8Limits,
+)
 
 PROTOCOL_CONFIG = Serial8Config(
-    structure=Serial8Structure(
-        message_type_offset=0,  # MessageID at byte 0
-        from_host_offset=1,     # Direction flag at byte 1
-        payload_offset=2,       # Payload starts at byte 2
-    ),
     limits=Serial8Limits(
-        string_max_length=32,
-        array_max_items=32,
-        max_payload_size=4096,
-        max_message_size=4096,
+        max_message_size=4096,  # Maximum message size
     ),
 )
 ```
@@ -156,7 +151,11 @@ PROTOCOL_CONFIG = Serial8Config(
 
 **protocol_config.py:**
 ```python
-from protocol_codegen.methods.sysex import SysExConfig, SysExLimits, SysExFraming
+from protocol_codegen.generators.orchestrators.sysex import (
+    SysExConfig,
+    SysExFraming,
+    SysExLimits,
+)
 
 PROTOCOL_CONFIG = SysExConfig(
     framing=SysExFraming(
@@ -164,8 +163,7 @@ PROTOCOL_CONFIG = SysExConfig(
         device_id=0x42,
     ),
     limits=SysExLimits(
-        max_message_size=512,
-        string_max_length=32,
+        max_message_size=512,  # Maximum SysEx message size
     ),
 )
 ```
@@ -301,27 +299,30 @@ protocol-codegen list-generators
 
 ```
 src/protocol_codegen/
-├── core/                    # Core abstractions
-│   ├── field.py             # PrimitiveField, CompositeField
-│   ├── message.py           # Message definition
-│   ├── types.py             # Builtin type definitions
-│   ├── allocator.py         # Message ID allocation
-│   ├── validator.py         # Message validation
-│   └── loader.py            # Type registry
-├── methods/                 # Protocol methods
-│   ├── serial8/             # 8-bit binary protocol
-│   │   ├── config.py        # Serial8Config
-│   │   └── generator.py     # Orchestrator
-│   └── sysex/               # 7-bit MIDI protocol
-│       ├── config.py        # SysExConfig
-│       └── generator.py     # Orchestrator
-└── generators/              # Code generators (by method)
-    ├── serial8/
-    │   ├── cpp/             # C++ generators
-    │   └── java/            # Java generators
-    └── sysex/
-        ├── cpp/
-        └── java/
+├── core/                              # Core abstractions
+│   ├── field.py                       # PrimitiveField, CompositeField, EnumField
+│   ├── message.py                     # Message definition
+│   ├── types.py                       # Builtin type definitions
+│   ├── enum_def.py                    # EnumDef for custom enums
+│   ├── allocator.py                   # Message ID allocation
+│   ├── validator.py                   # Message validation
+│   └── loader.py                      # Type registry
+├── generators/
+│   ├── core/                          # Encoding logic
+│   │   ├── type_encoders/             # Type → bytes encoding
+│   │   └── type_decoders/             # Bytes → type decoding
+│   ├── languages/                     # Language backends
+│   │   ├── cpp/                       # C++ backend + file_generators
+│   │   └── java/                      # Java backend + file_generators
+│   ├── protocols/                     # Protocol encoding strategies
+│   │   ├── serial8/                   # 8-bit binary encoding
+│   │   └── sysex/                     # 7-bit MIDI encoding
+│   ├── orchestrators/                 # Main generators
+│   │   ├── serial8/                   # Serial8 generator + config
+│   │   └── sysex/                     # SysEx generator + config
+│   ├── compositions/                  # Language × Protocol renderers
+│   └── templates/                     # Encoder/Decoder templates
+└── cli.py                             # CLI interface
 ```
 
 ## Examples
