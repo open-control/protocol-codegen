@@ -20,7 +20,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from protocol_codegen.generators.common.cpp.struct_utils import (
+from protocol_codegen.generators.core.naming import to_pascal_case
+from protocol_codegen.generators.languages.cpp.file_generators.struct_utils import (
     generate_composite_structs,
     generate_decode_function,
     generate_encode_function,
@@ -28,7 +29,6 @@ from protocol_codegen.generators.common.cpp.struct_utils import (
     generate_header,
     generate_struct_definition,
 )
-from protocol_codegen.generators.core.naming import to_pascal_case
 
 if TYPE_CHECKING:
     from pathlib import Path

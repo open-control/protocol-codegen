@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 
 from protocol_codegen.core.loader import TypeRegistry
-from protocol_codegen.generators.backends import CppBackend, JavaBackend
+from protocol_codegen.generators.languages.cpp import CppBackend
+from protocol_codegen.generators.languages.java import JavaBackend
 from protocol_codegen.generators.common.encoding import (
     Serial8EncodingStrategy,
     SysExEncodingStrategy,

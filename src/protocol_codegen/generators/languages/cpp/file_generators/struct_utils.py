@@ -13,13 +13,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
-from protocol_codegen.generators.common.cpp.codec_utils import (
+from protocol_codegen.generators.core.naming import field_to_pascal_case
+from protocol_codegen.generators.core.payload import PayloadCalculator
+from protocol_codegen.generators.languages.cpp.file_generators.codec_utils import (
     get_cpp_type,
     get_decoder_call,
     get_encoder_call,
 )
-from protocol_codegen.generators.core.naming import field_to_pascal_case
-from protocol_codegen.generators.core.payload import PayloadCalculator
 from protocol_codegen.generators.protocols import EncodingStrategy
 
 if TYPE_CHECKING:

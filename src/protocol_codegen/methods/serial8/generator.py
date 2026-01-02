@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from protocol_codegen.generators.common.cpp.constants_generator import (
+from protocol_codegen.generators.languages.cpp.file_generators.constants import (
     ProtocolConfig as CppProtocolConfig,
 )
-from protocol_codegen.generators.common.java.constants_generator import (
+from protocol_codegen.generators.languages.java.file_generators.constants import (
     ProtocolConfig as JavaProtocolConfig,
 )
 from protocol_codegen.methods.base_generator import BaseProtocolGenerator

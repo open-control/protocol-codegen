@@ -9,7 +9,7 @@ Available Backends:
 - JavaBackend: Java 8+ with ByteBuffer
 
 Usage:
-    from protocol_codegen.generators.backends import CppBackend, JavaBackend
+    from protocol_codegen.generators.languages.cpp import CppBackend, JavaBackend
 
     cpp = CppBackend(namespace="Protocol")
     java = JavaBackend(package="com.example.protocol")
@@ -25,9 +25,9 @@ Usage:
 
 from typing import Any
 
-from protocol_codegen.generators.backends.base import LanguageBackend
-from protocol_codegen.generators.backends.cpp import CppBackend
-from protocol_codegen.generators.backends.java import JavaBackend
+from protocol_codegen.generators.languages.base import LanguageBackend
+from protocol_codegen.generators.languages.cpp.backend import CppBackend
+from protocol_codegen.generators.languages.java.backend import JavaBackend
 
 __all__ = [
     "LanguageBackend",

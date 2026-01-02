@@ -9,7 +9,7 @@ Templates:
 - DecoderTemplate: Generates Decoder.hpp/Decoder.java files
 
 Usage:
-    from protocol_codegen.generators.backends import CppBackend
+    from protocol_codegen.generators.languages.cpp import CppBackend
     from protocol_codegen.generators.protocols.serial8 import Serial8EncodingStrategy
     from protocol_codegen.generators.templates import EncoderTemplate, DecoderTemplate
 

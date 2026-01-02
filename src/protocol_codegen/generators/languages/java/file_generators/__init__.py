@@ -1,10 +1,7 @@
 """
-Common Java Generators.
+Java File Generators.
 
-Shared generators for Java code generation across protocols (SysEx, Serial8).
-
-Note: Low-level struct_utils are intentionally not exposed here.
-They are internal implementation details used by generate_struct_java.
+Individual generators for Java protocol files.
 """
 
 from protocol_codegen.generators.languages.java.file_generators.callbacks import (
@@ -33,20 +30,12 @@ from protocol_codegen.generators.languages.java.file_generators.struct import (
 )
 
 __all__ = [
-    # Callbacks
     "generate_protocol_callbacks_java",
-    # Constants
     "generate_constants_java",
-    # Decoder Registry
     "generate_decoder_registry_java",
-    # Enum
     "generate_enum_java",
-    # Message Structure
     "generate_message_structure_java",
-    # MessageID
     "generate_messageid_java",
-    # Methods
     "generate_protocol_methods_java",
-    # Struct Generator
     "generate_struct_java",
 ]

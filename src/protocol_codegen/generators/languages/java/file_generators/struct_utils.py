@@ -16,12 +16,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
-from protocol_codegen.generators.common.java.codec_utils import get_encoder_call
 from protocol_codegen.generators.core.naming import (
     capitalize_first,
     field_to_pascal_case,
 )
 from protocol_codegen.generators.core.payload import PayloadCalculator
+from protocol_codegen.generators.languages.java.file_generators.codec_utils import get_encoder_call
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence

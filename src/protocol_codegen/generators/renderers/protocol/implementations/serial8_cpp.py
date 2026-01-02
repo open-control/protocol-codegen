@@ -1,12 +1,12 @@
 """Serial8 C++ Protocol Renderer."""
 
+from protocol_codegen.generators.languages.cpp.protocol_mixin import (
+    CppProtocolMixin,
+)
 from protocol_codegen.generators.protocols.serial8.framing import (
     Serial8FramingMixin,
 )
 from protocol_codegen.generators.renderers.protocol.base import ProtocolRendererBase
-from protocol_codegen.generators.renderers.protocol.mixins.languages.cpp import (
-    CppProtocolMixin,
-)
 from protocol_codegen.generators.renderers.registry import register_renderer
 
 

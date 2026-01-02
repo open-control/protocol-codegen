@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry
-    from protocol_codegen.generators.backends.base import LanguageBackend
+    from protocol_codegen.generators.languages.base import LanguageBackend
     from protocol_codegen.generators.protocols import EncodingStrategy
 
 

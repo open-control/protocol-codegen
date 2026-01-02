@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from protocol_codegen.generators.backends.base import LanguageBackend
+from protocol_codegen.generators.languages.base import LanguageBackend
 
 if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry

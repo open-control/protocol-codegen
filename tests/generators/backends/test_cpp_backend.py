@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from protocol_codegen.core.loader import TypeRegistry
-from protocol_codegen.generators.backends.cpp import CppBackend
+from protocol_codegen.generators.languages.cpp.backend import CppBackend
 
 
 @pytest.fixture

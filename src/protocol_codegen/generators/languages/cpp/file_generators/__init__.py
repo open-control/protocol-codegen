@@ -1,10 +1,7 @@
 """
-Common C++ Generators.
+C++ File Generators.
 
-Shared generators for C++ code generation across protocols (SysEx, Serial8).
-
-Note: Low-level struct_utils are intentionally not exposed here.
-They are internal implementation details used by generate_struct_hpp.
+Individual generators for C++ protocol files.
 """
 
 from protocol_codegen.generators.languages.cpp.file_generators.callbacks import (
@@ -33,20 +30,12 @@ from protocol_codegen.generators.languages.cpp.file_generators.struct import (
 )
 
 __all__ = [
-    # Callbacks
     "generate_protocol_callbacks_hpp",
-    # Constants
     "generate_constants_hpp",
-    # Decoder Registry
     "generate_decoder_registry_hpp",
-    # Enum
     "generate_enum_hpp",
-    # Message Structure
     "generate_message_structure_hpp",
-    # MessageID
     "generate_messageid_hpp",
-    # Methods
     "generate_protocol_methods_hpp",
-    # Struct Generator
     "generate_struct_hpp",
 ]

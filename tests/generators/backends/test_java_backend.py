@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from protocol_codegen.core.loader import TypeRegistry
-from protocol_codegen.generators.backends.java import JavaBackend
+from protocol_codegen.generators.languages.java.backend import JavaBackend
 
 
 @pytest.fixture
