@@ -19,6 +19,9 @@ from protocol_codegen.generators.common.java.decoder_registry_generator import (
 from protocol_codegen.generators.common.java.enum_generator import (
     generate_enum_java,
 )
+from protocol_codegen.generators.common.java.message_structure_generator import (
+    generate_message_structure_java,
+)
 from protocol_codegen.generators.common.java.messageid_generator import (
     generate_messageid_java,
 )
@@ -38,6 +41,8 @@ __all__ = [
     "generate_decoder_registry_java",
     # Enum
     "generate_enum_java",
+    # Message Structure
+    "generate_message_structure_java",
     # MessageID
     "generate_messageid_java",
     # Methods

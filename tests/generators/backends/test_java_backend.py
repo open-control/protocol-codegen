@@ -221,20 +221,20 @@ class TestJavaBackendHelpers:
         result = backend.constant("int", "MAX_SIZE", "255", visibility="package")
         assert result == "static final int MAX_SIZE = 255;"
 
-    def test_class_field(self, backend: JavaBackend) -> None:
-        result = backend.class_field("int", "value")
+    def test_field(self, backend: JavaBackend) -> None:
+        result = backend.field("int", "value")
         assert result == "    private int value;"
 
-    def test_class_field_final(self, backend: JavaBackend) -> None:
-        result = backend.class_field("int", "value", is_final=True)
+    def test_field_final(self, backend: JavaBackend) -> None:
+        result = backend.field("int", "value", is_final=True)
         assert result == "    private final int value;"
 
-    def test_class_field_public(self, backend: JavaBackend) -> None:
-        result = backend.class_field("int", "value", visibility="public")
+    def test_field_public(self, backend: JavaBackend) -> None:
+        result = backend.field("int", "value", visibility="public")
         assert result == "    public int value;"
 
-    def test_static_method(self, backend: JavaBackend) -> None:
-        result = backend.static_method(
+    def test_static_function(self, backend: JavaBackend) -> None:
+        result = backend.static_function(
             "void",
             "encode",
             [("ByteBuffer", "buffer"), ("int", "val")],

@@ -134,12 +134,12 @@ class TestCppBackendIncludes:
         result = backend.include_statement("<cstdint>")
         assert result == "#include <cstdint>"
 
-    def test_standard_includes(self, backend: CppBackend) -> None:
-        includes = backend.standard_includes()
-        assert "<cstdint>" in includes
-        assert "<string>" in includes
-        assert "<array>" in includes
-        assert "<vector>" in includes
+    def test_standard_imports(self, backend: CppBackend) -> None:
+        imports = backend.standard_imports()
+        assert "<cstdint>" in imports
+        assert "<string>" in imports
+        assert "<array>" in imports
+        assert "<vector>" in imports
 
 
 class TestCppBackendNamespace:
@@ -213,16 +213,25 @@ class TestCppBackendEncoderDecoder:
 class TestCppBackendHelpers:
     """Test C++ specific helpers."""
 
-    def test_constexpr_constant(self, backend: CppBackend) -> None:
-        result = backend.constexpr_constant("uint8_t", "MAX_SIZE", "255")
+    def test_constant(self, backend: CppBackend) -> None:
+        result = backend.constant("uint8_t", "MAX_SIZE", "255")
         assert result == "static constexpr uint8_t MAX_SIZE = 255;"
 
-    def test_struct_field(self, backend: CppBackend) -> None:
-        result = backend.struct_field("uint8_t", "value")
+    def test_constant_with_visibility(self, backend: CppBackend) -> None:
+        # visibility is ignored in C++ (uses section-based visibility)
+        result = backend.constant("uint8_t", "MAX_SIZE", "255", visibility="private")
+        assert result == "static constexpr uint8_t MAX_SIZE = 255;"
+
+    def test_field(self, backend: CppBackend) -> None:
+        result = backend.field("uint8_t", "value")
         assert result == "    uint8_t value;"
 
-    def test_static_inline_function(self, backend: CppBackend) -> None:
-        result = backend.static_inline_function(
+    def test_field_with_final(self, backend: CppBackend) -> None:
+        result = backend.field("uint8_t", "value", is_final=True)
+        assert result == "    const uint8_t value;"
+
+    def test_static_function(self, backend: CppBackend) -> None:
+        result = backend.static_function(
             "void",
             "encode",
             [("uint8_t*&", "buf"), ("uint8_t", "val")],

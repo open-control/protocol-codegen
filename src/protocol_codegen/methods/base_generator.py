@@ -49,6 +49,7 @@ from protocol_codegen.generators.common.java import (
     generate_constants_java,
     generate_decoder_registry_java,
     generate_enum_java,
+    generate_message_structure_java,
     generate_messageid_java,
     generate_protocol_callbacks_java,
     generate_protocol_methods_java,
@@ -467,6 +468,16 @@ class BaseProtocolGenerator[ConfigT: ProtocolConfigProtocol](ABC):
                 ),
             )
             methods_stats.record_write(java_methods_path, was_written)
+
+        # MessageStructure.java (umbrella class in base package, mirrors C++ pattern)
+        java_message_structure_path = java_base / "MessageStructure.java"
+        was_written = write_if_changed(
+            java_message_structure_path,
+            generate_message_structure_java(
+                self.messages, java_message_structure_path, java_package, struct_package
+            ),
+        )
+        stats.record_write(java_message_structure_path, was_written)
 
         # Generate struct files
         java_struct_dir = java_base / self.plugin_paths["output_java"]["structs"]

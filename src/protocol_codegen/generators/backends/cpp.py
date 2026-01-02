@@ -367,10 +367,15 @@ static inline bool {method_name}(
                 expr = f"(static_cast<{var_type}>({expr}) << {op.shift})"
             parts.append(expr)
 
+        # When var_name is "out", we assign to the existing parameter (no declaration)
+        # Otherwise, we declare a new local variable
+        declare_var = var_name != "out"
+        prefix = f"{var_type} " if declare_var else ""
+
         if len(parts) == 1:
-            body_lines.append(f"{var_type} {var_name} = {parts[0]};")
+            body_lines.append(f"{prefix}{var_name} = {parts[0]};")
         else:
-            body_lines.append(f"{var_type} {var_name} = {parts[0]}")
+            body_lines.append(f"{prefix}{var_name} = {parts[0]}")
             for part in parts[1:-1]:
                 body_lines.append(f"    | {part}")
             body_lines.append(f"    | {parts[-1]};")
@@ -414,37 +419,52 @@ static inline bool decodeString(
     # C++ Specific Helpers
     # ─────────────────────────────────────────────────────────────────────────
 
-    def constexpr_constant(self, type_name: str, name: str, value: str) -> str:
+    def constant(
+        self, type_name: str, name: str, value: str, visibility: str = "public"
+    ) -> str:
         """Generate constexpr constant declaration.
 
         Args:
             type_name: C++ type (e.g., 'uint8_t')
             name: Constant name
             value: Constant value
+            visibility: Ignored in C++ (use public:/private: sections)
 
         Returns:
             'static constexpr uint8_t NAME = 42;'
         """
+        # visibility parameter is ignored for C++ (uses section-based visibility)
         return f"static constexpr {type_name} {name} = {value};"
 
-    def struct_field(self, type_name: str, field_name: str) -> str:
-        """Generate struct field declaration.
+    def field(
+        self,
+        type_name: str,
+        field_name: str,
+        visibility: str = "public",
+        is_final: bool = False,
+    ) -> str:
+        """Generate struct/class field declaration.
 
         Args:
             type_name: C++ type
             field_name: Field name
+            visibility: Ignored in C++ (use public:/private: sections)
+            is_final: If True, add 'const' modifier
 
         Returns:
-            '    uint8_t fieldName;'
+            '    uint8_t fieldName;' or '    const uint8_t fieldName;'
         """
-        return f"    {type_name} {field_name};"
+        # visibility is ignored for C++ (uses section-based visibility)
+        const = "const " if is_final else ""
+        return f"    {const}{type_name} {field_name};"
 
-    def static_inline_function(
+    def static_function(
         self,
         return_type: str,
         name: str,
         params: list[tuple[str, str]],
         body_lines: list[str],
+        visibility: str = "public",
     ) -> str:
         """Generate static inline function.
 
@@ -453,10 +473,12 @@ static inline bool decodeString(
             name: Function name
             params: List of (type, name) tuples
             body_lines: Lines of function body
+            visibility: Ignored in C++ (use public:/private: sections)
 
         Returns:
             Complete function definition
         """
+        # visibility is ignored for C++ (uses section-based visibility)
         param_str = ", ".join(f"{t} {n}" for t, n in params)
         lines = [f"static inline {return_type} {name}({param_str}) {{"]
         for line in body_lines:
@@ -464,6 +486,6 @@ static inline bool decodeString(
         lines.append("}")
         return "\n".join(lines)
 
-    def standard_includes(self) -> list[str]:
-        """Get standard includes for protocol code."""
+    def standard_imports(self) -> list[str]:
+        """Get standard includes/imports for protocol code."""
         return ["<cstdint>", "<cstring>", "<string>", "<array>", "<vector>"]

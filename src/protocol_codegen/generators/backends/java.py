@@ -192,7 +192,7 @@ class JavaBackend(LanguageBackend):
     ) -> str:
         """Render encoder method for Java."""
         java_type = self.get_type(spec.param_type, registry)
-        method_name = f"write{spec.method_name}"
+        method_name = f"encode{spec.method_name}"
 
         # Handle string specially
         if spec.type_name == "string":
@@ -232,7 +232,7 @@ class JavaBackend(LanguageBackend):
 
         return f"""
     /**
-     * Write {spec.type_name} ({spec.byte_count} byte{"s" if spec.byte_count != 1 else ""})
+     * Encode {spec.type_name} ({spec.byte_count} byte{"s" if spec.byte_count != 1 else ""})
      * {spec.doc_comment}
      * @return number of bytes written
      */
@@ -251,14 +251,14 @@ class JavaBackend(LanguageBackend):
 
         return f"""
     /**
-     * Write string (variable length)
+     * Encode string (variable length)
      * {spec.doc_comment}
      *
      * Format: [length] [char0] [char1] ... [charN-1]
      * Max length: {max_length} chars
      * @return number of bytes written
      */
-    public static int writeString(byte[] buffer, int offset, String str) {{
+    public static int encodeString(byte[] buffer, int offset, String str) {{
         int len = Math.min(str.length(), {max_length}) & {length_mask};
         buffer[offset] = (byte)len;
 
@@ -279,7 +279,7 @@ class JavaBackend(LanguageBackend):
     ) -> str:
         """Render decoder method for Java."""
         java_type = self.get_type(spec.result_type, registry)
-        method_name = f"read{spec.method_name}"
+        method_name = f"decode{spec.method_name}"
 
         # Handle string specially
         if spec.type_name == "string":
@@ -320,7 +320,7 @@ class JavaBackend(LanguageBackend):
 
         return f"""
     /**
-     * Read {spec.type_name} ({spec.byte_count} byte{"s" if spec.byte_count != 1 else ""})
+     * Decode {spec.type_name} ({spec.byte_count} byte{"s" if spec.byte_count != 1 else ""})
      * {spec.doc_comment}
      */
     public static {java_type} {method_name}(byte[] buffer, int offset) {{
@@ -344,13 +344,26 @@ class JavaBackend(LanguageBackend):
                 expr = f"({expr} << {op.shift})"
             parts.append(expr)
 
+        # In Java, bitwise operations promote to int.
+        # Need explicit cast for short/byte assignments.
+        needs_cast = var_type in ("short", "byte")
+
         if len(parts) == 1:
-            body_lines.append(f"{var_type} {var_name} = {parts[0]};")
+            expr = parts[0]
+            if needs_cast:
+                expr = f"({var_type}){expr}"
+            body_lines.append(f"{var_type} {var_name} = {expr};")
         else:
-            body_lines.append(f"{var_type} {var_name} = {parts[0]}")
-            for part in parts[1:-1]:
-                body_lines.append(f"    | {part}")
-            body_lines.append(f"    | {parts[-1]};")
+            if needs_cast:
+                # Wrap entire expression in cast
+                full_expr = " | ".join(parts)
+                body_lines.append(f"{var_type} {var_name} = ({var_type})({full_expr});")
+            else:
+                # Original multiline format for int/long
+                body_lines.append(f"{var_type} {var_name} = {parts[0]}")
+                for part in parts[1:-1]:
+                    body_lines.append(f"    | {part}")
+                body_lines.append(f"    | {parts[-1]};")
 
     def _render_java_string_decoder(self, spec: DecoderMethodSpec) -> str:
         """Render Java string decoder (special case)."""
@@ -362,15 +375,18 @@ class JavaBackend(LanguageBackend):
 
         return f"""
     /**
-     * Read string (variable length)
+     * Decode string (variable length)
      * {spec.doc_comment}
      *
      * Format: [length] [char0] [char1] ... [charN-1]
      * Max length: {max_length} chars
+     * @param buffer Input buffer
+     * @param offset Offset in buffer
+     * @param maxLength Maximum string length (for validation)
      * @return Decoded string
      */
-    public static String readString(byte[] buffer, int offset) {{
-        int len = buffer[offset] & {length_mask};
+    public static String decodeString(byte[] buffer, int offset, int maxLength) {{
+        int len = Math.min(buffer[offset] & {length_mask}, maxLength);
         StringBuilder sb = new StringBuilder(len);
         for (int i = 0; i < len; i++) {{
             sb.append((char) (buffer[offset + 1 + i] & {char_mask}));
@@ -397,7 +413,7 @@ class JavaBackend(LanguageBackend):
         vis = "" if visibility == "package" else f"{visibility} "
         return f"{vis}static final {type_name} {name} = {value};"
 
-    def class_field(
+    def field(
         self,
         type_name: str,
         field_name: str,
@@ -409,7 +425,7 @@ class JavaBackend(LanguageBackend):
         Args:
             type_name: Java type
             field_name: Field name (camelCase)
-            visibility: Field visibility
+            visibility: Field visibility ('public', 'private', 'protected', 'package')
             is_final: If True, add 'final' modifier
 
         Returns:
@@ -419,7 +435,7 @@ class JavaBackend(LanguageBackend):
         final = "final " if is_final else ""
         return f"    {vis}{final}{type_name} {field_name};"
 
-    def static_method(
+    def static_function(
         self,
         return_type: str,
         name: str,
@@ -434,7 +450,7 @@ class JavaBackend(LanguageBackend):
             name: Method name (camelCase)
             params: List of (type, name) tuples
             body_lines: Lines of method body
-            visibility: Method visibility
+            visibility: Method visibility ('public', 'private', 'protected', 'package')
 
         Returns:
             Complete method definition

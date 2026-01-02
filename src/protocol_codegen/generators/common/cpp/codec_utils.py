@@ -71,9 +71,9 @@ def get_encoder_call(field_name: str, field_type: str, type_registry: TypeRegist
     atomic = type_registry.get(base_type)
 
     if atomic.is_builtin:
-        # Call encodeXXX() (already in Protocol namespace)
+        # Call Encoder::encodeXXX() (static method in Encoder struct)
         encoder_name = f"encode{capitalize_first(base_type)}"
-        return f"{encoder_name}(ptr, {field_name});"
+        return f"Encoder::{encoder_name}(ptr, {field_name});"
     else:
         # Nested struct - call its encode()
         return f"ptr += {field_name}.encode(ptr, bufferSize - (ptr - buffer));"
@@ -107,7 +107,7 @@ def get_decoder_call(
         target = direct_target if direct_target else field_name
 
         # All types use the same call pattern now (no template for string)
-        decoder_call = f"{decoder_name}(ptr, remaining, {target})"
+        decoder_call = f"Decoder::{decoder_name}(ptr, remaining, {target})"
 
         # OPTION B: Direct pattern if direct_target provided
         if direct_target:

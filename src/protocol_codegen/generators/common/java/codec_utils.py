@@ -21,10 +21,10 @@ if TYPE_CHECKING:
 
 def get_encoder_call(field_name: str, field_type: str, type_registry: TypeRegistry) -> str:
     """
-    Generate Encoder streaming write call for encoding a field.
+    Generate Encoder call for encoding a field.
 
     Returns:
-        Java code line calling appropriate Encoder.writeXxx() method
+        Java code line calling appropriate Encoder.encodeXxx() method
     """
     # Extract base type (handle arrays)
     base_type = field_type.split("[")[0]
@@ -35,15 +35,9 @@ def get_encoder_call(field_name: str, field_type: str, type_registry: TypeRegist
     atomic = type_registry.get(base_type)
 
     if atomic.is_builtin:
-        # Call Encoder.writeXxx() - streaming, zero allocation
-        writer_name = f"write{capitalize_first(base_type)}"
-
-        if base_type == "string":
-            # String needs max length parameter
-            return f"offset += Encoder.{writer_name}(buffer, offset, {field_name}, ProtocolConstants.STRING_MAX_LENGTH);"
-        else:
-            # Other types - direct write
-            return f"offset += Encoder.{writer_name}(buffer, offset, {field_name});"
+        # Call Encoder.encodeXxx() - streaming, zero allocation
+        encoder_name = f"encode{capitalize_first(base_type)}"
+        return f"offset += Encoder.{encoder_name}(buffer, offset, {field_name});"
     else:
         # Nested struct - call its encodeTo()
         return f"offset += {field_name}.encodeTo(buffer, offset);"

@@ -93,7 +93,8 @@ def generate_struct_java(
         class_name=class_name,
         description=description,
         needs_encoder=has_fields,
-        needs_decoder=has_fields,
+        # Decoder is needed if there are fields OR if we need to skip message name prefix
+        needs_decoder=has_fields or include_message_name,
         needs_list=needs_list_import(fields),
         needs_arraylist=needs_list_import(fields),
         needs_constants=needs_constants_import(fields, type_registry),

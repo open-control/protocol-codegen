@@ -229,7 +229,7 @@ def generate_encode_function(
                     "        uint8_t* ptr = buffer;",
                     "",
                     "        // Encode message name (length-prefixed string for bridge logging)",
-                    "        encodeUint8(ptr, static_cast<uint8_t>(strlen(MESSAGE_NAME)));",
+                    "        Encoder::encodeUint8(ptr, static_cast<uint8_t>(strlen(MESSAGE_NAME)));",
                     "        for (size_t i = 0; i < strlen(MESSAGE_NAME); ++i) {",
                     "            *ptr++ = static_cast<uint8_t>(MESSAGE_NAME[i]);",
                     "        }",
@@ -275,7 +275,7 @@ def generate_encode_function(
         lines.extend(
             [
                 "        // Encode message name (length-prefixed string for bridge logging)",
-                "        encodeUint8(ptr, static_cast<uint8_t>(strlen(MESSAGE_NAME)));",
+                "        Encoder::encodeUint8(ptr, static_cast<uint8_t>(strlen(MESSAGE_NAME)));",
                 "        for (size_t i = 0; i < strlen(MESSAGE_NAME); ++i) {",
                 "            *ptr++ = static_cast<uint8_t>(MESSAGE_NAME[i]);",
                 "        }",
@@ -287,16 +287,16 @@ def generate_encode_function(
     for field in fields:
         if isinstance(field, EnumField):
             if field.is_array():
-                lines.append(f"        encodeUint8(ptr, {field.name}.size());")
+                lines.append(f"        Encoder::encodeUint8(ptr, {field.name}.size());")
                 lines.append(f"        for (const auto& item : {field.name}) {{")
-                lines.append("            encodeUint8(ptr, static_cast<uint8_t>(item));")
+                lines.append("            Encoder::encodeUint8(ptr, static_cast<uint8_t>(item));")
                 lines.append("        }")
             else:
-                lines.append(f"        encodeUint8(ptr, static_cast<uint8_t>({field.name}));")
+                lines.append(f"        Encoder::encodeUint8(ptr, static_cast<uint8_t>({field.name}));")
         elif isinstance(field, PrimitiveField):
             field_type_name = field.type_name.value
             if field.is_array():
-                lines.append(f"        encodeUint8(ptr, {field.name}.size());")
+                lines.append(f"        Encoder::encodeUint8(ptr, {field.name}.size());")
                 lines.append(f"        for (const auto& item : {field.name}) {{")
                 encoder_call = get_encoder_call("item", field_type_name, type_registry)
                 lines.append(f"            {encoder_call}")
@@ -306,27 +306,27 @@ def generate_encode_function(
                 lines.append(f"        {encoder_call}")
         elif isinstance(field, CompositeField):
             if field.array:
-                lines.append(f"        encodeUint8(ptr, {field.name}.size());")
+                lines.append(f"        Encoder::encodeUint8(ptr, {field.name}.size());")
                 lines.append(f"        for (const auto& item : {field.name}) {{")
                 for nested_field in field.fields:
                     if isinstance(nested_field, EnumField):
                         if nested_field.is_array():
                             lines.append(
-                                f"            encodeUint8(ptr, item.{nested_field.name}.size());"
+                                f"            Encoder::encodeUint8(ptr, item.{nested_field.name}.size());"
                             )
                             lines.append(
                                 f"            for (const auto& e : item.{nested_field.name}) {{"
                             )
-                            lines.append("                encodeUint8(ptr, static_cast<uint8_t>(e));")
+                            lines.append("                Encoder::encodeUint8(ptr, static_cast<uint8_t>(e));")
                             lines.append("            }")
                         else:
                             lines.append(
-                                f"            encodeUint8(ptr, static_cast<uint8_t>(item.{nested_field.name}));"
+                                f"            Encoder::encodeUint8(ptr, static_cast<uint8_t>(item.{nested_field.name}));"
                             )
                     elif isinstance(nested_field, PrimitiveField):
                         if nested_field.is_array():
                             lines.append(
-                                f"            encodeUint8(ptr, item.{nested_field.name}.size());"
+                                f"            Encoder::encodeUint8(ptr, item.{nested_field.name}.size());"
                             )
                             lines.append(
                                 f"            for (const auto& type : item.{nested_field.name}) {{"
@@ -348,7 +348,7 @@ def generate_encode_function(
                 for nested_field in field.fields:
                     if isinstance(nested_field, EnumField):
                         lines.append(
-                            f"        encodeUint8(ptr, static_cast<uint8_t>({field.name}.{nested_field.name}));"
+                            f"        Encoder::encodeUint8(ptr, static_cast<uint8_t>({field.name}.{nested_field.name}));"
                         )
                     elif isinstance(nested_field, PrimitiveField):
                         encoder_call = get_encoder_call(
@@ -395,7 +395,7 @@ def generate_decode_function(
         size_t remaining = len;
         // Skip MESSAGE_NAME prefix
         uint8_t nameLen;
-        if (!decodeUint8(ptr, remaining, nameLen)) return std::nullopt;
+        if (!Decoder::decodeUint8(ptr, remaining, nameLen)) return std::nullopt;
         ptr += nameLen;
         remaining -= nameLen;
         return {struct_name}{{}};
@@ -436,7 +436,7 @@ def generate_decode_function(
             [
                 "        // Skip MESSAGE_NAME prefix",
                 "        uint8_t nameLen;",
-                "        if (!decodeUint8(ptr, remaining, nameLen)) return std::nullopt;",
+                "        if (!Decoder::decodeUint8(ptr, remaining, nameLen)) return std::nullopt;",
                 "        ptr += nameLen;",
                 "        remaining -= nameLen;",
                 "",
@@ -456,14 +456,14 @@ def generate_decode_function(
                 lines.append(f"        {array_type} {var_name};")
                 lines.append(f"        uint8_t count_{field.name};")
                 lines.append(
-                    f"        if (!decodeUint8(ptr, remaining, count_{field.name})) return std::nullopt;"
+                    f"        if (!Decoder::decodeUint8(ptr, remaining, count_{field.name})) return std::nullopt;"
                 )
                 lines.append(
                     f"        for (uint8_t i = 0; i < count_{field.name} && i < {field.array}; ++i) {{"
                 )
                 lines.append("            uint8_t temp_raw;")
                 lines.append(
-                    "            if (!decodeUint8(ptr, remaining, temp_raw)) return std::nullopt;"
+                    "            if (!Decoder::decodeUint8(ptr, remaining, temp_raw)) return std::nullopt;"
                 )
                 lines.append(f"            {var_name}[i] = static_cast<{cpp_type}>(temp_raw);")
                 lines.append("        }")
@@ -471,7 +471,7 @@ def generate_decode_function(
             else:
                 lines.append(f"        uint8_t {field.name}_raw;")
                 lines.append(
-                    f"        if (!decodeUint8(ptr, remaining, {field.name}_raw)) return std::nullopt;"
+                    f"        if (!Decoder::decodeUint8(ptr, remaining, {field.name}_raw)) return std::nullopt;"
                 )
                 lines.append(
                     f"        {cpp_type} {field.name} = static_cast<{cpp_type}>({field.name}_raw);"
@@ -487,7 +487,7 @@ def generate_decode_function(
                 # Always read count from message (consistent with encoder)
                 lines.append(f"        uint8_t count_{field.name};")
                 lines.append(
-                    f"        if (!decodeUint8(ptr, remaining, count_{field.name})) return std::nullopt;"
+                    f"        if (!Decoder::decodeUint8(ptr, remaining, count_{field.name})) return std::nullopt;"
                 )
                 if field.dynamic:
                     lines.append(
@@ -521,7 +521,7 @@ def generate_decode_function(
             if field.array:
                 lines.append(f"        uint8_t count_{field.name};")
                 lines.append(
-                    f"        if (!decodeUint8(ptr, remaining, count_{field.name})) return std::nullopt;"
+                    f"        if (!Decoder::decodeUint8(ptr, remaining, count_{field.name})) return std::nullopt;"
                 )
                 cpp_type = get_cpp_type_for_field(field, type_registry)
                 lines.append(f"        {cpp_type} {var_name};")
@@ -536,14 +536,14 @@ def generate_decode_function(
                         if nested_field.is_array():
                             lines.append(f"            uint8_t count_{nested_field.name};")
                             lines.append(
-                                f"            if (!decodeUint8(ptr, remaining, count_{nested_field.name})) return std::nullopt;"
+                                f"            if (!Decoder::decodeUint8(ptr, remaining, count_{nested_field.name})) return std::nullopt;"
                             )
                             lines.append(
                                 f"            for (uint8_t j = 0; j < count_{nested_field.name} && j < {nested_field.array}; ++j) {{"
                             )
                             lines.append("                uint8_t temp_raw;")
                             lines.append(
-                                "                if (!decodeUint8(ptr, remaining, temp_raw)) return std::nullopt;"
+                                "                if (!Decoder::decodeUint8(ptr, remaining, temp_raw)) return std::nullopt;"
                             )
                             lines.append(
                                 f"                item.{nested_field.name}[j] = static_cast<{nested_cpp_type}>(temp_raw);"
@@ -552,7 +552,7 @@ def generate_decode_function(
                         else:
                             lines.append(f"            uint8_t {nested_field.name}_raw;")
                             lines.append(
-                                f"            if (!decodeUint8(ptr, remaining, {nested_field.name}_raw)) return std::nullopt;"
+                                f"            if (!Decoder::decodeUint8(ptr, remaining, {nested_field.name}_raw)) return std::nullopt;"
                             )
                             lines.append(
                                 f"            item.{nested_field.name} = static_cast<{nested_cpp_type}>({nested_field.name}_raw);"
@@ -561,7 +561,7 @@ def generate_decode_function(
                         if nested_field.is_array():
                             lines.append(f"            uint8_t count_{nested_field.name};")
                             lines.append(
-                                f"            if (!decodeUint8(ptr, remaining, count_{nested_field.name})) return std::nullopt;"
+                                f"            if (!Decoder::decodeUint8(ptr, remaining, count_{nested_field.name})) return std::nullopt;"
                             )
                             if nested_field.dynamic:
                                 lines.append(
@@ -616,7 +616,7 @@ def generate_decode_function(
                         nested_cpp_type = nested_field.enum_def.cpp_type
                         lines.append(f"        uint8_t {nested_field.name}_raw;")
                         lines.append(
-                            f"        if (!decodeUint8(ptr, remaining, {nested_field.name}_raw)) return std::nullopt;"
+                            f"        if (!Decoder::decodeUint8(ptr, remaining, {nested_field.name}_raw)) return std::nullopt;"
                         )
                         lines.append(
                             f"        {var_name}.{nested_field.name} = static_cast<{nested_cpp_type}>({nested_field.name}_raw);"

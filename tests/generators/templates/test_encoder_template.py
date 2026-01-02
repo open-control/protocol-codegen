@@ -131,13 +131,13 @@ class TestEncoderTemplateJavaSerial8:
         code = template.generate(type_registry, Path("Encoder.java"))
         assert "public final class Encoder {" in code
 
-    def test_has_write_methods(self, template: EncoderTemplate, type_registry: TypeRegistry) -> None:
+    def test_has_encode_methods(self, template: EncoderTemplate, type_registry: TypeRegistry) -> None:
         code = template.generate(type_registry, Path("Encoder.java"))
-        assert "writeBool" in code
-        assert "writeUint8" in code
-        assert "writeUint16" in code
-        assert "writeFloat32" in code
-        assert "writeString" in code
+        assert "encodeBool" in code
+        assert "encodeUint8" in code
+        assert "encodeUint16" in code
+        assert "encodeFloat32" in code
+        assert "encodeString" in code
 
     def test_returns_byte_count(self, template: EncoderTemplate, type_registry: TypeRegistry) -> None:
         code = template.generate(type_registry, Path("Encoder.java"))

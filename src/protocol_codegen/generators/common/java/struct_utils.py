@@ -478,34 +478,34 @@ def generate_encode_method(
             is_bitflags = field.enum_def.is_bitflags
             if field.is_array():
                 lines.append(
-                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.length);"
+                    f"        offset += Encoder.encodeUint8(buffer, offset, {field.name}.length);"
                 )
                 lines.append("")
                 java_type = field.enum_def.java_type
                 lines.append(f"        for ({java_type} item : {field.name}) {{")
                 if is_bitflags:
-                    lines.append("            offset += Encoder.writeUint8(buffer, offset, item);")
+                    lines.append("            offset += Encoder.encodeUint8(buffer, offset, item);")
                 else:
                     lines.append(
-                        "            offset += Encoder.writeUint8(buffer, offset, item.getValue());"
+                        "            offset += Encoder.encodeUint8(buffer, offset, item.getValue());"
                     )
                 lines.append("        }")
                 lines.append("")
             else:
                 if is_bitflags:
                     lines.append(
-                        f"        offset += Encoder.writeUint8(buffer, offset, {field.name});"
+                        f"        offset += Encoder.encodeUint8(buffer, offset, {field.name});"
                     )
                 else:
                     lines.append(
-                        f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.getValue());"
+                        f"        offset += Encoder.encodeUint8(buffer, offset, {field.name}.getValue());"
                     )
         elif isinstance(field, PrimitiveField):
             field_type_name = field.type_name.value
             if field.is_array():
                 # Primitive arrays use .length (no boxing)
                 lines.append(
-                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.length);"
+                    f"        offset += Encoder.encodeUint8(buffer, offset, {field.name}.length);"
                 )
                 lines.append("")
                 lines.append(
@@ -522,7 +522,7 @@ def generate_encode_method(
             # Composite field
             if field.array:
                 lines.append(
-                    f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.length);"
+                    f"        offset += Encoder.encodeUint8(buffer, offset, {field.name}.length);"
                 )
                 lines.append("")
                 class_name_inner = field_to_pascal_case(field.name)
@@ -534,33 +534,33 @@ def generate_encode_method(
                         if nested_field.is_array():
                             java_type = nested_field.enum_def.java_type
                             lines.append(
-                                f"            offset += Encoder.writeUint8(buffer, offset, item.{getter_name}().length);"
+                                f"            offset += Encoder.encodeUint8(buffer, offset, item.{getter_name}().length);"
                             )
                             lines.append(f"            for ({java_type} e : item.{getter_name}()) {{")
                             if is_bitflags:
                                 lines.append(
-                                    "                offset += Encoder.writeUint8(buffer, offset, e);"
+                                    "                offset += Encoder.encodeUint8(buffer, offset, e);"
                                 )
                             else:
                                 lines.append(
-                                    "                offset += Encoder.writeUint8(buffer, offset, e.getValue());"
+                                    "                offset += Encoder.encodeUint8(buffer, offset, e.getValue());"
                                 )
                             lines.append("            }")
                         else:
                             if is_bitflags:
                                 lines.append(
-                                    f"            offset += Encoder.writeUint8(buffer, offset, item.{getter_name}());"
+                                    f"            offset += Encoder.encodeUint8(buffer, offset, item.{getter_name}());"
                                 )
                             else:
                                 lines.append(
-                                    f"            offset += Encoder.writeUint8(buffer, offset, item.{getter_name}().getValue());"
+                                    f"            offset += Encoder.encodeUint8(buffer, offset, item.{getter_name}().getValue());"
                                 )
                     elif isinstance(nested_field, PrimitiveField):
                         getter_name = to_getter_name(nested_field.name)
                         if nested_field.is_array():
                             java_type = get_java_type(nested_field.type_name.value, type_registry)
                             lines.append(
-                                f"            offset += Encoder.writeUint8(buffer, offset, item.{getter_name}().length);"
+                                f"            offset += Encoder.encodeUint8(buffer, offset, item.{getter_name}().length);"
                             )
                             lines.append(f"            for ({java_type} type : item.{getter_name}()) {{")
                             encoder_call = get_encoder_call(
@@ -582,11 +582,11 @@ def generate_encode_method(
                         is_bitflags = nested_field.enum_def.is_bitflags
                         if is_bitflags:
                             lines.append(
-                                f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.{getter_name}());"
+                                f"        offset += Encoder.encodeUint8(buffer, offset, {field.name}.{getter_name}());"
                             )
                         else:
                             lines.append(
-                                f"        offset += Encoder.writeUint8(buffer, offset, {field.name}.{getter_name}().getValue());"
+                                f"        offset += Encoder.encodeUint8(buffer, offset, {field.name}.{getter_name}().getValue());"
                             )
                     elif isinstance(nested_field, PrimitiveField):
                         getter_name = to_getter_name(nested_field.name)
@@ -638,11 +638,11 @@ def get_decoder_call(
     atomic = type_registry.get(base_type)
 
     if atomic.is_builtin:
-        # Call Decoder.decodeXXX()
+        # Call Decoder.decodeXXX() - uniform naming with C++
         decoder_name = f"decode{capitalize_first(base_type)}"
 
         if base_type == "string":
-            # String needs max length parameter
+            # String decoder takes buffer, offset, and maxLength
             return f"{java_type} {field_name} = Decoder.{decoder_name}(data, offset, ProtocolConstants.STRING_MAX_LENGTH);\n        offset += 1 + {field_name}.length();"
         else:
             # Other types - calculate size based on type
