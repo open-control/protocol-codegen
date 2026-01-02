@@ -4,7 +4,11 @@ SysEx Protocol Configuration for Sensor Network Example
 This file configures the SysEx protocol parameters.
 """
 
-from protocol_codegen.methods.sysex import SysExConfig, SysExFraming, SysExLimits
+from protocol_codegen.generators.orchestrators.sysex import (
+    SysExConfig,
+    SysExFraming,
+    SysExLimits,
+)
 
 # SysEx Configuration
 PROTOCOL_CONFIG = SysExConfig(

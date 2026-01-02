@@ -4,7 +4,10 @@ Serial8 Protocol Configuration for Sensor Network Example
 This file configures the Serial8 protocol parameters.
 """
 
-from protocol_codegen.methods.serial8 import Serial8Config, Serial8Limits
+from protocol_codegen.generators.orchestrators.serial8 import (
+    Serial8Config,
+    Serial8Limits,
+)
 
 # Serial8 Configuration
 PROTOCOL_CONFIG = Serial8Config(
