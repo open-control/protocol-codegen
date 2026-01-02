@@ -2,11 +2,11 @@
 
 import pytest
 
-from protocol_codegen.generators.common.encoding import (
+from protocol_codegen.generators.core.type_encoders import IntegerEncoder
+from protocol_codegen.generators.protocols import (
     Serial8EncodingStrategy,
     SysExEncodingStrategy,
 )
-from protocol_codegen.generators.core.type_encoders import IntegerEncoder
 
 
 class TestIntegerEncoderSerial8:

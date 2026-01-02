@@ -2,7 +2,7 @@
 
 import pytest
 
-from protocol_codegen.generators.common.encoding import (
+from protocol_codegen.generators.protocols import (
     Serial8EncodingStrategy,
     SysExEncodingStrategy,
     get_encoding_strategy,

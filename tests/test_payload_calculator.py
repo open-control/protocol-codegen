@@ -5,11 +5,11 @@ import pytest
 from protocol_codegen.core.enum_def import EnumDef
 from protocol_codegen.core.field import CompositeField, EnumField, PrimitiveField, Type
 from protocol_codegen.core.loader import TypeRegistry
-from protocol_codegen.generators.common.encoding import (
+from protocol_codegen.generators.core.payload import PayloadCalculator
+from protocol_codegen.generators.protocols import (
     Serial8EncodingStrategy,
     SysExEncodingStrategy,
 )
-from protocol_codegen.generators.core.payload import PayloadCalculator
 
 
 @pytest.fixture

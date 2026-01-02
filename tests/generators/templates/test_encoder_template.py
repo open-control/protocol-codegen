@@ -7,7 +7,7 @@ import pytest
 from protocol_codegen.core.loader import TypeRegistry
 from protocol_codegen.generators.languages.cpp import CppBackend
 from protocol_codegen.generators.languages.java import JavaBackend
-from protocol_codegen.generators.common.encoding import (
+from protocol_codegen.generators.protocols import (
     Serial8EncodingStrategy,
     SysExEncodingStrategy,
 )

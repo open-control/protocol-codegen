@@ -2,7 +2,7 @@
 
 import pytest
 
-from protocol_codegen.generators.backends import (
+from protocol_codegen.generators.languages import (
     CppBackend,
     JavaBackend,
     LanguageBackend,
