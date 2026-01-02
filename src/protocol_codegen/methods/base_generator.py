@@ -18,7 +18,7 @@ import io
 import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 # Force UTF-8 encoding for stdout/stderr on Windows
 if sys.platform == "win32":
@@ -63,7 +63,26 @@ if TYPE_CHECKING:
     from types import ModuleType
 
 
-class BaseProtocolGenerator[ConfigT](ABC):
+@runtime_checkable
+class LimitsProtocol(Protocol):
+    """Protocol defining expected limits interface for protocol configs."""
+
+    @property
+    def string_max_length(self) -> int: ...
+
+    @property
+    def include_message_name(self) -> bool: ...
+
+
+@runtime_checkable
+class ProtocolConfigProtocol(Protocol):
+    """Protocol defining expected interface for protocol configs."""
+
+    @property
+    def limits(self) -> LimitsProtocol: ...
+
+
+class BaseProtocolGenerator[ConfigT: ProtocolConfigProtocol](ABC):
     """
     Abstract base class for protocol generators.
 
