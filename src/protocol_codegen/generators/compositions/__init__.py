@@ -11,7 +11,7 @@ Available compositions:
 - SysExJavaProtocolRenderer: SysEx protocol + Java language
 """
 
-from protocol_codegen.generators.compositions.base import ProtocolRenderer
+from protocol_codegen.generators.compositions.protocol_base import ProtocolRendererBase
 from protocol_codegen.generators.compositions.registry import RendererRegistry
 from protocol_codegen.generators.compositions.serial8_cpp import (
     Serial8CppProtocolRenderer,
@@ -24,7 +24,7 @@ from protocol_codegen.generators.compositions.sysex_java import SysExJavaProtoco
 
 __all__ = [
     # Base classes
-    "ProtocolRenderer",
+    "ProtocolRendererBase",
     "RendererRegistry",
     # Compositions
     "Serial8CppProtocolRenderer",
