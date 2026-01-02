@@ -4,8 +4,34 @@ SysEx Framing Mixin for Protocol Renderers.
 Provides SysEx MIDI protocol framing (F0...F7).
 """
 
+from typing import TYPE_CHECKING
 
-class SysExFramingMixin:
+# Type stubs for attributes provided by LanguageMixin at runtime
+if TYPE_CHECKING:
+
+    class _LanguageMixinStubs:
+        """Stubs for type checking - provided by LanguageMixin at runtime."""
+
+        @property
+        def is_cpp(self) -> bool: ...
+
+        @property
+        def is_java(self) -> bool: ...
+
+        def render_memcpy(self, dest: str, src: str, size: str) -> str: ...
+
+        def render_arraycopy(
+            self, src: str, src_pos: str, dest: str, dest_pos: str, length: str
+        ) -> str: ...
+
+        def render_cast_message_id(self) -> str: ...
+
+    _FramingMixinBase = _LanguageMixinStubs
+else:
+    _FramingMixinBase = object
+
+
+class SysExFramingMixin(_FramingMixinBase):
     """
     Mixin providing SysEx framing for protocol templates.
 

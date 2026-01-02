@@ -4,30 +4,34 @@ Serial8 Framing Mixin for Protocol Renderers.
 Provides Serial8 protocol framing (COBS, MessageID prefix).
 """
 
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING
 
+# Type stubs for attributes provided by LanguageMixin at runtime
 if TYPE_CHECKING:
-    pass
+
+    class _LanguageMixinStubs:
+        """Stubs for type checking - provided by LanguageMixin at runtime."""
+
+        @property
+        def is_cpp(self) -> bool: ...
+
+        @property
+        def is_java(self) -> bool: ...
+
+        def render_memcpy(self, dest: str, src: str, size: str) -> str: ...
+
+        def render_arraycopy(
+            self, src: str, src_pos: str, dest: str, dest_pos: str, length: str
+        ) -> str: ...
+
+        def render_cast_message_id(self) -> str: ...
+
+    _FramingMixinBase = _LanguageMixinStubs
+else:
+    _FramingMixinBase = object
 
 
-@runtime_checkable
-class LanguageMixinProtocol(Protocol):
-    """Protocol defining expected methods from language mixins."""
-
-    @property
-    def is_cpp(self) -> bool: ...
-
-    @property
-    def is_java(self) -> bool: ...
-
-    def render_memcpy(self, dest: str, src: str, size: str) -> str: ...
-    def render_arraycopy(
-        self, src: str, src_pos: str, dest: str, dest_pos: str, length: str
-    ) -> str: ...
-    def render_cast_message_id(self) -> str: ...
-
-
-class Serial8FramingMixin:
+class Serial8FramingMixin(_FramingMixinBase):
     """
     Mixin providing Serial8 framing for protocol templates.
 

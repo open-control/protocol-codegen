@@ -8,6 +8,7 @@ eliminating code duplication while maintaining clear separation.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -62,7 +63,7 @@ class CodecTemplate(ABC):
         return []
 
     @abstractmethod
-    def _build_handler_map(self) -> dict[str, object]:
+    def _build_handler_map(self) -> Mapping[str, object]:
         """Build type -> handler mapping."""
         ...
 

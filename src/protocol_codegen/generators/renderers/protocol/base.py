@@ -10,8 +10,27 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from protocol_codegen.core.message import Message
 
+    class _MixinStubs:
+        """Stubs for type checking - provided by mixins at runtime."""
 
-class ProtocolRendererBase:
+        @property
+        def is_cpp(self) -> bool: ...
+
+        @property
+        def is_java(self) -> bool: ...
+
+        @property
+        def default_transport_type(self) -> str: ...
+
+        @property
+        def protocol_name(self) -> str: ...
+
+    _RendererBase = _MixinStubs
+else:
+    _RendererBase = object
+
+
+class ProtocolRendererBase(_RendererBase):
     """
     Base class for protocol template renderers.
 
@@ -24,9 +43,6 @@ class ProtocolRendererBase:
     - default_transport_type: str - Default transport type name
     - protocol_name: str - Protocol name (e.g., "Serial8", "SysEx")
     """
-
-    # Note: is_cpp, is_java, default_transport_type, protocol_name are provided by mixins
-    # They are defined as @property in language/framing mixins, not as class variables here
 
     def render_file_header(self, output_path: Path) -> str: ...  # noqa: B027
     def render_transport_includes(self) -> str: ...  # noqa: B027
