@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from protocol_codegen.generators.common.type_encoders import (
+from protocol_codegen.generators.core.type_encoders import (
     BoolEncoder,
     FloatEncoder,
     IntegerEncoder,

@@ -19,8 +19,8 @@ from protocol_codegen.generators.common.cpp.codec_utils import (
     get_encoder_call,
 )
 from protocol_codegen.generators.common.encoding import EncodingStrategy
-from protocol_codegen.generators.common.naming import field_to_pascal_case
-from protocol_codegen.generators.common.payload_calculator import PayloadCalculator
+from protocol_codegen.generators.core.naming import field_to_pascal_case
+from protocol_codegen.generators.core.payload import PayloadCalculator
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

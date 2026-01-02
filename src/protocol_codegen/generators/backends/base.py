@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry
-    from protocol_codegen.generators.common.encoding.operations import (
+    from protocol_codegen.generators.core.encoding_ops import (
         DecoderMethodSpec,
         MethodSpec,
     )

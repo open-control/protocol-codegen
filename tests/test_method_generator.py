@@ -18,7 +18,7 @@ from protocol_codegen.generators.common.cpp.method_generator import (
 from protocol_codegen.generators.common.java.method_generator import (
     generate_protocol_methods_java,
 )
-from protocol_codegen.generators.common.naming import (
+from protocol_codegen.generators.core.naming import (
     message_name_to_callback_name,
     message_name_to_method_name,
     should_exclude_field,

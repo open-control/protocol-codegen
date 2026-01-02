@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from protocol_codegen.generators.common.naming import (
+from protocol_codegen.generators.core.naming import (
     field_to_pascal_case,
     message_name_to_callback_name,
     message_name_to_method_name,

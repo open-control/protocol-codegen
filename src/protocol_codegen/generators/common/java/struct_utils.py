@@ -17,11 +17,11 @@ from typing import TYPE_CHECKING
 
 from protocol_codegen.core.field import CompositeField, EnumField, FieldBase, PrimitiveField
 from protocol_codegen.generators.common.java.codec_utils import get_encoder_call
-from protocol_codegen.generators.common.naming import (
+from protocol_codegen.generators.core.naming import (
     capitalize_first,
     field_to_pascal_case,
 )
-from protocol_codegen.generators.common.payload_calculator import PayloadCalculator
+from protocol_codegen.generators.core.payload import PayloadCalculator
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence

@@ -13,7 +13,13 @@ Components:
 - ByteReadOp, DecoderMethodSpec: Intermediate representation for decoder code generation
 """
 
-from .operations import ByteReadOp, ByteWriteOp, DecoderMethodSpec, MethodSpec
+from protocol_codegen.generators.core.encoding_ops import (
+    ByteReadOp,
+    ByteWriteOp,
+    DecoderMethodSpec,
+    MethodSpec,
+)
+
 from .serial8_strategy import Serial8EncodingStrategy
 from .strategy import (
     EncodingStrategy,

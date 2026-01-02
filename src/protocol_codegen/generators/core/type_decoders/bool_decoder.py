@@ -6,11 +6,11 @@ Handles decoding of boolean values.
 
 from __future__ import annotations
 
-from protocol_codegen.generators.common.encoding.operations import (
+from protocol_codegen.generators.core.encoding_ops import (
     ByteReadOp,
     DecoderMethodSpec,
 )
-from protocol_codegen.generators.common.type_decoders.base import TypeDecoder
+from protocol_codegen.generators.core.type_decoders.base import TypeDecoder
 
 
 class BoolDecoder(TypeDecoder):

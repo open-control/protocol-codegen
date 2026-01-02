@@ -6,8 +6,8 @@ Handles encoding of variable-length strings with length prefix.
 
 from __future__ import annotations
 
-from protocol_codegen.generators.common.encoding.operations import MethodSpec
-from protocol_codegen.generators.common.type_encoders.base import TypeEncoder
+from protocol_codegen.generators.core.encoding_ops import MethodSpec
+from protocol_codegen.generators.core.type_encoders.base import TypeEncoder
 
 
 class StringEncoder(TypeEncoder):

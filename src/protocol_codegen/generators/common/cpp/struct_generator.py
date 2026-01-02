@@ -28,7 +28,7 @@ from protocol_codegen.generators.common.cpp.struct_utils import (
     generate_header,
     generate_struct_definition,
 )
-from protocol_codegen.generators.common.naming import to_pascal_case
+from protocol_codegen.generators.core.naming import to_pascal_case
 
 if TYPE_CHECKING:
     from pathlib import Path

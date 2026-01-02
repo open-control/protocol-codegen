@@ -34,7 +34,6 @@ from protocol_codegen.core.message import Message
 from protocol_codegen.core.plugin_types import PluginPathsConfig
 from protocol_codegen.core.validator import ProtocolValidator
 from protocol_codegen.generators.backends import CppBackend, JavaBackend
-from protocol_codegen.generators.common.config import ProtocolConfig
 from protocol_codegen.generators.common.cpp import (
     generate_constants_hpp,
     generate_decoder_registry_hpp,
@@ -55,7 +54,8 @@ from protocol_codegen.generators.common.java import (
     generate_protocol_methods_java,
     generate_struct_java,
 )
-from protocol_codegen.generators.common.naming import to_pascal_case
+from protocol_codegen.generators.core.config import ProtocolConfig
+from protocol_codegen.generators.core.naming import to_pascal_case
 from protocol_codegen.generators.templates import DecoderTemplate, EncoderTemplate
 from protocol_codegen.methods.common import collect_enum_defs
 from protocol_codegen.methods.protocol_components import ProtocolComponents

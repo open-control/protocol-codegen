@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from protocol_codegen.generators.common.config import (
+from protocol_codegen.generators.core.config import (
     LimitsConfig,
     ProtocolConfig,
     StructureConfig,

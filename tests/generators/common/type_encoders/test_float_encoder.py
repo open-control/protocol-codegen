@@ -6,7 +6,7 @@ from protocol_codegen.generators.common.encoding import (
     Serial8EncodingStrategy,
     SysExEncodingStrategy,
 )
-from protocol_codegen.generators.common.type_encoders import FloatEncoder
+from protocol_codegen.generators.core.type_encoders import FloatEncoder
 
 
 class TestFloatEncoderSerial8:

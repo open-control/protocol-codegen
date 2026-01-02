@@ -35,7 +35,7 @@ from protocol_codegen.generators.common.java.struct_utils import (
     needs_constants_import,
     needs_list_import,
 )
-from protocol_codegen.generators.common.naming import to_pascal_case
+from protocol_codegen.generators.core.naming import to_pascal_case
 
 if TYPE_CHECKING:
     from pathlib import Path

@@ -2,7 +2,7 @@
 
 import pytest
 
-from protocol_codegen.generators.common.encoding.operations import (
+from protocol_codegen.generators.core.encoding_ops import (
     ByteWriteOp,
     MethodSpec,
 )

@@ -6,11 +6,11 @@ Handles encoding of boolean values using strategy-specific true/false values.
 
 from __future__ import annotations
 
-from protocol_codegen.generators.common.encoding.operations import (
+from protocol_codegen.generators.core.encoding_ops import (
     ByteWriteOp,
     MethodSpec,
 )
-from protocol_codegen.generators.common.type_encoders.base import TypeEncoder
+from protocol_codegen.generators.core.type_encoders.base import TypeEncoder
 
 
 class BoolEncoder(TypeEncoder):

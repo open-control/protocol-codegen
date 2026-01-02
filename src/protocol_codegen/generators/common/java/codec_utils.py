@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from protocol_codegen.generators.common.naming import capitalize_first
+from protocol_codegen.generators.core.naming import capitalize_first
 
 if TYPE_CHECKING:
     from protocol_codegen.core.loader import TypeRegistry

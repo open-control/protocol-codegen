@@ -9,7 +9,7 @@ from protocol_codegen.generators.common.encoding import (
     Serial8EncodingStrategy,
     SysExEncodingStrategy,
 )
-from protocol_codegen.generators.common.payload_calculator import PayloadCalculator
+from protocol_codegen.generators.core.payload import PayloadCalculator
 
 
 @pytest.fixture
