@@ -11,8 +11,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from protocol_codegen.generators.common.encoding import EncodingStrategy
     from protocol_codegen.generators.core.encoding_ops import MethodSpec
+    from protocol_codegen.generators.protocols import EncodingStrategy
 
 
 class TypeEncoder(ABC):

@@ -1,48 +1,32 @@
 """
-Encoding strategies for protocol-specific size calculations and code generation.
+Encoding strategies - Re-exports from generators.protocols.
 
-This package provides the Strategy Pattern implementation for handling
-the different encoding requirements of Serial8 (8-bit) and SysEx (7-bit) protocols.
-
-Components:
-- EncodingStrategy: Abstract base class for encoding calculations
-- IntegerEncodingSpec, NormEncodingSpec, StringEncodingSpec: Data specs for code generation
-- Serial8EncodingStrategy: 8-bit binary encoding (no expansion)
-- SysExEncodingStrategy: 7-bit MIDI-safe encoding (with expansion)
-- ByteWriteOp, MethodSpec: Intermediate representation for encoder code generation
-- ByteReadOp, DecoderMethodSpec: Intermediate representation for decoder code generation
+NOTE: This module is deprecated. Import directly from:
+- generators.protocols.base (EncodingStrategy, specs)
+- generators.protocols.serial8 (Serial8EncodingStrategy)
+- generators.protocols.sysex (SysExEncodingStrategy)
+- generators.core.encoding_ops (ByteWriteOp, MethodSpec, etc.)
 """
 
+# Re-export for backward compatibility
 from protocol_codegen.generators.core.encoding_ops import (
     ByteReadOp,
     ByteWriteOp,
     DecoderMethodSpec,
     MethodSpec,
 )
-
-from .serial8_strategy import Serial8EncodingStrategy
-from .strategy import (
+from protocol_codegen.generators.protocols import (
     EncodingStrategy,
     IntegerEncodingSpec,
     NormEncodingSpec,
     StringEncodingSpec,
 )
-from .sysex_strategy import SysExEncodingStrategy
+from protocol_codegen.generators.protocols.serial8 import Serial8EncodingStrategy
+from protocol_codegen.generators.protocols.sysex import SysExEncodingStrategy
 
 
 def get_encoding_strategy(protocol: str) -> EncodingStrategy:
-    """
-    Get encoding strategy for protocol.
-
-    Args:
-        protocol: Protocol name ('serial8' or 'sysex')
-
-    Returns:
-        Appropriate EncodingStrategy implementation
-
-    Raises:
-        ValueError: If protocol is unknown
-    """
+    """Get encoding strategy for protocol."""
     if protocol == "serial8":
         return Serial8EncodingStrategy()
     elif protocol == "sysex":
@@ -52,20 +36,15 @@ def get_encoding_strategy(protocol: str) -> EncodingStrategy:
 
 
 __all__ = [
-    # Base classes and specs
     "EncodingStrategy",
     "IntegerEncodingSpec",
     "NormEncodingSpec",
     "StringEncodingSpec",
-    # Intermediate representation - Encoder
     "ByteWriteOp",
     "MethodSpec",
-    # Intermediate representation - Decoder
     "ByteReadOp",
     "DecoderMethodSpec",
-    # Implementations
     "Serial8EncodingStrategy",
     "SysExEncodingStrategy",
-    # Factory
     "get_encoding_strategy",
 ]

@@ -8,7 +8,7 @@ Provides SysEx-specific implementations of protocol components:
 
 from __future__ import annotations
 
-from protocol_codegen.generators.common.encoding import SysExEncodingStrategy
+from protocol_codegen.generators.protocols.sysex import SysExEncodingStrategy
 from protocol_codegen.generators.renderers.protocol import (
     SysExCppProtocolRenderer,
     SysExJavaProtocolRenderer,

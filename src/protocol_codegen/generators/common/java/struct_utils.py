@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
     from protocol_codegen.core.loader import TypeRegistry
-    from protocol_codegen.generators.common.encoding import EncodingStrategy
+    from protocol_codegen.generators.protocols import EncodingStrategy
 
 
 # ============================================================================

@@ -10,7 +10,7 @@ Templates:
 
 Usage:
     from protocol_codegen.generators.backends import CppBackend
-    from protocol_codegen.generators.common.encoding import Serial8EncodingStrategy
+    from protocol_codegen.generators.protocols.serial8 import Serial8EncodingStrategy
     from protocol_codegen.generators.templates import EncoderTemplate, DecoderTemplate
 
     encoder = EncoderTemplate(CppBackend(), Serial8EncodingStrategy())

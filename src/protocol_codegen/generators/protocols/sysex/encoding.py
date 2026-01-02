@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .strategy import (
+from protocol_codegen.generators.protocols.base import (
     EncodingStrategy,
     IntegerEncodingSpec,
     NormEncodingSpec,

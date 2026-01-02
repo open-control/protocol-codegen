@@ -1,15 +1,13 @@
 """
-Framing Mixins for Protocol Renderers.
+Framing Mixins - Re-exports from generators.protocols.
 
-Each mixin provides protocol-specific framing logic.
+NOTE: This module is deprecated. Import directly from:
+- generators.protocols.serial8 (Serial8FramingMixin)
+- generators.protocols.sysex (SysExFramingMixin)
 """
 
-from protocol_codegen.generators.renderers.protocol.mixins.framings.serial8 import (
-    Serial8FramingMixin,
-)
-from protocol_codegen.generators.renderers.protocol.mixins.framings.sysex import (
-    SysExFramingMixin,
-)
+from protocol_codegen.generators.protocols.serial8 import Serial8FramingMixin
+from protocol_codegen.generators.protocols.sysex import SysExFramingMixin
 
 __all__ = [
     "Serial8FramingMixin",

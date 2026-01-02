@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from protocol_codegen.generators.backends.base import LanguageBackend
-    from protocol_codegen.generators.common.encoding import EncodingStrategy
+    from protocol_codegen.generators.protocols import EncodingStrategy
 
 
 class RendererRegistry:

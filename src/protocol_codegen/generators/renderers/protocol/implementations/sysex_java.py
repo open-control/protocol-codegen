@@ -1,9 +1,9 @@
 """SysEx Java Protocol Renderer."""
 
-from protocol_codegen.generators.renderers.protocol.base import ProtocolRendererBase
-from protocol_codegen.generators.renderers.protocol.mixins.framings.sysex import (
+from protocol_codegen.generators.protocols.sysex.framing import (
     SysExFramingMixin,
 )
+from protocol_codegen.generators.renderers.protocol.base import ProtocolRendererBase
 from protocol_codegen.generators.renderers.protocol.mixins.languages.java import (
     JavaProtocolMixin,
 )

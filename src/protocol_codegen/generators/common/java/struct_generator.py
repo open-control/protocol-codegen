@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 
     from protocol_codegen.core.loader import TypeRegistry
     from protocol_codegen.core.message import Message
-    from protocol_codegen.generators.common.encoding import EncodingStrategy
+    from protocol_codegen.generators.protocols import EncodingStrategy
 
 
 def generate_struct_java(
