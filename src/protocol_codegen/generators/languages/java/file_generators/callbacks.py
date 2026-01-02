@@ -21,7 +21,10 @@ if TYPE_CHECKING:
 
 
 def generate_protocol_callbacks_java(
-    messages: list[Message], package: str, output_path: Path
+    messages: list[Message],
+    package: str,
+    output_path: Path,
+    has_new_style_messages: bool = True,
 ) -> str:
     """
     Generate ProtocolCallbacks.java.
@@ -30,6 +33,7 @@ def generate_protocol_callbacks_java(
         messages: List of message definitions
         package: Base package name (e.g., "com.midi_studio")
         output_path: Where to write ProtocolCallbacks.java
+        has_new_style_messages: Whether there are new-style messages with direction
 
     Returns:
         Generated Java code
@@ -44,6 +48,14 @@ def generate_protocol_callbacks_java(
 
     callbacks_str = "\n".join(callbacks)
 
+    # Only extend ProtocolMethods if there are new-style messages
+    if has_new_style_messages:
+        extends_clause = " extends ProtocolMethods"
+        inheritance_doc = "Inheritance: ProtocolMethods -> ProtocolCallbacks -> Protocol"
+    else:
+        extends_clause = ""
+        inheritance_doc = "Inheritance: ProtocolCallbacks -> Protocol"
+
     code = f"""package {package};
 
 import {package}.struct.*;
@@ -54,17 +66,16 @@ import {package}.struct.*;
  * AUTO-GENERATED - DO NOT EDIT
  *
  * Base class providing typed callbacks for each message type.
- * Extends ProtocolMethods for explicit send API.
  * Protocol extends this and DecoderRegistry calls these callbacks.
  *
- * Inheritance: ProtocolMethods -> ProtocolCallbacks -> Protocol
+ * {inheritance_doc}
  *
  * Usage:
  *   protocol.onTransportPlay = msg -> {{
  *       System.out.println("Playing: " + msg.isPlaying());
  *   }};
  */
-public abstract class ProtocolCallbacks extends ProtocolMethods {{
+public abstract class ProtocolCallbacks{extends_clause} {{
 
     /**
      * Functional interface for message handlers

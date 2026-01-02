@@ -422,11 +422,17 @@ class BaseProtocolGenerator[ConfigT: ProtocolConfigProtocol](ABC):
         )
         stats.record_write(java_messageid_path, was_written)
 
+        # Check if we have new-style messages (for ProtocolMethods generation)
+        new_style_messages = [m for m in self.messages if not m.is_legacy()]
+        has_new_style = bool(new_style_messages)
+
         # ProtocolCallbacks.java
         java_callbacks_path = java_base / "ProtocolCallbacks.java"
         was_written = write_if_changed(
             java_callbacks_path,
-            generate_protocol_callbacks_java(self.messages, java_package, java_callbacks_path),
+            generate_protocol_callbacks_java(
+                self.messages, java_package, java_callbacks_path, has_new_style
+            ),
         )
         stats.record_write(java_callbacks_path, was_written)
 
@@ -458,7 +464,6 @@ class BaseProtocolGenerator[ConfigT: ProtocolConfigProtocol](ABC):
             enum_stats.record_write(java_enum_path, was_written)
 
         # Generate ProtocolMethods.java for new-style messages
-        new_style_messages = [m for m in self.messages if not m.is_legacy()]
         methods_stats = GenerationStats()
         if new_style_messages:
             java_methods_path = java_base / "ProtocolMethods.java"
