@@ -53,8 +53,8 @@ class Serial8FramingMixin(_FramingMixinBase):
     @property
     def default_transport_type(self) -> str:
         if self.is_cpp:
-            return "oc::hal::ISerialTransport"
-        return "ISerialTransport"
+            return "oc::hal::IFrameTransport"
+        return "IFrameTransport"
 
     def render_framing_constants(self) -> str:
         """Render protocol-specific constants usage."""
@@ -121,7 +121,7 @@ class Serial8FramingMixin(_FramingMixinBase):
     def render_transport_includes(self) -> str:
         """Render transport-specific includes."""
         if self.is_cpp:
-            return '#include <oc/hal/ISerialTransport.hpp>\n'
+            return '#include <oc/hal/IFrameTransport.hpp>\n'
         return ""
 
 
