@@ -84,8 +84,34 @@ def _generate_header(enum_def: EnumDef, output_path: Path) -> str:
     return "\n".join(header_lines)
 
 
+def _to_camel_case(pascal_case: str) -> str:
+    """Convert PascalCase to camelCase.
+
+    Examples:
+        >>> _to_camel_case("ViewType")
+        'viewType'
+        >>> _to_camel_case("TrackType")
+        'trackType'
+    """
+    if not pascal_case:
+        return pascal_case
+    return pascal_case[0].lower() + pascal_case[1:]
+
+
+def _to_display_name(screaming_snake: str) -> str:
+    """Convert SCREAMING_SNAKE_CASE to Title Case for display.
+
+    Examples:
+        >>> _to_display_name("REMOTE_CONTROLS")
+        'Remote Controls'
+        >>> _to_display_name("MIX")
+        'Mix'
+    """
+    return " ".join(word.capitalize() for word in screaming_snake.split("_"))
+
+
 def _generate_enum_class(enum_def: EnumDef) -> str:
-    """Generate enum class with conversion helpers."""
+    """Generate enum class with conversion helpers, COUNT sentinel, and name function."""
     lines: list[str] = []
 
     # Enum class definition
@@ -94,6 +120,10 @@ def _generate_enum_class(enum_def: EnumDef) -> str:
     # Values
     for name, value in enum_def.values.items():
         lines.append(f"    {name} = {value},")
+
+    # Add COUNT as sentinel (max_value + 1)
+    count_value = enum_def.max_value + 1
+    lines.append(f"    COUNT = {count_value},  // Sentinel - must be last")
 
     lines.append("};")
     lines.append("")
@@ -107,6 +137,19 @@ def _generate_enum_class(enum_def: EnumDef) -> str:
 
     lines.append(f"inline uint8_t from{enum_def.name}({enum_def.name} value) {{")
     lines.append("    return static_cast<uint8_t>(value);")
+    lines.append("}")
+    lines.append("")
+
+    # Name helper function
+    func_name = _to_camel_case(enum_def.name) + "Name"
+    lines.append("// Name helper")
+    lines.append(f"inline const char* {func_name}({enum_def.name} value) {{")
+    lines.append("    switch (value) {")
+    for name in enum_def.values.keys():
+        display_name = _to_display_name(name)
+        lines.append(f"        case {enum_def.name}::{name}: return \"{display_name}\";")
+    lines.append("        default: return \"Unknown\";")
+    lines.append("    }")
     lines.append("}")
     lines.append("")
 

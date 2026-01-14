@@ -53,9 +53,8 @@ def generate_message_structure_hpp(messages: list[Message], output_path: Path) -
 
 #pragma once
 
-// IWYU pragma: begin_exports
+// Include all message structs
 {includes_str}
-// IWYU pragma: end_exports
 """
 
     return code

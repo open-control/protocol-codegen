@@ -45,6 +45,11 @@ class EncoderTemplate(CodecTemplate):
         """Return 'Encoder'."""
         return "Encoder"
 
+    @property
+    def cpp_extra_includes(self) -> list[str]:
+        """Return additional C++ includes needed by encoder (cmath for std::lroundf)."""
+        return ["<cmath>"]
+
     def _build_handler_map(self) -> dict[str, TypeEncoder]:
         """Build type -> encoder mapping."""
         type_encoders: list[TypeEncoder] = [

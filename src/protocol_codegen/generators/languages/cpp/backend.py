@@ -216,11 +216,11 @@ class CppBackend(LanguageBackend):
                 scale = parts.get("NORM_SCALE", "255")
                 if spec.byte_count == 1:
                     body_lines.append(
-                        f"uint8_t norm = static_cast<uint8_t>(val * {scale}.0f + 0.5f);"
+                        f"uint8_t norm = static_cast<uint8_t>(std::lroundf(val * {scale}.0f));"
                     )
                 else:
                     body_lines.append(
-                        f"uint16_t norm = static_cast<uint16_t>(val * {scale}.0f + 0.5f);"
+                        f"uint16_t norm = static_cast<uint16_t>(std::lroundf(val * {scale}.0f));"
                     )
 
         # Handle signed cast
@@ -243,7 +243,7 @@ class CppBackend(LanguageBackend):
  * Encode {spec.type_name} ({spec.byte_count} byte{"s" if spec.byte_count != 1 else ""})
  * {spec.doc_comment}
  */
-static inline void {method_name}(uint8_t*& buf, {cpp_type} {param_name}) {{
+static void {method_name}(uint8_t*& buf, {cpp_type} {param_name}) {{
 {body}
 }}"""
 
@@ -264,7 +264,7 @@ static inline void {method_name}(uint8_t*& buf, {cpp_type} {param_name}) {{
  * Format: [length] [char0] [char1] ... [charN-1]
  * Max length: {max_length} chars
  */
-static inline void encodeString(uint8_t*& buf, const std::string& str) {{
+static void encodeString(uint8_t*& buf, const std::string& str) {{
     uint8_t len = static_cast<uint8_t>(str.length()) & {length_mask};
     *buf++ = len;
 
@@ -345,7 +345,7 @@ static inline void encodeString(uint8_t*& buf, const std::string& str) {{
  * Decode {spec.type_name} ({spec.byte_count} byte{"s" if spec.byte_count != 1 else ""})
  * {spec.doc_comment}
  */
-static inline bool {method_name}(
+static bool {method_name}(
     const uint8_t*& buf, size_t& remaining, {cpp_type}& out) {{
 {body}
 }}"""
@@ -396,7 +396,7 @@ static inline bool {method_name}(
  * Format: [length] [char0] [char1] ... [charN-1]
  * Max length: {max_length} chars
  */
-static inline bool decodeString(
+static bool decodeString(
     const uint8_t*& buf, size_t& remaining, std::string& out) {{
 
     if (remaining < 1) return false;
@@ -419,9 +419,7 @@ static inline bool decodeString(
     # C++ Specific Helpers
     # ─────────────────────────────────────────────────────────────────────────
 
-    def constant(
-        self, type_name: str, name: str, value: str, visibility: str = "public"
-    ) -> str:
+    def constant(self, type_name: str, name: str, value: str, visibility: str = "public") -> str:
         """Generate constexpr constant declaration.
 
         Args:
@@ -466,7 +464,7 @@ static inline bool decodeString(
         body_lines: list[str],
         visibility: str = "public",
     ) -> str:
-        """Generate static inline function.
+        """Generate static function.
 
         Args:
             return_type: Return type (e.g., 'void', 'uint8_t')
@@ -480,7 +478,7 @@ static inline bool decodeString(
         """
         # visibility is ignored for C++ (uses section-based visibility)
         param_str = ", ".join(f"{t} {n}" for t, n in params)
-        lines = [f"static inline {return_type} {name}({param_str}) {{"]
+        lines = [f"static {return_type} {name}({param_str}) {{"]
         for line in body_lines:
             lines.append(f"    {line}")
         lines.append("}")

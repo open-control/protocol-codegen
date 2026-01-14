@@ -93,9 +93,9 @@ class ProtocolRendererBase(_RendererBase):
         parts.append(self.render_class_declaration(class_name))
         parts.append(self.render_constructor(class_name, self.default_transport_type))
 
-        # Methods include (C++ only for .inl)
+        # Methods include (C++ only for .ipp)
         if self.is_cpp:
-            parts.append('\n#include "ProtocolMethods.inl"\n')
+            parts.append('\n#include "ProtocolMethods.ipp"\n')
 
         # Send method
         parts.append(self.render_send_method_signature())
@@ -152,9 +152,7 @@ class ProtocolRendererBase(_RendererBase):
         for msg in messages:
             if msg.is_to_controller() and count < 3:
                 pascal = "".join(w.capitalize() for w in msg.name.split("_"))
-                lines.append(
-                    f"// protocol.on{pascal} = [](const {pascal}Message& msg) {{ }};"
-                )
+                lines.append(f"// protocol.on{pascal} = [](const {pascal}Message& msg) {{ }};")
                 count += 1
 
         lines.append("//")

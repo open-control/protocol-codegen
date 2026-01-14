@@ -308,11 +308,11 @@ class BaseProtocolGenerator[ConfigT: ProtocolConfigProtocol](ABC):
             was_written = write_if_changed(cpp_enum_path, cpp_enum_code)
             enum_stats.record_write(cpp_enum_path, was_written)
 
-        # Generate ProtocolMethods.inl for new-style messages
+        # Generate ProtocolMethods.ipp for new-style messages
         new_style_messages = [m for m in self.messages if not m.is_legacy()]
         methods_stats = GenerationStats()
         if new_style_messages:
-            cpp_methods_path = cpp_base / "ProtocolMethods.inl"
+            cpp_methods_path = cpp_base / "ProtocolMethods.ipp"
             was_written = write_if_changed(
                 cpp_methods_path,
                 generate_protocol_methods_hpp(new_style_messages, cpp_methods_path),
@@ -347,7 +347,7 @@ class BaseProtocolGenerator[ConfigT: ProtocolConfigProtocol](ABC):
             if self.enum_defs:
                 print(f"  ✓ C++ enum files: {enum_stats.summary()}")
             if new_style_messages:
-                print(f"  ✓ C++ ProtocolMethods.inl: {methods_stats.summary()}")
+                print(f"  ✓ C++ ProtocolMethods.ipp: {methods_stats.summary()}")
             print(f"  ✓ C++ struct files: {struct_stats.summary()}")
             print(f"  → Output: {cpp_base.relative_to(output_base)}")
 
@@ -440,9 +440,7 @@ class BaseProtocolGenerator[ConfigT: ProtocolConfigProtocol](ABC):
         java_decoder_registry_path = java_base / "DecoderRegistry.java"
         was_written = write_if_changed(
             java_decoder_registry_path,
-            generate_decoder_registry_java(
-                self.messages, java_package, java_decoder_registry_path
-            ),
+            generate_decoder_registry_java(self.messages, java_package, java_decoder_registry_path),
         )
         stats.record_write(java_decoder_registry_path, was_written)
 

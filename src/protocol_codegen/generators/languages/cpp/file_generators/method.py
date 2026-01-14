@@ -109,14 +109,14 @@ def generate_protocol_methods_hpp(
     output_path: Path,
 ) -> str:
     """
-    Generate ProtocolMethods.hpp with explicit API methods.
+    Generate ProtocolMethods.ipp with explicit API methods.
 
     For TO_HOST messages: generates send methods (Controller -> Host)
     For TO_CONTROLLER messages: generates callback declarations (Host -> Controller)
 
     Args:
         messages: List of message definitions (only new-style with direction)
-        output_path: Where to write ProtocolMethods.hpp
+        output_path: Where to write ProtocolMethods.ipp
 
     Returns:
         Generated C++ code
@@ -148,7 +148,7 @@ def generate_protocol_methods_hpp(
     to_host_str = "\n".join(to_host_methods) if to_host_methods else "    // No TO_HOST messages"
 
     return f"""/**
- * ProtocolMethods.inl - Explicit Protocol API (inline include)
+ * ProtocolMethods.ipp - Explicit Protocol API (inline include)
  *
  * AUTO-GENERATED - DO NOT EDIT
  *
@@ -161,7 +161,7 @@ def generate_protocol_methods_hpp(
  *       template<typename T> void send(const T& msg) {{ ... }}
  *
  *       // Explicit API methods (generated)
- *       #include "ProtocolMethods.inl"
+ *       #include "ProtocolMethods.ipp"
  *   }};
  *
  * Then use: protocol.transportPlay(true) instead of protocol.send(TransportPlayMessage{{true}})
