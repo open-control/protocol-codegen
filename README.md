@@ -9,7 +9,7 @@ Generate type-safe protocol code (C++, Java) from Python message definitions.
 
 ## Features
 
-- **Dual protocol support** - Serial8 (8-bit binary) and SysEx (7-bit MIDI)
+- **Dual protocol support** - Binary (8-bit binary) and SysEx (7-bit MIDI)
 - **Type-safe** - Compile-time error detection in C++ and Java
 - **Cross-platform** - Identical C++ ↔ Java code generation
 - **Optimized types** - `norm8`/`norm16` for bandwidth-efficient floats
@@ -21,7 +21,7 @@ Generate type-safe protocol code (C++, Java) from Python message definitions.
 
 | Method | Encoding | Use Case | Bandwidth |
 |--------|----------|----------|-----------|
-| **serial8** | 8-bit binary | USB Serial + Bridge | High (full byte range) |
+| **binary** | 8-bit binary | USB Serial + Bridge | High (full byte range) |
 | **sysex** | 7-bit MIDI | Direct MIDI SysEx | Lower (7-bit constraint) |
 
 ## Prerequisites
@@ -49,12 +49,12 @@ uv sync
 ## Quick Start
 
 ```bash
-# Generate Serial8 protocol from example
+# Generate Binary protocol from example
 cd examples/simple-sensor-network
 protocol-codegen generate \
-    --method serial8 \
+    --method binary \
     --messages message \
-    --config protocol_config_serial8.py \
+    --config protocol_config_binary.py \
     --plugin-paths plugin_paths.py \
     --output-base . \
     --verbose
@@ -131,17 +131,17 @@ parameter_value = PrimitiveField('value', type_name=Type.NORM16)
 
 ## Configuration
 
-### Serial8 Configuration
+### Binary Configuration
 
 **protocol_config.py:**
 ```python
-from protocol_codegen.generators.orchestrators.serial8 import (
-    Serial8Config,
-    Serial8Limits,
+from protocol_codegen.generators.orchestrators.binary import (
+    BinaryConfig,
+    BinaryLimits,
 )
 
-PROTOCOL_CONFIG = Serial8Config(
-    limits=Serial8Limits(
+PROTOCOL_CONFIG = BinaryConfig(
+    limits=BinaryLimits(
         max_message_size=4096,  # Maximum message size
     ),
 )
@@ -189,9 +189,9 @@ PLUGIN_PATHS = {
 ## Generate Code
 
 ```bash
-# Serial8 protocol (recommended for high-bandwidth)
+# Binary protocol (recommended for high-bandwidth)
 protocol-codegen generate \
-    --method serial8 \
+    --method binary \
     --messages message \
     --config protocol_config.py \
     --plugin-paths plugin_paths.py \
@@ -283,10 +283,10 @@ transport.send(buffer, 0, len);
 
 ```bash
 # Generate protocol code
-protocol-codegen generate --method serial8 --messages ... --config ... --plugin-paths ... --output-base .
+protocol-codegen generate --method binary --messages ... --config ... --plugin-paths ... --output-base .
 
 # Validate messages without generating
-protocol-codegen validate --method serial8 --messages message --verbose
+protocol-codegen validate --method binary --messages message --verbose
 
 # List available protocol methods
 protocol-codegen list-methods
@@ -315,10 +315,10 @@ src/protocol_codegen/
 │   │   ├── cpp/                       # C++ backend + file_generators
 │   │   └── java/                      # Java backend + file_generators
 │   ├── protocols/                     # Protocol encoding strategies
-│   │   ├── serial8/                   # 8-bit binary encoding
+│   │   ├── binary/                   # 8-bit binary encoding
 │   │   └── sysex/                     # 7-bit MIDI encoding
 │   ├── orchestrators/                 # Main generators
-│   │   ├── serial8/                   # Serial8 generator + config
+│   │   ├── binary/                   # Binary generator + config
 │   │   └── sysex/                     # SysEx generator + config
 │   ├── compositions/                  # Language × Protocol renderers
 │   └── templates/                     # Encoder/Decoder templates
@@ -331,7 +331,7 @@ See `examples/simple-sensor-network/` for a complete example with:
 - 10+ messages with various field types
 - Nested composite types
 - Arrays (fixed and dynamic)
-- Both Serial8 and SysEx generation
+- Both Binary and SysEx generation
 - Full C++ and Java output
 
 ## Development
