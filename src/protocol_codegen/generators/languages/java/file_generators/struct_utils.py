@@ -2,7 +2,7 @@
 Common Java Struct Generator Utilities.
 
 Shared functions for generating Java message struct classes across protocols
-(Serial8, SysEx). Protocol-specific behavior is parameterized via EncodingStrategy.
+(Binary, SysEx). Protocol-specific behavior is parameterized via EncodingStrategy.
 
 This module provides:
 - Field analysis helpers (enum collection, import detection)
@@ -177,7 +177,7 @@ def generate_header(
         enum_names: Set of enum names to import
         package: Java package name
         encoding_description: Protocol-specific encoding description
-            (e.g., "8-bit binary (Serial8)" or "7-bit MIDI-safe")
+            (e.g., "8-bit binary (Binary)" or "7-bit MIDI-safe")
     """
     # Extract base package for imports
     # If package is "protocol.struct", base is "protocol"
@@ -424,7 +424,7 @@ def generate_encode_method(
         fields: Sequence of message fields
         type_registry: TypeRegistry for resolving types
         string_max_length: Max string length from protocol config
-        strategy: Encoding strategy (Serial8 or SysEx)
+        strategy: Encoding strategy (Binary or SysEx)
         include_message_name: Whether to include MESSAGE_NAME prefix in payload
     """
     # Calculate max payload size using PayloadCalculator
@@ -670,7 +670,7 @@ def generate_decode_method(
         fields: Sequence of message fields
         type_registry: TypeRegistry for resolving types
         string_max_length: Max string length from protocol config
-        strategy: Encoding strategy (Serial8 or SysEx)
+        strategy: Encoding strategy (Binary or SysEx)
         include_message_name: Whether MESSAGE_NAME prefix is in payload
     """
     # Calculate min payload size using PayloadCalculator

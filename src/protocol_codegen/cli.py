@@ -23,9 +23,9 @@ def cli():
 @cli.command()
 @click.option(
     "--method",
-    type=click.Choice(["sysex", "serial8"], case_sensitive=False),
+    type=click.Choice(["sysex", "binary"], case_sensitive=False),
     required=True,
-    help="Protocol method to use (sysex, serial8)",
+    help="Protocol method to use (sysex, binary)",
 )
 @click.option(
     "--messages",
@@ -98,12 +98,12 @@ def generate(
                 output_base=output_base_path,
                 verbose=verbose,
             )
-        elif method.lower() == "serial8":
-            from protocol_codegen.generators.orchestrators.serial8.generator import (
-                generate_serial8_protocol,
+        elif method.lower() == "binary":
+            from protocol_codegen.generators.orchestrators.binary.generator import (
+                generate_binary_protocol,
             )
 
-            generate_serial8_protocol(
+            generate_binary_protocol(
                 messages_dir=messages_path,
                 config_path=config_path,
                 plugin_paths_path=plugin_paths_path,
@@ -132,7 +132,7 @@ def generate(
 @cli.command()
 @click.option(
     "--method",
-    type=click.Choice(["sysex", "serial8"], case_sensitive=False),
+    type=click.Choice(["sysex", "binary"], case_sensitive=False),
     required=True,
     help="Protocol method to validate for",
 )
@@ -251,7 +251,7 @@ def list_methods():
     click.echo("📋 Available Protocol Methods:")
     click.echo()
     click.echo("  ✅ sysex    - MIDI System Exclusive protocol (7-bit)")
-    click.echo("  ✅ serial8  - Serial binary protocol (8-bit)")
+    click.echo("  ✅ binary   - Binary protocol (8-bit)")
     click.echo("  🔮 osc      - Open Sound Control (planned)")
     click.echo()
 

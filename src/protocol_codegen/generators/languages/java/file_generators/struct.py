@@ -65,7 +65,7 @@ def generate_struct_java(
         output_path: Path where message .java will be written
         string_max_length: Max string length from protocol config
         package: Java package name (e.g., 'protocol.struct')
-        strategy: Encoding strategy (Serial8EncodingStrategy or SysExEncodingStrategy)
+        strategy: Encoding strategy (BinaryEncodingStrategy or SysExEncodingStrategy)
         include_message_name: Include MESSAGE_NAME prefix in payload (None = use strategy default)
 
     Returns:

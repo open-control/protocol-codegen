@@ -8,7 +8,7 @@ from typing import TypedDict
 
 
 class StructureConfig(TypedDict):
-    """Serial8 structure configuration."""
+    """Binary structure configuration."""
 
     message_type_offset: int
     payload_offset: int
@@ -40,10 +40,10 @@ class ProtocolConfig(TypedDict, total=False):
     Unified protocol configuration.
 
     Used by constants generators for both C++ and Java.
-    - Serial8 uses: structure + limits
+    - Binary uses: structure + limits
     - SysEx uses: sysex + limits
     """
 
-    structure: StructureConfig  # Serial8
+    structure: StructureConfig  # Binary
     sysex: SysExFramingConfig  # SysEx
     limits: LimitsConfig

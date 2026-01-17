@@ -8,7 +8,7 @@ from protocol_codegen.core.loader import TypeRegistry
 from protocol_codegen.generators.languages.cpp import CppBackend
 from protocol_codegen.generators.languages.java import JavaBackend
 from protocol_codegen.generators.protocols import (
-    Serial8EncodingStrategy,
+    BinaryEncodingStrategy,
     SysExEncodingStrategy,
 )
 from protocol_codegen.generators.templates import EncoderTemplate
@@ -22,12 +22,12 @@ def type_registry() -> TypeRegistry:
     return registry
 
 
-class TestEncoderTemplateCppSerial8:
-    """Test EncoderTemplate with C++ and Serial8."""
+class TestEncoderTemplateCppBinary:
+    """Test EncoderTemplate with C++ and Binary."""
 
     @pytest.fixture
     def template(self) -> EncoderTemplate:
-        return EncoderTemplate(CppBackend(), Serial8EncodingStrategy())
+        return EncoderTemplate(CppBackend(), BinaryEncodingStrategy())
 
     def test_generates_code(self, template: EncoderTemplate, type_registry: TypeRegistry) -> None:
         code = template.generate(type_registry, Path("Encoder.hpp"))
@@ -59,14 +59,14 @@ class TestEncoderTemplateCppSerial8:
     def test_has_uint16_encoder(self, template: EncoderTemplate, type_registry: TypeRegistry) -> None:
         code = template.generate(type_registry, Path("Encoder.hpp"))
         assert "encodeUint16" in code
-        # Serial8: 2 bytes, little-endian
+        # Binary: 2 bytes, little-endian
         assert "val & 0xFF" in code
         assert "(val >> 8) & 0xFF" in code
 
     def test_has_uint32_encoder(self, template: EncoderTemplate, type_registry: TypeRegistry) -> None:
         code = template.generate(type_registry, Path("Encoder.hpp"))
         assert "encodeUint32" in code
-        # Serial8: 4 bytes
+        # Binary: 4 bytes
         assert "(val >> 24) & 0xFF" in code
 
     def test_has_float32_encoder(self, template: EncoderTemplate, type_registry: TypeRegistry) -> None:
@@ -77,7 +77,7 @@ class TestEncoderTemplateCppSerial8:
     def test_has_norm8_encoder(self, template: EncoderTemplate, type_registry: TypeRegistry) -> None:
         code = template.generate(type_registry, Path("Encoder.hpp"))
         assert "encodeNorm8" in code
-        # Serial8: max value 255
+        # Binary: max value 255
         assert "255" in code
 
     def test_has_string_encoder(self, template: EncoderTemplate, type_registry: TypeRegistry) -> None:
@@ -117,12 +117,12 @@ class TestEncoderTemplateCppSysEx:
         assert "127" in code
 
 
-class TestEncoderTemplateJavaSerial8:
-    """Test EncoderTemplate with Java and Serial8."""
+class TestEncoderTemplateJavaBinary:
+    """Test EncoderTemplate with Java and Binary."""
 
     @pytest.fixture
     def template(self) -> EncoderTemplate:
-        return EncoderTemplate(JavaBackend(), Serial8EncodingStrategy())
+        return EncoderTemplate(JavaBackend(), BinaryEncodingStrategy())
 
     def test_has_package(self, template: EncoderTemplate, type_registry: TypeRegistry) -> None:
         code = template.generate(type_registry, Path("Encoder.java"))
@@ -174,6 +174,6 @@ class TestEncoderTemplateCustomPackage:
 
     def test_custom_package(self, type_registry: TypeRegistry) -> None:
         backend = JavaBackend(package="com.example.protocol")
-        template = EncoderTemplate(backend, Serial8EncodingStrategy())
+        template = EncoderTemplate(backend, BinaryEncodingStrategy())
         code = template.generate(type_registry, Path("Encoder.java"))
         assert "package com.example.protocol;" in code

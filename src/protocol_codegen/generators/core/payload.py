@@ -4,7 +4,7 @@ Payload size calculator with strategy pattern.
 Calculates MAX_PAYLOAD_SIZE and MIN_PAYLOAD_SIZE for message structs
 using the appropriate encoding strategy for the protocol.
 
-All arrays are treated uniformly with a count byte prefix (Serial8 style).
+All arrays are treated uniformly with a count byte prefix (Binary style).
 """
 
 from __future__ import annotations

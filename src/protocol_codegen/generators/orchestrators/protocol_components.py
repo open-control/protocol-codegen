@@ -2,7 +2,7 @@
 Protocol Components Interface.
 
 Defines the abstract interface for protocol-specific components.
-Each protocol (Serial8, SysEx, etc.) implements this interface
+Each protocol (Binary, SysEx, etc.) implements this interface
 to provide its specific encoding strategy and renderers.
 
 This enables the unified BaseProtocolGenerator to work with any protocol
@@ -23,7 +23,7 @@ class ProtocolComponents(ABC):
     """
     Abstract interface for protocol-specific components.
 
-    Each protocol implementation (Serial8, SysEx, etc.) must provide:
+    Each protocol implementation (Binary, SysEx, etc.) must provide:
     - An encoding strategy for byte-level encoding/decoding
     - Protocol renderers for generating Protocol.hpp/java templates
 
@@ -31,9 +31,9 @@ class ProtocolComponents(ABC):
     while delegating protocol-specific behavior to implementations.
 
     Example usage:
-        class Serial8Components(ProtocolComponents):
+        class BinaryComponents(ProtocolComponents):
             def get_encoding_strategy(self) -> EncodingStrategy:
-                return Serial8EncodingStrategy()
+                return BinaryEncodingStrategy()
             ...
     """
 
@@ -43,7 +43,7 @@ class ProtocolComponents(ABC):
         Return the encoding strategy for this protocol.
 
         The encoding strategy defines how values are encoded to bytes
-        (e.g., 8-bit binary for Serial8, 7-bit for SysEx).
+        (e.g., 8-bit binary for Binary, 7-bit for SysEx).
 
         Returns:
             Protocol-specific EncodingStrategy instance

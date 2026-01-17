@@ -2,7 +2,7 @@
 Encoding Strategy Pattern for protocol-specific size calculations and code generation.
 
 This module defines the interface for encoding strategies used by
-Serial8 (8-bit binary) and SysEx (7-bit MIDI-safe) protocols.
+Binary (8-bit) and SysEx (7-bit MIDI-safe) protocols.
 
 The strategy provides:
 - Size calculations for payload estimation

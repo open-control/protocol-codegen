@@ -2,7 +2,7 @@
 Base Protocol Generator
 
 Abstract base class providing the common generation pipeline.
-Serial8Generator and SysExGenerator inherit from this.
+BinaryGenerator and SysExGenerator inherit from this.
 
 Key Design:
 - Unified _generate_cpp() and _generate_java() implementations
@@ -124,7 +124,7 @@ class BaseProtocolGenerator[ConfigT: ProtocolConfigProtocol](ABC):
     @property
     @abstractmethod
     def protocol_name(self) -> str:
-        """Return protocol name for logging (e.g., 'Serial8', 'SysEx')."""
+        """Return protocol name for logging (e.g., 'Binary', 'SysEx')."""
         ...
 
     @abstractmethod

@@ -10,11 +10,11 @@ Templates:
 
 Usage:
     from protocol_codegen.generators.languages.cpp import CppBackend
-    from protocol_codegen.generators.protocols.serial8 import Serial8EncodingStrategy
+    from protocol_codegen.generators.protocols.binary import BinaryEncodingStrategy
     from protocol_codegen.generators.templates import EncoderTemplate, DecoderTemplate
 
-    encoder = EncoderTemplate(CppBackend(), Serial8EncodingStrategy())
-    decoder = DecoderTemplate(CppBackend(), Serial8EncodingStrategy())
+    encoder = EncoderTemplate(CppBackend(), BinaryEncodingStrategy())
+    decoder = DecoderTemplate(CppBackend(), BinaryEncodingStrategy())
 """
 
 from .decoder import DecoderTemplate

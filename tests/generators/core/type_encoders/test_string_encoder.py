@@ -4,17 +4,17 @@ import pytest
 
 from protocol_codegen.generators.core.type_encoders import StringEncoder
 from protocol_codegen.generators.protocols import (
-    Serial8EncodingStrategy,
+    BinaryEncodingStrategy,
     SysExEncodingStrategy,
 )
 
 
-class TestStringEncoderSerial8:
-    """Test StringEncoder with Serial8 strategy."""
+class TestStringEncoderBinary:
+    """Test StringEncoder with Binary strategy."""
 
     @pytest.fixture
     def encoder(self) -> StringEncoder:
-        return StringEncoder(Serial8EncodingStrategy())
+        return StringEncoder(BinaryEncodingStrategy())
 
     def test_supported_types(self, encoder: StringEncoder) -> None:
         assert encoder.supported_types() == ("string",)
@@ -25,7 +25,7 @@ class TestStringEncoderSerial8:
         assert spec.method_name == "String"
         assert spec.byte_count == -1  # Variable
         assert len(spec.byte_writes) == 0  # Special handling
-        # Serial8: 8-bit masks
+        # Binary: 8-bit masks
         assert "LENGTH_MASK=0xFF" in spec.preamble
         assert "CHAR_MASK=0xFF" in spec.preamble
         assert "MAX_LENGTH=255" in spec.preamble

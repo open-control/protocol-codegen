@@ -1,7 +1,7 @@
 """
 Common utilities for protocol generators.
 
-Shared functions used by both Serial8 and SysEx orchestrators.
+Shared functions used by both Binary and SysEx orchestrators.
 """
 
 from __future__ import annotations

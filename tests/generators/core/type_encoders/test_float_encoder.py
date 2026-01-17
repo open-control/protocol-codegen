@@ -4,17 +4,17 @@ import pytest
 
 from protocol_codegen.generators.core.type_encoders import FloatEncoder
 from protocol_codegen.generators.protocols import (
-    Serial8EncodingStrategy,
+    BinaryEncodingStrategy,
     SysExEncodingStrategy,
 )
 
 
-class TestFloatEncoderSerial8:
-    """Test FloatEncoder with Serial8 strategy."""
+class TestFloatEncoderBinary:
+    """Test FloatEncoder with Binary strategy."""
 
     @pytest.fixture
     def encoder(self) -> FloatEncoder:
-        return FloatEncoder(Serial8EncodingStrategy())
+        return FloatEncoder(BinaryEncodingStrategy())
 
     def test_supported_types(self, encoder: FloatEncoder) -> None:
         assert encoder.supported_types() == ("float32",)

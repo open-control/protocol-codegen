@@ -1,7 +1,7 @@
 """
 Common C++ Struct Generator Utilities.
 
-Shared utilities for generating C++ struct headers across protocols (Serial8, SysEx).
+Shared utilities for generating C++ struct headers across protocols (Binary, SysEx).
 Protocol-specific behavior is controlled by EncodingStrategy and encoding_description.
 
 Both protocols use identical encode/decode mechanics - only the encoding description
@@ -84,7 +84,7 @@ def generate_header(
         description: Description for the header comment
         fields: Message fields
         type_registry: TypeRegistry for resolving field types
-        encoding_description: Encoding description for comment (e.g., "8-bit binary (Serial8)")
+        encoding_description: Encoding description for comment (e.g., "8-bit binary (Binary)")
     """
     needs_array, needs_string, needs_vector, enum_names = analyze_includes_needed(
         fields, type_registry

@@ -4,17 +4,17 @@ import pytest
 
 from protocol_codegen.generators.core.type_encoders import NormEncoder
 from protocol_codegen.generators.protocols import (
-    Serial8EncodingStrategy,
+    BinaryEncodingStrategy,
     SysExEncodingStrategy,
 )
 
 
-class TestNormEncoderSerial8:
-    """Test NormEncoder with Serial8 strategy."""
+class TestNormEncoderBinary:
+    """Test NormEncoder with Binary strategy."""
 
     @pytest.fixture
     def encoder(self) -> NormEncoder:
-        return NormEncoder(Serial8EncodingStrategy())
+        return NormEncoder(BinaryEncodingStrategy())
 
     def test_supported_types(self, encoder: NormEncoder) -> None:
         types = encoder.supported_types()
@@ -27,7 +27,7 @@ class TestNormEncoderSerial8:
         assert spec.method_name == "Norm8"
         assert spec.byte_count == 1
         assert len(spec.byte_writes) == 1
-        # Serial8: max 255
+        # Binary: max 255
         assert "NORM_SCALE=255" in spec.preamble
         assert "0xFF" in spec.byte_writes[0].expression
 

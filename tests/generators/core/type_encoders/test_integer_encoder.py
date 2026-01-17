@@ -4,17 +4,17 @@ import pytest
 
 from protocol_codegen.generators.core.type_encoders import IntegerEncoder
 from protocol_codegen.generators.protocols import (
-    Serial8EncodingStrategy,
+    BinaryEncodingStrategy,
     SysExEncodingStrategy,
 )
 
 
-class TestIntegerEncoderSerial8:
-    """Test IntegerEncoder with Serial8 strategy."""
+class TestIntegerEncoderBinary:
+    """Test IntegerEncoder with Binary strategy."""
 
     @pytest.fixture
     def encoder(self) -> IntegerEncoder:
-        return IntegerEncoder(Serial8EncodingStrategy())
+        return IntegerEncoder(BinaryEncodingStrategy())
 
     def test_supported_types(self, encoder: IntegerEncoder) -> None:
         types = encoder.supported_types()

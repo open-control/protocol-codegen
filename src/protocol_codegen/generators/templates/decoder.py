@@ -31,7 +31,7 @@ class DecoderTemplate(CodecTemplate):
 
     Generates complete decoder files for any combination of:
     - LanguageBackend: C++, Java, (future: Rust, Python, etc.)
-    - EncodingStrategy: Serial8 (8-bit), SysEx (7-bit)
+    - EncodingStrategy: Binary (8-bit), SysEx (7-bit)
 
     Uses TypeDecoders to produce DecoderMethodSpecs (language-agnostic decoding
     specifications), then calls backend.render_decoder_method() for

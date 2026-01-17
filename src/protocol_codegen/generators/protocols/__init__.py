@@ -3,7 +3,7 @@ Protocol-specific encoding and framing strategies.
 
 This module contains the protocol axis of the code generation:
 - base: EncodingStrategy abstract base class
-- serial8: 8-bit binary encoding
+- binary: 8-bit binary encoding
 - sysex: 7-bit MIDI SysEx encoding
 """
 
@@ -13,9 +13,9 @@ from protocol_codegen.generators.protocols.base import (
     NormEncodingSpec,
     StringEncodingSpec,
 )
-from protocol_codegen.generators.protocols.serial8 import (
-    Serial8EncodingStrategy,
-    Serial8FramingMixin,
+from protocol_codegen.generators.protocols.binary import (
+    BinaryEncodingStrategy,
+    BinaryFramingMixin,
 )
 from protocol_codegen.generators.protocols.sysex import (
     SysExEncodingStrategy,
@@ -28,9 +28,9 @@ __all__ = [
     "IntegerEncodingSpec",
     "NormEncodingSpec",
     "StringEncodingSpec",
-    # Serial8 protocol
-    "Serial8EncodingStrategy",
-    "Serial8FramingMixin",
+    # Binary protocol
+    "BinaryEncodingStrategy",
+    "BinaryFramingMixin",
     # SysEx protocol
     "SysExEncodingStrategy",
     "SysExFramingMixin",
@@ -43,7 +43,7 @@ def get_encoding_strategy(protocol: str) -> EncodingStrategy:
     """Factory function to get an encoding strategy by protocol name.
 
     Args:
-        protocol: Protocol identifier ('serial8', 'sysex')
+        protocol: Protocol identifier ('binary', 'sysex')
 
     Returns:
         Protocol-specific EncodingStrategy instance
@@ -52,7 +52,7 @@ def get_encoding_strategy(protocol: str) -> EncodingStrategy:
         ValueError: If protocol is not supported
     """
     strategies = {
-        "serial8": Serial8EncodingStrategy,
+        "binary": BinaryEncodingStrategy,
         "sysex": SysExEncodingStrategy,
     }
 

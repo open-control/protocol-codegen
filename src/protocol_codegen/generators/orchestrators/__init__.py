@@ -4,7 +4,7 @@ Protocol Generation Orchestrators.
 This module coordinates the full generation pipeline for each protocol type.
 
 Available orchestrators:
-- serial8: Serial8 protocol generation
+- binary: Binary protocol generation
 - sysex: SysEx protocol generation
 """
 

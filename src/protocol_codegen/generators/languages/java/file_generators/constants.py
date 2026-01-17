@@ -1,10 +1,10 @@
 """
 Java Constants Generator (Unified)
-Generates ProtocolConstants.java for both Serial8 and SysEx protocols.
+Generates ProtocolConstants.java for both Binary and SysEx protocols.
 
 This unified generator handles both protocol types by detecting the config format:
 - If 'sysex' key is present → SysEx protocol (7-bit MIDI framing)
-- If 'structure' key is present → Serial8 protocol (8-bit binary)
+- If 'structure' key is present → Binary protocol (8-bit binary)
 
 Key Features:
 - public static final for constants
@@ -46,7 +46,7 @@ def generate_constants_java(
 
     Automatically detects protocol type from config format:
     - 'sysex' key → SysEx protocol (7-bit MIDI framing)
-    - 'structure' key → Serial8 protocol (8-bit binary)
+    - 'structure' key → Binary protocol (8-bit binary)
 
     Args:
         protocol_config: Protocol configuration dict
@@ -58,7 +58,7 @@ def generate_constants_java(
     """
     # Detect protocol type and generate appropriate sections
     is_sysex = "sysex" in protocol_config
-    protocol_name = "SysEx" if is_sysex else "Serial8"
+    protocol_name = "SysEx" if is_sysex else "Binary"
 
     header = _generate_header(package, protocol_name, is_sysex)
 
@@ -117,7 +117,7 @@ public final class ProtocolConstants {{
 
 
 def _generate_structure_constants(structure_config: StructureConfig) -> str:
-    """Generate message structure constants for Serial8 protocol."""
+    """Generate message structure constants for Binary protocol."""
     lines: list[str] = []
 
     type_offset: int = structure_config.get("message_type_offset", 0)

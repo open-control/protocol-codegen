@@ -5,7 +5,7 @@ Common functions for generating Java encode/decode function calls.
 These are protocol-agnostic - the actual encoding logic is in the Encoder/Decoder classes.
 
 Note: get_decoder_call is NOT extracted here because it depends on _get_encoded_size
-which is protocol-specific (Serial8 vs SysEx have different size calculations).
+which is protocol-specific (Binary vs SysEx have different size calculations).
 This will be addressed in Phase 2 with the EncodingStrategy pattern.
 """
 

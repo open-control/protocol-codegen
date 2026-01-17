@@ -41,7 +41,7 @@ class ProtocolRendererBase(_RendererBase):
     - is_cpp: bool - Whether generating C++ code
     - is_java: bool - Whether generating Java code
     - default_transport_type: str - Default transport type name
-    - protocol_name: str - Protocol name (e.g., "Serial8", "SysEx")
+    - protocol_name: str - Protocol name (e.g., "Binary", "SysEx")
     """
 
     def render_file_header(self, output_path: Path) -> str: ...  # noqa: B027

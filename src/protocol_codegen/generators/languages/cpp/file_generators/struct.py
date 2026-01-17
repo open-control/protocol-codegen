@@ -56,7 +56,7 @@ def generate_struct_hpp(
         type_registry: TypeRegistry for resolving field types
         output_path: Path where struct .hpp will be written
         string_max_length: Maximum string length from config (e.g., 16)
-        strategy: Encoding strategy (Serial8EncodingStrategy or SysExEncodingStrategy)
+        strategy: Encoding strategy (BinaryEncodingStrategy or SysExEncodingStrategy)
         include_message_name: Include MESSAGE_NAME prefix in payload (None = use strategy default)
 
     Returns:
