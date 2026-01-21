@@ -64,7 +64,7 @@ def generate_protocol_template_hpp(messages: list[Message], output_path: Path) -
  * ============================================================================
  *
  * Binary over USB Serial (Teensy):
- *   - Transport: oc::hal::IFrameTransport& (UsbSerial)
+ *   - Transport: oc::interface::ITransport& (UsbSerial)
  *   - Framing: COBS (handled by transport)
  *   - Header: [MessageID][fromHost][payload...]
  *
@@ -100,7 +100,7 @@ def generate_protocol_template_hpp(messages: list[Message], output_path: Path) -
 // TODO: Add your transport include here
 // ============================================================================
 // Examples:
-//   #include <oc/hal/IFrameTransport.hpp>  // For Binary over USB
+//   #include <oc/interface/ITransport.hpp>  // For Binary over USB
 //   #include <oc/api/MidiAPI.hpp>           // For SysEx over MIDI
 //   #include "TcpSocket.hpp"                // For TCP socket
 
@@ -123,7 +123,7 @@ public:
     /**
      * Example for IFrameTransport:
      *
-     *   explicit Protocol(oc::hal::IFrameTransport& transport)
+     *   explicit Protocol(oc::interface::ITransport& transport)
      *       : transport_(transport)
      *   {{
      *       transport_.setOnReceive([this](const uint8_t* data, size_t len) {{
@@ -225,7 +225,7 @@ private:
     // TODO: Add your transport member(s) here
     // ========================================================================
     // Examples:
-    //   oc::hal::IFrameTransport& transport_;
+    //   oc::interface::ITransport& transport_;
     //   oc::api::MidiAPI& midi_;
     //   oc::core::event::IEventBus& events_;
     //   oc::core::event::SubscriptionID subscriptionId_{{0}};

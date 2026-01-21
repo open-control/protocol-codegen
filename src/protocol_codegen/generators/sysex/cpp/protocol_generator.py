@@ -254,7 +254,7 @@ private:
 // #include <oc/api/MidiAPI.hpp>
 // #include <oc/core/event/IEventBus.hpp>
 //
-// class MyContext : public oc::context::IContext {{
+// class MyContext : public oc::interface::IContext {{
 //     Protocol protocol_;
 //
 // public:

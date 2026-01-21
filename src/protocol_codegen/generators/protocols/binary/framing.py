@@ -53,7 +53,7 @@ class BinaryFramingMixin(_FramingMixinBase):
     @property
     def default_transport_type(self) -> str:
         if self.is_cpp:
-            return "oc::hal::IFrameTransport"
+            return "oc::interface::ITransport"
         return "IFrameTransport"
 
     def render_framing_constants(self) -> str:
@@ -121,7 +121,7 @@ class BinaryFramingMixin(_FramingMixinBase):
     def render_transport_includes(self) -> str:
         """Render transport-specific includes."""
         if self.is_cpp:
-            return '#include <oc/hal/IFrameTransport.hpp>\n'
+            return '#include <oc/interface/ITransport.hpp>\n'
         return ""
 
 
