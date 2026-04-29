@@ -478,7 +478,7 @@ static bool decodeString(
         """
         # visibility is ignored for C++ (uses section-based visibility)
         param_str = ", ".join(f"{t} {n}" for t, n in params)
-        lines = [f"static {return_type} {name}({param_str}) {{"]
+        lines = [f"static inline {return_type} {name}({param_str}) {{"]
         for line in body_lines:
             lines.append(f"    {line}")
         lines.append("}")
